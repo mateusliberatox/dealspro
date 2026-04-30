@@ -2,6 +2,7 @@ import { scrapeCssDeals } from '../scraper/index.js';
 import { getExistingHashes, insertProducts } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { logger } from '../utils/logger.js';
+import { dispatchNotifications } from '../notifications/index.js';
 
 /**
  * Core pipeline: scrape → diff → persist → return new products.
@@ -50,9 +51,7 @@ export async function detectAndSaveNewProducts() {
   const inserted = await insertProducts(rows);
   logger.success(`Saved ${inserted.length} new product(s)`);
 
-  // ── Phase 2 hook (notifications) ─────────────────────────────────────────
-  // await dispatchNotifications(inserted);
-  // ─────────────────────────────────────────────────────────────────────────
+  await dispatchNotifications(inserted);
 
   return inserted;
 }
