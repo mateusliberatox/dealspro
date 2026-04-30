@@ -1,23 +1,34 @@
 {
   "name": "dealspro",
   "version": "1.0.0",
-  "description": "Product monitoring and distribution system for cssdeals.com",
-  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "scrape": "node src/scraper/index.js",
-    "test:scraper": "node src/scraper/test.js",
-    "scrape:once": "node src/jobs/run-once.js"
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "scrape:once": "node src/jobs/run-once.js",
+    "test:scraper": "node src/scraper/test.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4"
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "next": "^15.3.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@tailwindcss/postcss": "^4",
     "dotenv": "^16.5.0",
+    "eslint": "^9",
+    "eslint-config-next": "^15.3.2",
     "node-cron": "^3.0.3",
-    "playwright": "^1.52.0"
+    "playwright": "^1.52.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   },
   "engines": {
     "node": ">=18.0.0"

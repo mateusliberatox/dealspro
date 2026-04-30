@@ -2,13 +2,17 @@ import { logger } from '../utils/logger.js';
 
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-const COLOR_DEAL = 0xf97316; // orange — stands out in dark theme
+const COLOR = 0xf97316; // orange
 
-/**
- * Sends new products to Discord as rich embeds.
- * Batches up to 10 embeds per request (Discord limit).
- * Silently skips if DISCORD_WEBHOOK_URL is not configured.
- */
+const CATEGORY_EMOJI = {
+  'Smartwatch': '⌚',
+  'Bolsa / Mochila': '👜',
+  'Roupas': '👕',
+  'Eletrônicos': '🔊',
+  'Calçados': '👟',
+  'Outros': '📦',
+};
+
 export async function sendToDiscord(products) {
   if (!WEBHOOK_URL) {
     logger.warn('DISCORD_WEBHOOK_URL not set — skipping notification');
@@ -16,39 +20,48 @@ export async function sendToDiscord(products) {
   }
   if (!products.length) return;
 
-  const batches = chunk(products, 10);
-
-  for (const batch of batches) {
-    const embeds = batch.map(buildEmbed);
-    await postWebhook({ embeds });
-    // Respect Discord rate limit between batches
-    if (batches.length > 1) await sleep(1000);
+  // Send one message per product for maximum visibility in the feed
+  for (const product of products) {
+    await postProduct(product);
+    if (products.length > 1) await sleep(1000); // respect rate limit
   }
 
   logger.success(`Discord: sent ${products.length} product(s)`);
 }
 
-function buildEmbed(product) {
-  const nome = truncate(product.nome, 200);
-  const preco = product.preco || 'N/A';
+async function postProduct(p) {
+  const nome = p.nome_traduzido || p.nome;
+  const original = p.nome_traduzido && p.nome_traduzido !== p.nome ? p.nome : null;
+  const emoji = CATEGORY_EMOJI[p.categoria] ?? '📦';
+  const categoria = p.categoria ?? 'Outros';
 
   const embed = {
-    title: nome,
-    url: product.link,
-    color: COLOR_DEAL,
+    color: COLOR,
+    author: {
+      name: `${emoji}  ${categoria.toUpperCase()}  •  cssdeals.com`,
+    },
+    title: truncate(nome, 200),
+    url: p.link,
     fields: [
-      { name: '💰 Preço', value: `**${preco}**`, inline: true },
-      { name: '🛒 Comprar', value: `[Ver produto](${product.link})`, inline: true },
+      { name: '💰 Preço', value: `**${p.preco || 'Ver no site'}**`, inline: true },
+      { name: '🛒 Comprar', value: `[Abrir produto](${p.link})`, inline: true },
     ],
-    footer: { text: 'cssdeals.com • DealsPro' },
+    footer: { text: 'DealsPro • cssdeals.com' },
     timestamp: new Date().toISOString(),
   };
 
-  if (product.imagem) {
-    embed.thumbnail = { url: product.imagem };
+  if (original) {
+    embed.description = `*Nome original: ${truncate(original, 150)}*`;
   }
 
-  return embed;
+  if (p.imagem) {
+    embed.image = { url: p.imagem };
+  }
+
+  await postWebhook({
+    content: '🔥 **Novo produto detectado!**',
+    embeds: [embed],
+  });
 }
 
 async function postWebhook(body) {
@@ -65,5 +78,4 @@ async function postWebhook(body) {
 }
 
 const truncate = (str, max) => str.length > max ? str.slice(0, max - 1) + '…' : str;
-const chunk = (arr, size) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
