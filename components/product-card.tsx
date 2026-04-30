@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import type { Produto } from '@/lib/types';
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -26,16 +25,16 @@ export function ProductCard({ produto }: { produto: Produto }) {
       rel="noopener noreferrer"
       className="group flex flex-col overflow-hidden rounded-xl border border-white/8 bg-[#141414] transition-all hover:border-orange-500/40 hover:bg-[#1a1a1a] hover:shadow-lg hover:shadow-orange-500/5"
     >
-      {/* Image */}
+      {/* Image — use plain <img> with no-referrer to bypass CDN hotlink protection */}
       <div className="relative aspect-square w-full overflow-hidden bg-[#1e1e1e]">
         {produto.imagem ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={produto.imagem}
             alt={nome}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            unoptimized
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-4xl">{emoji}</div>
@@ -62,7 +61,6 @@ export function ProductCard({ produto }: { produto: Produto }) {
           <p className="line-clamp-1 text-[11px] text-neutral-500">{produto.nome}</p>
         )}
 
-        {/* Sizes */}
         {produto.sizes?.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-0.5">
             {produto.sizes.map((s) => (

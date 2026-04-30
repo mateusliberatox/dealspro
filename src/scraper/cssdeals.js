@@ -75,6 +75,39 @@ export async function scrapeCssDeals() {
   }
 }
 
+/**
+ * Visits a product detail page and returns the first QC photo URL.
+ * QC photos are real pictures taken by buyers of the received product.
+ * Returns null if the page fails or no QC image is found.
+ */
+export async function fetchQcImage(detailUrl) {
+  const page = await newPage();
+  try {
+    await page.goto(detailUrl, { waitUntil: 'load', timeout: 20_000 });
+
+    const src = await page.evaluate(() => {
+      // First image inside the product gallery (slick slider)
+      const img =
+        document.querySelector('.single-slide .img-responsive') ??
+        document.querySelector('.single-pro-img .img-responsive') ??
+        document.querySelector('.mn-pro-img .img-responsive');
+      return img?.src ?? null;
+    });
+
+    if (!src) return null;
+
+    // Upgrade to a reasonable quality (800px wide, Q_80)
+    return src.replace(
+      /x-oss-process=image\/resize,w_\d+(\/quality,Q_\d+)?/,
+      'x-oss-process=image/resize,w_800/quality,Q_80',
+    );
+  } catch {
+    return null;
+  } finally {
+    await page.context().close();
+  }
+}
+
 export async function scrapeSelectors() {
   const page = await newPage();
   try {

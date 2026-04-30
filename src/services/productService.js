@@ -1,4 +1,4 @@
-import { scrapeCssDeals } from '../scraper/index.js';
+import { scrapeCssDeals, fetchQcImage } from '../scraper/index.js';
 import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
@@ -46,15 +46,17 @@ export async function detectAndSaveNewProducts() {
 
   if (!newItems.length) return [];
 
-  // 5. Enrich new items: translate + categorize
-  logger.info('Translating and categorizing new products...');
-  const enriched = await Promise.all(
-    newItems.map(async (p) => {
-      const nome_traduzido = await translateName(p.nome);
-      const categoria = categorize(p.nome, nome_traduzido);
-      return { ...p, nome_traduzido, categoria };
-    }),
-  );
+  // 5. Enrich new items: QC image + translate + categorize
+  logger.info('Fetching QC images, translating and categorizing new products...');
+  const enriched = [];
+  for (const p of newItems) {
+    const nome_traduzido = await translateName(p.nome);
+    const categoria      = categorize(p.nome, nome_traduzido);
+    const qcImage        = await fetchQcImage(p.link);
+    if (qcImage) logger.info(`QC image fetched for "${nome_traduzido || p.nome}"`);
+    enriched.push({ ...p, nome_traduzido, categoria, imagem: qcImage || p.imagem });
+    await new Promise((r) => setTimeout(r, 500)); // small delay between detail requests
+  }
 
   // 6. Persist
   const rows = enriched.map((p) => ({
