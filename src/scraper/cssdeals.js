@@ -20,11 +20,11 @@ export async function scrapeCssDeals() {
 
   try {
     logger.info(`Navigating to ${BASE_URL}`);
-    // networkidle ensures the AJAX calls that populate real products have completed
-    await page.goto(BASE_URL, { waitUntil: 'networkidle', timeout: 45_000 });
+    // Use 'load' — networkidle times out because the site has continuous background requests
+    await page.goto(BASE_URL, { waitUntil: 'load', timeout: 30_000 });
 
-    // Wait for a real product link to be present (itemid= distinguishes real from demo cards)
-    await page.waitForSelector('a[href*="itemid="]', { timeout: 20_000 });
+    // Wait for real products to appear via AJAX (itemid= distinguishes real from demo cards)
+    await page.waitForSelector('a[href*="itemid="]', { timeout: 30_000 });
 
     const products = await page.evaluate((baseUrl) => {
       const results = [];
@@ -85,7 +85,7 @@ export async function scrapeCssDeals() {
 export async function scrapeSelectors() {
   const page = await newPage();
   try {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.goto(BASE_URL, { waitUntil: 'load', timeout: 30_000 });
     await page.waitForTimeout(3000);
 
     const info = await page.evaluate(() => {
