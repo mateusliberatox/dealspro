@@ -27,7 +27,10 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: 'discord',
-      options: { redirectTo: `${location.origin}/alerts` },
+      options: {
+        redirectTo: `${location.origin}/auth/callback?next=/alerts`,
+        scopes: 'identify email',
+      },
     });
   };
 
@@ -37,7 +40,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
     startTrans(async () => {
       const supabase = createClient();
       const { data, error: err } = await supabase
-        .from('user_alerts')
+        .from('user_alerts_dealspro')
         .insert({ user_id: userId, keyword: keyword.trim(), size: size || null })
         .select()
         .single();

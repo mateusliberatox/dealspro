@@ -19,7 +19,7 @@ export default async function AlertsPage() {
     .single();
 
   const { data: alerts } = await supabase
-    .from('user_alerts')
+    .from('user_alerts_dealspro')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });

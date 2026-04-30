@@ -97,7 +97,10 @@ export default function LoginPage() {
             const supabase = createClient();
             await supabase.auth.signInWithOAuth({
               provider: 'discord',
-              options: { redirectTo: `${location.origin}/` },
+              options: {
+                redirectTo: `${location.origin}/auth/callback`,
+                scopes: 'identify email',
+              },
             });
           }}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#5865F2] py-2.5 text-sm font-semibold text-white hover:bg-[#4752c4] transition-colors"

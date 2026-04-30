@@ -42,7 +42,8 @@
       "mcp__claude_ai_Vercel__list_projects",
       "Bash(vercel --version)",
       "Bash(npx vercel *)",
-      "Bash(git commit -m 'fix: wrap Supabase call in try-catch so build succeeds without env vars *)"
+      "Bash(git commit -m 'fix: wrap Supabase call in try-catch so build succeeds without env vars *)",
+      "Bash(git commit -m 'fix: domcontentloaded + longer timeouts to avoid GitHub Actions timeout *)"
     ]
   }
 }

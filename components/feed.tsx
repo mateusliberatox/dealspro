@@ -9,11 +9,17 @@ export function Feed({ produtos }: { produtos: Produto[] }) {
   const [categoria, setCategoria] = useState<string>('Todos');
   const [size, setSize]           = useState<string>('');
 
-  // Collect unique sizes across all products (only show filter if any exist)
   const allSizes = useMemo(() => {
     const set = new Set<string>();
     produtos.forEach((p) => p.sizes?.forEach((s) => set.add(s)));
-    return [...set].sort();
+    return [...set].sort((a, b) => {
+      // Sort: letter sizes first (S,M,L…), then numeric ascending
+      const aNum = Number(a), bNum = Number(b);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      if (isNaN(aNum) && !isNaN(bNum)) return -1;
+      if (!isNaN(aNum) && isNaN(bNum)) return 1;
+      return a.localeCompare(b);
+    });
   }, [produtos]);
 
   const filtered = useMemo(() => {
@@ -24,6 +30,13 @@ export function Feed({ produtos }: { produtos: Produto[] }) {
     });
   }, [produtos, categoria, size]);
 
+  const btnBase = 'rounded-full px-4 py-1.5 text-sm font-medium transition-all';
+  const btnActive = 'bg-orange-500 text-white';
+  const btnInactive = 'hover:text-white';
+
+  const sizeBtnBase = 'rounded border px-2.5 py-0.5 text-xs font-medium transition-all';
+  const sizeBtnActive = 'border-orange-500 text-orange-400';
+
   return (
     <div className="space-y-5">
       {/* Category filter */}
@@ -32,28 +45,22 @@ export function Feed({ produtos }: { produtos: Produto[] }) {
           <button
             key={cat}
             onClick={() => setCategoria(cat)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
-              categoria === cat
-                ? 'bg-orange-500 text-white'
-                : 'bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-neutral-200'
-            }`}
+            className={`${btnBase} ${categoria === cat ? btnActive : btnInactive}`}
+            style={categoria === cat ? {} : { color: 'var(--text-3)', background: 'var(--surface)' }}
           >
             {cat}
           </button>
         ))}
       </div>
 
-      {/* Size filter — only shown when products with sizes exist */}
+      {/* Size filter */}
       {allSizes.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-neutral-500">Tamanho:</span>
+          <span className="text-xs" style={{ color: 'var(--text-3)' }}>Tamanho:</span>
           <button
             onClick={() => setSize('')}
-            className={`rounded border px-2.5 py-0.5 text-xs font-medium transition-all ${
-              size === ''
-                ? 'border-orange-500 text-orange-400'
-                : 'border-white/10 text-neutral-400 hover:border-white/30'
-            }`}
+            className={`${sizeBtnBase} ${size === '' ? sizeBtnActive : ''}`}
+            style={size === '' ? {} : { borderColor: 'var(--border)', color: 'var(--text-3)' }}
           >
             Todos
           </button>
@@ -61,11 +68,8 @@ export function Feed({ produtos }: { produtos: Produto[] }) {
             <button
               key={s}
               onClick={() => setSize(s === size ? '' : s)}
-              className={`rounded border px-2.5 py-0.5 text-xs font-medium transition-all ${
-                size === s
-                  ? 'border-orange-500 text-orange-400'
-                  : 'border-white/10 text-neutral-400 hover:border-white/30'
-              }`}
+              className={`${sizeBtnBase} ${size === s ? sizeBtnActive : ''}`}
+              style={size === s ? {} : { borderColor: 'var(--border)', color: 'var(--text-3)' }}
             >
               {s}
             </button>
@@ -73,7 +77,7 @@ export function Feed({ produtos }: { produtos: Produto[] }) {
         </div>
       )}
 
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm" style={{ color: 'var(--text-3)' }}>
         {filtered.length} produto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
       </p>
 
@@ -84,8 +88,11 @@ export function Feed({ produtos }: { produtos: Produto[] }) {
           ))}
         </div>
       ) : (
-        <div className="flex h-40 items-center justify-center rounded-xl border border-white/8 bg-[#141414]">
-          <p className="text-neutral-500">Nenhum produto com esses filtros.</p>
+        <div
+          className="flex h-40 items-center justify-center rounded-xl border"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <p style={{ color: 'var(--text-3)' }}>Nenhum produto com esses filtros.</p>
         </div>
       )}
     </div>

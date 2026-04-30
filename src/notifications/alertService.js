@@ -11,7 +11,7 @@ export async function matchAndNotify(products) {
 
   // Fetch all active alerts for premium users
   const { data: alerts, error } = await supabase
-    .from('user_alerts')
+    .from('user_alerts_dealspro')
     .select('id, user_id, keyword, size, dealspro_profiles!inner(plan, discord_user_id)')
     .eq('is_active', true)
     .eq('dealspro_profiles.plan', 'premium');
