@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
+import { CategorySelect } from '@/components/category-select';
 import type { Produto } from '@/lib/types';
 
 export default async function AdminPage() {
@@ -46,25 +47,26 @@ export default async function AdminPage() {
       <main className="mx-auto max-w-6xl px-4 py-8 space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-white">Painel Admin</h1>
-          <p className="mt-1 text-sm text-neutral-500">Visão geral dos produtos coletados</p>
+          <p className="mt-1 text-sm text-neutral-500">
+            {count} produtos · clique na categoria para editar
+          </p>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label="Total de produtos" value={count ?? 0} />
+          <StatCard label="Total" value={count ?? 0} />
           {Object.entries(byCategory ?? {}).map(([cat, qty]) => (
             <StatCard key={cat} label={cat} value={qty} />
           ))}
         </div>
 
-        {/* Product table */}
-        <div className="overflow-hidden rounded-xl border border-white/8 bg-[#141414]">
+        <div className="overflow-x-auto rounded-xl border border-white/8 bg-[#141414]">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/8 text-left text-xs text-neutral-500">
                 <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Categoria</th>
+                <th className="px-4 py-3">Tamanhos</th>
                 <th className="px-4 py-3">Preço</th>
                 <th className="px-4 py-3">Coletado em</th>
               </tr>
@@ -74,12 +76,21 @@ export default async function AdminPage() {
                 <tr key={p.id} className="hover:bg-white/3 transition-colors">
                   <td className="px-4 py-2.5 text-neutral-500">{p.id}</td>
                   <td className="px-4 py-2.5 max-w-xs">
-                    <a href={p.link} target="_blank" rel="noopener noreferrer"
-                       className="line-clamp-1 text-neutral-200 hover:text-orange-400 transition-colors">
+                    <a
+                      href={p.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="line-clamp-1 text-neutral-200 hover:text-orange-400 transition-colors"
+                    >
                       {p.nome_traduzido || p.nome}
                     </a>
                   </td>
-                  <td className="px-4 py-2.5 text-neutral-400">{p.categoria ?? '—'}</td>
+                  <td className="px-4 py-2.5">
+                    <CategorySelect id={p.id} current={p.categoria} />
+                  </td>
+                  <td className="px-4 py-2.5 text-neutral-500 text-xs">
+                    {p.sizes?.length ? p.sizes.join(', ') : '—'}
+                  </td>
                   <td className="px-4 py-2.5 font-medium text-orange-400">{p.preco}</td>
                   <td className="px-4 py-2.5 text-neutral-500 text-xs">
                     {new Date(p.criado_em).toLocaleString('pt-BR')}

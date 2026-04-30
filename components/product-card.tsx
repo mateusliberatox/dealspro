@@ -11,13 +11,13 @@ const CATEGORY_EMOJI: Record<string, string> = {
 };
 
 function isNew(criado_em: string) {
-  return Date.now() - new Date(criado_em).getTime() < 30 * 60 * 1000; // 30 min
+  return Date.now() - new Date(criado_em).getTime() < 30 * 60 * 1000;
 }
 
 export function ProductCard({ produto }: { produto: Produto }) {
-  const nome = produto.nome_traduzido || produto.nome;
+  const nome  = produto.nome_traduzido || produto.nome;
   const emoji = CATEGORY_EMOJI[produto.categoria ?? ''] ?? '📦';
-  const novo = isNew(produto.criado_em);
+  const novo  = isNew(produto.criado_em);
 
   return (
     <a
@@ -41,14 +41,12 @@ export function ProductCard({ produto }: { produto: Produto }) {
           <div className="flex h-full items-center justify-center text-4xl">{emoji}</div>
         )}
 
-        {/* NEW badge */}
         {novo && (
           <span className="absolute left-2 top-2 rounded-md bg-green-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
             Novo
           </span>
         )}
 
-        {/* Category pill */}
         {produto.categoria && (
           <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-neutral-300 backdrop-blur-sm">
             {emoji} {produto.categoria}
@@ -59,9 +57,25 @@ export function ProductCard({ produto }: { produto: Produto }) {
       {/* Info */}
       <div className="flex flex-1 flex-col gap-1.5 p-3">
         <p className="line-clamp-2 text-sm font-medium leading-snug text-neutral-100">{nome}</p>
+
         {produto.nome_traduzido && produto.nome_traduzido !== produto.nome && (
           <p className="line-clamp-1 text-[11px] text-neutral-500">{produto.nome}</p>
         )}
+
+        {/* Sizes */}
+        {produto.sizes?.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {produto.sizes.map((s) => (
+              <span
+                key={s}
+                className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-neutral-400"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="mt-auto flex items-center justify-between pt-2">
           <span className="text-base font-bold text-orange-400">{produto.preco || '—'}</span>
           <span className="text-[11px] text-neutral-600">

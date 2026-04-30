@@ -36,6 +36,9 @@ export function Header() {
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
             <>
+              <Link href="/alerts" className="text-neutral-400 hover:text-white transition-colors">
+                Alertas
+              </Link>
               <Link href="/admin" className="text-neutral-400 hover:text-white transition-colors">
                 Admin
               </Link>
