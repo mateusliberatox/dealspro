@@ -11,7 +11,9 @@
     "test:scraper": "node src/scraper/test.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4",
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "devDependencies": {
     "dotenv": "^16.5.0",
     "node-cron": "^3.0.3",
     "playwright": "^1.52.0"
