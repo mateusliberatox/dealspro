@@ -22,8 +22,9 @@ export async function scrapeCssDeals() {
 
   try {
     logger.info(`Navigating to ${BASE_URL}`);
-    await page.goto(BASE_URL, { waitUntil: 'load', timeout: 30_000 });
-    await page.waitForSelector('a[href*="itemid="]', { timeout: 30_000 });
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    // Wait for real products (loaded via AJAX after DOM is ready)
+    await page.waitForSelector('a[href*="itemid="]', { timeout: 35_000 });
 
     const rawProducts = await page.evaluate((baseUrl) => {
       const results = [];
@@ -83,7 +84,8 @@ export async function scrapeCssDeals() {
 export async function fetchQcImage(detailUrl) {
   const page = await newPage();
   try {
-    await page.goto(detailUrl, { waitUntil: 'load', timeout: 20_000 });
+    await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForTimeout(1500); // let AJAX populate gallery
 
     const src = await page.evaluate(() => {
       // First image inside the product gallery (slick slider)
@@ -111,7 +113,7 @@ export async function fetchQcImage(detailUrl) {
 export async function scrapeSelectors() {
   const page = await newPage();
   try {
-    await page.goto(BASE_URL, { waitUntil: 'load', timeout: 30_000 });
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForTimeout(3000);
 
     const info = await page.evaluate(() => {
