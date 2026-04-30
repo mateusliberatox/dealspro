@@ -1,0 +1,22 @@
+{
+  "name": "dealspro",
+  "version": "1.0.0",
+  "description": "Product monitoring and distribution system for cssdeals.com",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "scrape": "node src/scraper/index.js",
+    "test:scraper": "node src/scraper/test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "dotenv": "^16.5.0",
+    "node-cron": "^3.0.3",
+    "playwright": "^1.52.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
