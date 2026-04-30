@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   const limit = Math.min(parseInt(req.query.limit ?? '50', 10), 200);
 
   const { data, error } = await supabase
-    .from('produtos')
+    .from('produtos_dealspro')
     .select('id, nome, preco, link, imagem, categoria, criado_em')
     .order('criado_em', { ascending: false })
     .limit(limit);

@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js';
 
-const TABLE = 'produtos';
+const TABLE = 'produtos_dealspro';
 
 /**
  * Returns the set of hashes already stored in the database.
