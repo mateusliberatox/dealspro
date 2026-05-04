@@ -16,9 +16,7 @@ export function ProductCard({ produto }: { produto: Produto }) {
 
   return (
     <a
-      href={produto.link}
-      target="_blank"
-      rel="noopener noreferrer"
+      href={`/go/${produto.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border transition-all"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(249,115,22,0.4)'; (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}

@@ -5,7 +5,7 @@ import { ProductCard } from './product-card';
 import type { Produto } from '@/lib/types';
 import { CATEGORIES } from '@/lib/types';
 
-export function Feed({ produtos }: { produtos: Produto[] }) {
+export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isPremium?: boolean }) {
   const [categoria, setCategoria] = useState<string>('Todos');
   const [size, setSize]           = useState<string>('');
 

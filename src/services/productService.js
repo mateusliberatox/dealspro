@@ -6,12 +6,11 @@ import { categorize } from '../utils/categorize.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
+import { sendFreeDelayedNotifications } from '../notifications/discord.js';
+import { supabase } from '../database/supabase.js';
 
-// Max QC image fetches per cycle.
-// On cold-start (empty DB), hundreds of new products would each require
-// visiting a detail page — this cap prevents timeout on GitHub Actions.
-// Normal cycles have 0-10 new products, so QC is fetched for all of them.
-const MAX_QC_FETCHES = 8;
+const MAX_QC_FETCHES   = 8;
+const FREE_DELAY_MS    = 30 * 60 * 1000; // 30 minutes
 
 export async function detectAndSaveNewProducts() {
   logger.info('Starting detection cycle');
@@ -19,6 +18,9 @@ export async function detectAndSaveNewProducts() {
   // 0. Housekeeping
   const deleted = await deleteOldProducts();
   if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
+
+  // 0b. Send delayed free Discord notifications for products now past visible_at
+  await sendFreeDelayedNotifications();
 
   // 1. Scrape all pages
   const scraped = await scrapeCssDeals();
@@ -54,11 +56,7 @@ export async function detectAndSaveNewProducts() {
 
   // 5. Enrich: translate + categorize + QC image (capped)
   const qcEligible = newItems.length <= MAX_QC_FETCHES;
-  if (!qcEligible) {
-    logger.info(`${newItems.length} new products — skipping QC images (bulk import, cap=${MAX_QC_FETCHES})`);
-  } else {
-    logger.info(`Enriching ${newItems.length} new products (translate + QC image)...`);
-  }
+  if (!qcEligible) logger.info(`${newItems.length} new products — skipping QC (bulk import)`);
 
   const enriched = [];
   for (const p of newItems) {
@@ -68,17 +66,15 @@ export async function detectAndSaveNewProducts() {
     let imagem = p.imagem;
     if (qcEligible) {
       const qc = await fetchQcImage(p.link);
-      if (qc) {
-        imagem = qc;
-        logger.info(`  QC ✓ ${nome_traduzido || p.nome}`);
-      }
+      if (qc) imagem = qc;
       await new Promise((r) => setTimeout(r, 400));
     }
 
     enriched.push({ ...p, nome_traduzido, categoria, imagem });
   }
 
-  // 6. Persist
+  // 6. Persist with visible_at = now + 30min (free delay)
+  const visibleAt = new Date(Date.now() + FREE_DELAY_MS).toISOString();
   const rows = enriched.map((p) => ({
     nome:           p.nome,
     nome_traduzido: p.nome_traduzido,
@@ -88,12 +84,14 @@ export async function detectAndSaveNewProducts() {
     hash:           p.hash,
     categoria:      p.categoria,
     sizes:          p.sizes ?? [],
+    visible_at:     visibleAt,
+    free_notified:  false,
   }));
 
   const inserted = await insertProducts(rows);
-  logger.success(`Saved ${inserted.length} new product(s)`);
+  logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
 
-  // 7. Notifications
+  // 7. Premium webhook fires immediately; free webhook fires after visible_at (handled in next cycles)
   await dispatchNotifications(inserted);
   await matchAndNotify(inserted);
 

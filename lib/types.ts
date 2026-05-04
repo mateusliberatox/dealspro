@@ -7,6 +7,7 @@ export interface Produto {
   imagem: string;
   categoria: string | null;
   sizes: string[];
+  visible_at: string;
   criado_em: string;
 }
 

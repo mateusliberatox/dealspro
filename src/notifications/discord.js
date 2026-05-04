@@ -1,7 +1,8 @@
 import { logger } from '../utils/logger.js';
 
-const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
-const BOT_TOKEN   = process.env.DISCORD_BOT_TOKEN;
+const WEBHOOK_URL      = process.env.DISCORD_WEBHOOK_URL;
+const FREE_WEBHOOK_URL = process.env.DISCORD_FREE_WEBHOOK_URL;
+const BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_API = 'https://discord.com/api/v10';
 
 const COLOR = 0xf97316;
@@ -30,6 +31,49 @@ export async function sendToDiscord(products) {
   }
 
   logger.success(`Discord webhook: sent ${products.length} product(s)`);
+}
+
+// ── Free channel (delayed 30 min) ────────────────────────────────────────────
+
+/**
+ * Called every scraper cycle. Sends to the free webhook any products
+ * that have now passed their visible_at and haven't been notified yet.
+ */
+export async function sendFreeDelayedNotifications() {
+  if (!FREE_WEBHOOK_URL) return;
+
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const { data: due } = await supabase
+    .from('produtos_dealspro')
+    .select('*')
+    .lte('visible_at', new Date().toISOString())
+    .eq('free_notified', false)
+    .order('criado_em', { ascending: true })
+    .limit(20);
+
+  if (!due?.length) return;
+
+  for (const product of due) {
+    try {
+      await postWebhook(FREE_WEBHOOK_URL, {
+        content: '⏰ **Novo produto disponível!**',
+        embeds: [buildEmbed(product)],
+      });
+    } catch (err) {
+      logger.error(`Free webhook failed for ${product.id}: ${err.message}`);
+    }
+
+    await supabase
+      .from('produtos_dealspro')
+      .update({ free_notified: true })
+      .eq('id', product.id);
+
+    await sleep(1000);
+  }
+
+  logger.success(`Free Discord: sent ${due.length} delayed notification(s)`);
 }
 
 // ── Direct Message (premium alerts) ──────────────────────────────────────────

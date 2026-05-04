@@ -43,7 +43,14 @@
       "Bash(vercel --version)",
       "Bash(npx vercel *)",
       "Bash(git commit -m 'fix: wrap Supabase call in try-catch so build succeeds without env vars *)",
-      "Bash(git commit -m 'fix: domcontentloaded + longer timeouts to avoid GitHub Actions timeout *)"
+      "Bash(git commit -m 'fix: domcontentloaded + longer timeouts to avoid GitHub Actions timeout *)",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "mcp__claude_ai_Vercel__get_project",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" run watch 25319355159 --repo mateusliberatox/dealspro)",
+      "Bash(git commit -m 'fix: cap QC fetches + batch category scraping to prevent timeout *)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" run view 25320941376 --repo mateusliberatox/dealspro --log-failed)",
+      "Bash(git commit -m 'fix: tasks is not defined in log after refactor *)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" run watch 25321420002 --repo mateusliberatox/dealspro)"
     ]
   }
 }
