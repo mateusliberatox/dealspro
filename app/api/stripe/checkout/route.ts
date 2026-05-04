@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     customer: profile?.stripe_customer_id ?? undefined,
     customer_email: profile?.stripe_customer_id ? undefined : user.email,
     success_url: `${origin}/upgrade/sucesso?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/upgrade`,
+    cancel_url: `${origin}/upgrade/cancelado`,
     metadata: { user_id: user.id },
     subscription_data: {
       metadata: { user_id: user.id },

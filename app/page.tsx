@@ -46,14 +46,14 @@ async function getPageData() {
       upcomingCount = count ?? 0;
     }
 
-    return { produtos: (produtos as Produto[]) ?? [], isPremium, upcomingCount };
+    return { produtos: (produtos as Produto[]) ?? [], isPremium, upcomingCount, isLoggedIn: !!user };
   } catch {
     return { produtos: [], isPremium: false, upcomingCount: 0 };
   }
 }
 
 export default async function HomePage() {
-  const { produtos, isPremium, upcomingCount } = await getPageData();
+  const { produtos, isPremium, upcomingCount, isLoggedIn } = await getPageData();
 
   return (
     <div className="min-h-screen">
@@ -71,7 +71,7 @@ export default async function HomePage() {
           {/* FOMO CTA for free users */}
           {!isPremium && upcomingCount > 0 && (
             <a
-              href="/login"
+              href={isLoggedIn ? '/upgrade' : '/login'}
               className="flex items-center gap-2 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-2.5 text-sm transition-colors hover:bg-orange-500/20"
             >
               <span className="text-lg">🔒</span>

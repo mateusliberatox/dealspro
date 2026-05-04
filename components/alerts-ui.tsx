@@ -55,7 +55,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const toggleAlert = (id: string, current: boolean) => {
     startTrans(async () => {
       const supabase = createClient();
-      await supabase.from('user_alerts').update({ is_active: !current }).eq('id', id);
+      await supabase.from('user_alerts_dealspro').update({ is_active: !current }).eq('id', id);
       setAlerts((prev) =>
         prev.map((a) => (a.id === id ? { ...a, is_active: !current } : a)),
       );
@@ -65,7 +65,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const deleteAlert = (id: string) => {
     startTrans(async () => {
       const supabase = createClient();
-      await supabase.from('user_alerts').delete().eq('id', id);
+      await supabase.from('user_alerts_dealspro').delete().eq('id', id);
       setAlerts((prev) => prev.filter((a) => a.id !== id));
     });
   };

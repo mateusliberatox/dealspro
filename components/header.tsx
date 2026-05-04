@@ -77,9 +77,12 @@ export function Header() {
               <button onClick={signOut} className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
                 Sair
               </button>
-              <span className="rounded-full bg-orange-500/20 px-3 py-1 text-xs font-medium text-orange-400">
+              <Link
+                href="/minha-conta"
+                className="rounded-full bg-orange-500/20 px-3 py-1 text-xs font-medium text-orange-400 hover:bg-orange-500/30 transition-colors"
+              >
                 {user.email?.split('@')[0]}
-              </span>
+              </Link>
               <Link
                 href="/upgrade"
                 className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600 transition-colors"
