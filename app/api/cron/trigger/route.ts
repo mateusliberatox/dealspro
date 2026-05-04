@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GITHUB_TOKEN = process.env.GITHUB_PAT;
+const GITHUB_TOKEN = process.env.GH_PAT;
 const REPO         = 'mateusliberatox/dealspro';
 const WORKFLOW     = 'scraper.yml';
 const CRON_SECRET  = process.env.CRON_SECRET;
