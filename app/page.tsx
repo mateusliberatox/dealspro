@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { Feed } from '@/components/feed';
+import { AdUnit } from '@/components/ad-unit';
 import type { Produto } from '@/lib/types';
 
 export const revalidate = 30;
@@ -84,15 +85,13 @@ export default async function HomePage() {
           )}
         </div>
 
-        {/* Ad banner slot — replace with AdSense or other network */}
-        <div
-          id="ad-banner-top"
-          className="mb-6 flex h-16 items-center justify-center rounded-xl border text-xs"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-4)', background: 'var(--surface)' }}
-        >
-          {/* INSERT AD CODE HERE */}
-          Publicidade
-        </div>
+        {/* AdSense — banner top */}
+        <AdUnit
+          slot="1621510108"
+          format="horizontal"
+          className="mb-6"
+          style={{ minHeight: 90 }}
+        />
 
         <Feed produtos={produtos} isPremium={isPremium} />
       </main>

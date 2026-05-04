@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { RedirectCountdown } from '@/components/redirect-countdown';
+import { AdUnit } from '@/components/ad-unit';
 import type { Produto } from '@/lib/types';
 
 async function trackClick(productId: number, userId: string | null) {
@@ -39,15 +40,13 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
           <p className="mt-1 text-2xl font-bold text-orange-400">{(product as Produto).preco}</p>
         </div>
 
-        {/* Ad zone — replace with real ad code */}
-        <div
-          id="ad-redirect"
-          className="flex h-32 w-full items-center justify-center rounded-xl border text-xs"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-4)', background: 'var(--surface)' }}
-        >
-          {/* INSERT AD CODE HERE — e.g. Google AdSense 336x280 */}
-          Publicidade
-        </div>
+        {/* AdSense — rectangle (redirect page) */}
+        <AdUnit
+          slot="1621510108"
+          format="rectangle"
+          className="w-full"
+          style={{ minHeight: 250 }}
+        />
 
         <RedirectCountdown href={(product as Produto).link} seconds={5} />
 

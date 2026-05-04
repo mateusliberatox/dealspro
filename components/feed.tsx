@@ -2,8 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import { ProductCard } from './product-card';
+import { AdUnit } from './ad-unit';
 import type { Produto } from '@/lib/types';
 import { CATEGORIES } from '@/lib/types';
+
+const AD_EVERY = 12;
+const chunk = <T,>(arr: T[], size: number): T[][] =>
+  Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 
 export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isPremium?: boolean }) {
   const [categoria, setCategoria] = useState<string>('Todos');
@@ -82,9 +87,24 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
       </p>
 
       {filtered.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} produto={p} />
+        <div className="space-y-6">
+          {chunk(filtered, AD_EVERY).map((group, gi) => (
+            <div key={gi}>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {group.map((p) => (
+                  <ProductCard key={p.id} produto={p} />
+                ))}
+              </div>
+              {/* AdSense between groups (not after the last one) */}
+              {gi < Math.ceil(filtered.length / AD_EVERY) - 1 && (
+                <AdUnit
+                  slot="1621510108"
+                  format="horizontal"
+                  className="mt-4"
+                  style={{ minHeight: 90 }}
+                />
+              )}
+            </div>
           ))}
         </div>
       ) : (
