@@ -140,7 +140,8 @@ export async function scrapeCssDeals() {
     }
   }
 
-  logger.success(`Total unique products scraped: ${merged.length} (from ${tasks.length} pages)`);
+  const pageCount = 1 + CATEGORY_PAGES.length;
+  logger.success(`Total unique products scraped: ${merged.length} (from ${pageCount} pages)`);
   return merged;
 }
 
