@@ -17,10 +17,9 @@ const CATEGORY_PAGES = [
   { name: 'Electronics', id: 19 },
   { name: 'Hat&Bags',    id: 26 },
   { name: 'Watches',     id: 20 },
-  { name: 'T-shirts',    id: 14 },
-  { name: 'Hoodie',      id: 32 },
-  { name: 'Pants',       id: 15 },
 ];
+
+const BATCH_SIZE = 3; // max concurrent Playwright contexts
 
 /**
  * Extracts product cards from whatever cssdeals listing page is already loaded.
@@ -113,13 +112,19 @@ async function scrapeCategory(categoryId, categoryName) {
 export async function scrapeCssDeals() {
   logger.info('Starting multi-page scrape...');
 
-  // Run homepage + all categories in parallel (Playwright handles multiple contexts)
-  const tasks = [
-    scrapeHomepage(),
-    ...CATEGORY_PAGES.map((c) => scrapeCategory(c.id, c.name)),
-  ];
+  // Homepage first, then categories in batches to control memory/time
+  const homepageResult = await Promise.allSettled([scrapeHomepage()]);
 
-  const results = await Promise.allSettled(tasks);
+  const categoryResults = [];
+  for (let i = 0; i < CATEGORY_PAGES.length; i += BATCH_SIZE) {
+    const batch = CATEGORY_PAGES.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.allSettled(
+      batch.map((c) => scrapeCategory(c.id, c.name)),
+    );
+    categoryResults.push(...batchResults);
+  }
+
+  const results = [...homepageResult, ...categoryResults];
 
   // Merge and deduplicate by link
   const seen = new Set();
