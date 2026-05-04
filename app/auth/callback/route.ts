@@ -17,21 +17,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // If the user logged in with Discord, save their Discord identity to their profile
+  const userId = data.user.id;
+
+  // Ensure profile exists (handles existing users whose profile wasn't created by trigger)
+  const profileUpdate: Record<string, unknown> = { user_id: userId };
+
+  // If logged in with Discord, save identity data
   const discord = data.user.identities?.find((i) => i.provider === 'discord');
   if (discord) {
-    const discordUserId  = discord.identity_data?.provider_id ?? discord.id;
-    const discordUsername = discord.identity_data?.full_name
+    profileUpdate.discord_user_id  = discord.identity_data?.provider_id ?? discord.id;
+    profileUpdate.discord_username = discord.identity_data?.full_name
       ?? discord.identity_data?.name
       ?? discord.identity_data?.preferred_username
       ?? null;
-    const discordAvatar  = discord.identity_data?.avatar_url ?? null;
-
-    await supabase
-      .from('dealspro_profiles')
-      .update({ discord_user_id: discordUserId, discord_username: discordUsername, discord_avatar: discordAvatar })
-      .eq('user_id', data.user.id);
+    profileUpdate.discord_avatar   = discord.identity_data?.avatar_url ?? null;
   }
+
+  // upsert: creates profile if missing, updates discord fields if present
+  await supabase
+    .from('dealspro_profiles')
+    .upsert(profileUpdate, { onConflict: 'user_id' });
 
   return NextResponse.redirect(`${origin}${next}`);
 }
