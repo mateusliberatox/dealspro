@@ -74,7 +74,9 @@ export function Header() {
         style={{ background: 'var(--header-bg)', borderColor: 'var(--border)' }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/" className="flex items-center" onClick={closeMenu}>
+          <Link href="/" className="flex items-center gap-2" onClick={closeMenu}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.svg" alt="" aria-hidden="true" className="h-7 w-7 rounded-full" />
             <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
               DealsPro
             </span>
@@ -160,7 +162,11 @@ export function Header() {
           <div className="fixed inset-0 z-40 sm:hidden" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={closeMenu} />
           <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col sm:hidden" style={{ background: 'var(--surface)' }}>
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
-              <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>DealsPro</span>
+              <div className="flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.svg" alt="" aria-hidden="true" className="h-6 w-6 rounded-full" />
+                <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>DealsPro</span>
+              </div>
               <button onClick={closeMenu} className="rounded-lg p-1" style={{ color: 'var(--text-3)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

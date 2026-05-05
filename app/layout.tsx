@@ -13,6 +13,13 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'DealsPro — Deals do CSSDeals em tempo real',
   description: 'Monitore os melhores achados do CSSDeals antes de esgotar. Alertas por Discord, filtros por tamanho e acesso premium em tempo real.',
+  icons: {
+    icon: [
+      { url: '/logo.svg',  type: 'image/svg+xml' },
+      { url: '/icon.png',  type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/icon.png',
+  },
   other: {
     'google-adsense-account': 'ca-pub-5158893095104645',
   },

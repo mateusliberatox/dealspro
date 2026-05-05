@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="c">
+      <circle cx="256" cy="256" r="252"/>
+    </clipPath>
+    <!-- Fundo: navy escuro nas bordas, azul médio no centro, azul elétrico embaixo -->
+    <radialGradient id="bg" cx="50%" cy="68%" r="78%" gradientUnits="userSpaceOnUse" cx="256" cy="348" r="400">
+      <stop offset="0%"   stop-color="#1a4df5"/>
+      <stop offset="42%"  stop-color="#032890"/>
+      <stop offset="100%" stop-color="#010a18"/>
+    </radialGradient>
+    <!-- Gradiente do P (azul elétrico) -->
+    <linearGradient id="pgrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#3b6ef5"/>
+      <stop offset="100%" stop-color="#1a4df5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Borda preta externa -->
+  <circle cx="256" cy="256" r="256" fill="#000"/>
+  <!-- Fundo com gradiente -->
+  <circle cx="256" cy="256" r="252" fill="url(#bg)"/>
+
+  <!-- Linhas de velocidade — esquerda -->
+  <g clip-path="url(#c)" stroke="#3b6ef5" stroke-linecap="round" opacity="0.80">
+    <line x1="8"  y1="195" x2="128" y2="195" stroke-width="9"/>
+    <line x1="5"  y1="218" x2="108" y2="218" stroke-width="7"/>
+    <line x1="10" y1="240" x2="115" y2="240" stroke-width="7"/>
+    <line x1="6"  y1="261" x2="102" y2="261" stroke-width="7"/>
+    <line x1="12" y1="281" x2="118" y2="281" stroke-width="6"/>
+    <line x1="8"  y1="299" x2="100" y2="299" stroke-width="5"/>
+  </g>
+
+  <!-- Linhas de velocidade — direita -->
+  <g clip-path="url(#c)" stroke="#3b6ef5" stroke-linecap="round" opacity="0.80">
+    <line x1="388" y1="195" x2="504" y2="195" stroke-width="9"/>
+    <line x1="406" y1="218" x2="507" y2="218" stroke-width="7"/>
+    <line x1="400" y1="240" x2="502" y2="240" stroke-width="7"/>
+    <line x1="410" y1="261" x2="506" y2="261" stroke-width="7"/>
+    <line x1="396" y1="281" x2="500" y2="281" stroke-width="6"/>
+    <line x1="404" y1="299" x2="498" y2="299" stroke-width="5"/>
+  </g>
+
+  <!-- P — azul elétrico, atrás do D -->
+  <g clip-path="url(#c)">
+    <text
+      x="205" y="392"
+      font-family="'Arial Black','Helvetica Neue',Arial,sans-serif"
+      font-size="295"
+      font-weight="900"
+      font-style="italic"
+      fill="url(#pgrad)"
+      stroke="#010a18"
+      stroke-width="16"
+      stroke-linejoin="round"
+      paint-order="stroke fill"
+    >P</text>
+  </g>
+
+  <!-- D — branco, à frente -->
+  <g clip-path="url(#c)">
+    <text
+      x="38" y="386"
+      font-family="'Arial Black','Helvetica Neue',Arial,sans-serif"
+      font-size="295"
+      font-weight="900"
+      font-style="italic"
+      fill="#ffffff"
+      stroke="#010a18"
+      stroke-width="16"
+      stroke-linejoin="round"
+      paint-order="stroke fill"
+    >D</text>
+  </g>
+</svg>
