@@ -6,9 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 export function Header() {
-  const [user, setUser]       = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [theme, setTheme]     = useState<'dark' | 'light'>('dark');
+  const [user, setUser]         = useState<User | null>(null);
+  const [isAdmin, setIsAdmin]   = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const [theme, setTheme]       = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
     const saved = localStorage.getItem('dp-theme');
@@ -23,16 +24,19 @@ export function Header() {
       if (data.user) {
         supabase
           .from('dealspro_profiles')
-          .select('is_admin')
+          .select('is_admin, plan')
           .eq('user_id', data.user.id)
           .single()
-          .then(({ data: p }) => setIsAdmin(!!p?.is_admin));
+          .then(({ data: p }) => {
+            setIsAdmin(!!p?.is_admin);
+            setIsPremium(p?.plan === 'premium');
+          });
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);
-      if (!session?.user) setIsAdmin(false);
+      if (!session?.user) { setIsAdmin(false); setIsPremium(false); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -51,8 +55,12 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b backdrop-blur-sm" style={{ background: 'var(--header-bg)', borderColor: 'var(--border)' }}>
+    <header
+      className="sticky top-0 z-50 border-b backdrop-blur-sm"
+      style={{ background: 'var(--header-bg)', borderColor: 'var(--border)' }}
+    >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <span className="text-xl font-bold text-orange-500">DealsPro</span>
           <span className="rounded bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-400">
@@ -60,7 +68,7 @@ export function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-4 text-sm">
+        <nav className="flex items-center gap-2 sm:gap-3 text-sm">
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
@@ -81,29 +89,50 @@ export function Header() {
 
           {user ? (
             <>
-              <Link href="/alerts" className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
+              {/* Desktop-only secondary links */}
+              <Link
+                href="/alerts"
+                className="hidden sm:inline-flex transition-colors hover:text-white"
+                style={{ color: 'var(--text-3)' }}
+              >
                 Alertas
               </Link>
               {isAdmin && (
-                <Link href="/admin" className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
+                <Link
+                  href="/admin"
+                  className="hidden sm:inline-flex transition-colors hover:text-white"
+                  style={{ color: 'var(--text-3)' }}
+                >
                   Admin
                 </Link>
               )}
-              <button onClick={signOut} className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
+              <button
+                onClick={signOut}
+                className="hidden sm:inline-flex transition-colors hover:text-white"
+                style={{ color: 'var(--text-3)' }}
+              >
                 Sair
               </button>
+
+              {/* Account pill — always visible */}
               <Link
                 href="/minha-conta"
-                className="rounded-full bg-orange-500/20 px-3 py-1 text-xs font-medium text-orange-400 hover:bg-orange-500/30 transition-colors"
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors"
+                style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
               >
-                {user.email?.split('@')[0]}
+                {isPremium && <span className="text-orange-400">⚡</span>}
+                <span>{user.email?.split('@')[0]}</span>
               </Link>
-              <Link
-                href="/upgrade"
-                className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600 transition-colors"
-              >
-                ⚡ Premium
-              </Link>
+
+              {/* Upgrade button — only for free users */}
+              {!isPremium && (
+                <Link
+                  href="/upgrade"
+                  className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600 transition-colors"
+                >
+                  Premium
+                </Link>
+              )}
             </>
           ) : (
             <Link

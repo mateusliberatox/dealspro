@@ -27,12 +27,23 @@ export function ProductCard({ produto }: { produto: Produto }) {
   return (
     <a
       href={`/go/${produto.id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border transition-all"
+      className="group flex flex-col overflow-hidden rounded-xl border transition-all duration-200"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(249,115,22,0.4)'; (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.borderColor = 'rgba(249,115,22,0.5)';
+        el.style.background = 'var(--surface-2)';
+        el.style.transform = 'translateY(-1px)';
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.borderColor = 'var(--border)';
+        el.style.background = 'var(--surface)';
+        el.style.transform = 'translateY(0)';
+      }}
     >
-      <div className="relative aspect-square w-full overflow-hidden" style={{ background: 'var(--surface-3)' }}>
+      {/* Image */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden" style={{ background: 'var(--surface-3)' }}>
         {produto.imagem ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -43,47 +54,64 @@ export function ProductCard({ produto }: { produto: Produto }) {
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-4xl">{emoji}</div>
+          <div className="flex h-full items-center justify-center text-4xl opacity-40">{emoji}</div>
         )}
 
+        {/* NEW badge */}
         {novo && (
-          <span className="absolute left-2 top-2 rounded-md bg-green-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
+          <span className="absolute left-2 top-2 rounded-md bg-green-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
             Novo
           </span>
         )}
 
+        {/* Time ago — top right */}
+        <span
+          className="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] backdrop-blur-sm"
+          style={{ background: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.75)' }}
+        >
+          {timeAgo(produto.criado_em)}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        {/* Category label */}
         {produto.categoria && (
-          <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-neutral-300 backdrop-blur-sm">
+          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-4)' }}>
             {emoji} {produto.categoria}
           </span>
         )}
-      </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <p className="line-clamp-2 text-sm font-medium leading-snug" style={{ color: 'var(--text)' }}>{nome}</p>
+        {/* Name */}
+        <p className="line-clamp-2 text-sm font-medium leading-snug" style={{ color: 'var(--text)' }}>
+          {nome}
+        </p>
 
-        {produto.nome_traduzido && produto.nome_traduzido !== produto.nome && (
-          <p className="line-clamp-1 text-[11px]" style={{ color: 'var(--text-4)' }}>{produto.nome}</p>
-        )}
-
+        {/* Sizes */}
         {produto.sizes?.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-0.5">
-            {produto.sizes.map((s) => (
+          <div className="flex flex-wrap gap-1">
+            {produto.sizes.slice(0, 6).map((s) => (
               <span
                 key={s}
                 className="rounded px-1.5 py-0.5 text-[10px] font-medium border"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}
+                style={{ borderColor: 'var(--border-hover)', color: 'var(--text-3)', background: 'var(--surface-3)' }}
               >
                 {s}
               </span>
             ))}
+            {produto.sizes.length > 6 && (
+              <span className="text-[10px]" style={{ color: 'var(--text-4)' }}>+{produto.sizes.length - 6}</span>
+            )}
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="text-base font-bold text-orange-400">{produto.preco || '—'}</span>
-          <span className="text-[11px]" style={{ color: 'var(--text-4)' }}>
-            {timeAgo(produto.criado_em)}
+        {/* Price + CTA */}
+        <div className="mt-auto flex items-center justify-between gap-2 border-t pt-2.5" style={{ borderColor: 'var(--border)' }}>
+          <span className="text-base font-bold text-orange-400 leading-none">
+            {produto.preco || '—'}
+          </span>
+          <span className="rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors group-hover:bg-orange-500 group-hover:text-white" style={{ background: 'var(--surface-3)', color: 'var(--text-2)' }}>
+            Ver deal →
           </span>
         </div>
       </div>

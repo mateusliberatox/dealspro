@@ -25,7 +25,6 @@ async function getPageData() {
 
     const isPremium = plan === 'premium';
 
-    // Visible products
     let query = supabase
       .from('produtos_dealspro')
       .select('*')
@@ -36,7 +35,6 @@ async function getPageData() {
 
     const { data: produtos } = await query;
 
-    // Count of upcoming products (for free FOMO CTA)
     let upcomingCount = 0;
     if (!isPremium) {
       const { count } = await supabase
@@ -48,7 +46,7 @@ async function getPageData() {
 
     return { produtos: (produtos as Produto[]) ?? [], isPremium, upcomingCount, isLoggedIn: !!user };
   } catch {
-    return { produtos: [], isPremium: false, upcomingCount: 0 };
+    return { produtos: [], isPremium: false, upcomingCount: 0, isLoggedIn: false };
   }
 }
 
@@ -58,32 +56,66 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Feed de Produtos</h1>
-            <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>
-              Atualizado a cada 5 minutos · {produtos.length} produto{produtos.length !== 1 ? 's' : ''}
-              {isPremium && ' · acesso premium em tempo real'}
-            </p>
-          </div>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
 
-          {/* FOMO CTA for free users */}
-          {!isPremium && upcomingCount > 0 && (
-            <a
-              href={isLoggedIn ? '/upgrade' : '/login'}
-              className="flex items-center gap-2 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-2.5 text-sm transition-colors hover:bg-orange-500/20"
-            >
-              <span className="text-lg">🔒</span>
-              <div className="text-left">
-                <p className="font-semibold text-orange-400">
-                  +{upcomingCount} produto{upcomingCount !== 1 ? 's' : ''} chegando
+        {/* Hero — só para visitantes e usuários free */}
+        {!isPremium && (
+          <div className="mb-6 rounded-2xl border p-5 sm:p-6" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold" style={{ color: 'var(--text)' }}>
+                  Deals em tempo real do CSSDeals
+                </h1>
+                <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>
+                  Monitoramos o site a cada 5 minutos. Premium vê os produtos 30 minutos antes.
                 </p>
-                <p className="text-xs" style={{ color: 'var(--text-3)' }}>Premium vê agora</p>
               </div>
-            </a>
-          )}
-        </div>
+
+              {/* FOMO CTA */}
+              {upcomingCount > 0 && (
+                <a
+                  href={isLoggedIn ? '/upgrade' : '/login'}
+                  className="flex shrink-0 items-center gap-3 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-3 transition-colors hover:bg-orange-500/20"
+                >
+                  <span className="text-2xl">🔒</span>
+                  <div>
+                    <p className="text-sm font-bold text-orange-400">
+                      +{upcomingCount} produto{upcomingCount !== 1 ? 's' : ''} chegando
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+                      {isLoggedIn ? 'Assine o Premium para ver agora' : 'Entre e assine para ver agora'}
+                    </p>
+                  </div>
+                </a>
+              )}
+
+              {/* CTA para visitantes sem produtos em delay */}
+              {upcomingCount === 0 && !isLoggedIn && (
+                <a
+                  href="/login"
+                  className="shrink-0 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
+                >
+                  Entrar grátis
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Premium hero */}
+        {isPremium && (
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Feed de Deals</h1>
+              <p className="mt-0.5 text-sm" style={{ color: 'var(--text-3)' }}>
+                {produtos.length} produto{produtos.length !== 1 ? 's' : ''} · acesso em tempo real
+                <span className="ml-1.5 inline-flex items-center rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-semibold text-orange-400">
+                  ⚡ Premium
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* AdSense — banner top */}
         <AdUnit
