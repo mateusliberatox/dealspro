@@ -8,18 +8,19 @@ import { CATEGORIES } from '@/lib/types';
 
 const AD_EVERY = 12;
 
-const CATEGORY_LABEL: Record<string, string> = {
-  'Todos': 'Todos',
-  'Smartwatch': '⌚ Smartwatch',
-  'Bolsa / Mochila': '👜 Bolsa',
-  'Roupas': '👕 Roupas',
-  'Eletrônicos': '🔊 Eletrônicos',
-  'Calçados': '👟 Calçados',
-  'Outros': '📦 Outros',
-};
-
 const chunk = <T,>(arr: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+
+// Nomes curtos sem emoji — produto real não usa emoji em filtros de UI
+const CATEGORY_SHORT: Record<string, string> = {
+  'Todos': 'Todos',
+  'Smartwatch': 'Relógios',
+  'Bolsa / Mochila': 'Bolsas',
+  'Roupas': 'Roupas',
+  'Eletrônicos': 'Eletrônicos',
+  'Calçados': 'Calçados',
+  'Outros': 'Outros',
+};
 
 export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isPremium?: boolean }) {
   const [categoria, setCategoria] = useState<string>('Todos');
@@ -48,105 +49,86 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
   const isFiltered = categoria !== 'Todos' || size !== '';
 
   return (
-    <div className="space-y-4">
-      {/* Category filter */}
-      <div
-        className="flex gap-1.5 overflow-x-auto pb-1"
-        style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
-      >
+    <div className="space-y-5">
+
+      {/* Filtros de categoria */}
+      <div className="no-scrollbar flex gap-1 overflow-x-auto pb-0.5">
         {CATEGORIES.map((cat) => {
           const active = categoria === cat;
           return (
             <button
               key={cat}
               onClick={() => setCategoria(cat)}
-              className="shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all"
+              className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
               style={
                 active
                   ? { background: 'var(--accent)', color: '#fff' }
-                  : { background: 'var(--surface)', color: 'var(--text-3)', borderWidth: 1, borderColor: 'var(--border)' }
+                  : { background: 'var(--surface-2)', color: 'var(--text-2)' }
               }
             >
-              {CATEGORY_LABEL[cat] ?? cat}
+              {CATEGORY_SHORT[cat] ?? cat}
             </button>
           );
         })}
       </div>
 
-      {/* Size filter — horizontal scroll on mobile */}
+      {/* Filtro de tamanho */}
       {allSizes.length > 0 && (
-        <div
-          className="flex items-center gap-2 overflow-x-auto pb-1"
-          style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
-        >
-          <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--text-4)' }}>Tamanho</span>
-          <button
-            onClick={() => setSize('')}
-            className="shrink-0 rounded border px-2.5 py-1 text-xs font-medium transition-all"
-            style={
-              size === ''
-                ? { borderColor: 'var(--accent)', color: 'var(--accent)', background: 'rgba(249,115,22,0.08)' }
-                : { borderColor: 'var(--border)', color: 'var(--text-3)' }
-            }
-          >
-            Todos
-          </button>
-          {allSizes.map((s) => (
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5">
+          <span className="shrink-0 text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
+            Tam.
+          </span>
+          {['', ...allSizes].map((s) => (
             <button
-              key={s}
+              key={s || '__all'}
               onClick={() => setSize(s === size ? '' : s)}
-              className="shrink-0 rounded border px-2.5 py-1 text-xs font-medium transition-all"
+              className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
               style={
                 size === s
-                  ? { borderColor: 'var(--accent)', color: 'var(--accent)', background: 'rgba(249,115,22,0.08)' }
-                  : { borderColor: 'var(--border)', color: 'var(--text-3)' }
+                  ? { background: 'var(--accent)', color: '#fff' }
+                  : { background: 'var(--surface-2)', color: 'var(--text-2)' }
               }
             >
-              {s}
+              {s || 'Todos'}
             </button>
           ))}
         </div>
       )}
 
-      {/* Results count */}
-      <p className="text-xs" style={{ color: 'var(--text-4)' }}>
-        {filtered.length} produto{filtered.length !== 1 ? 's' : ''}
-        {isFiltered && ' com os filtros selecionados'}
-      </p>
+      {/* Contador discreto */}
+      {(isFiltered || filtered.length < produtos.length) && (
+        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+          {filtered.length} {filtered.length === 1 ? 'produto' : 'produtos'}
+          {isFiltered ? ' encontrados' : ''}
+        </p>
+      )}
 
-      {/* Grid */}
+      {/* Grade */}
       {filtered.length > 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {chunk(filtered, AD_EVERY).map((group, gi) => (
             <div key={gi}>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
                 {group.map((p) => (
                   <ProductCard key={p.id} produto={p} />
                 ))}
               </div>
               {gi < Math.ceil(filtered.length / AD_EVERY) - 1 && (
-                <AdUnit slot="1621510108" format="horizontal" className="mt-4" style={{ minHeight: 90 }} />
+                <AdUnit slot="1621510108" format="horizontal" className="mt-6" style={{ minHeight: 90 }} />
               )}
             </div>
           ))}
         </div>
       ) : (
-        <div
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border py-16 text-center"
-          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          <span className="text-4xl opacity-40">🔍</span>
-          <p className="font-medium" style={{ color: 'var(--text-2)' }}>Nenhum produto encontrado</p>
-          <p className="text-sm" style={{ color: 'var(--text-4)' }}>
-            {isFiltered
-              ? 'Tente remover ou trocar os filtros.'
-              : 'Os produtos aparecerão assim que forem detectados.'}
+        <div className="py-20 text-center">
+          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>
+            {isFiltered ? 'Nenhum produto com esses filtros.' : 'Nenhum produto disponível no momento.'}
           </p>
           {isFiltered && (
             <button
               onClick={() => { setCategoria('Todos'); setSize(''); }}
-              className="mt-1 rounded-lg px-4 py-1.5 text-sm font-medium transition-colors"
-              style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
+              className="mt-3 text-sm underline-offset-2 hover:underline"
+              style={{ color: 'var(--accent)' }}
             >
               Limpar filtros
             </button>

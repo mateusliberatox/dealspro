@@ -1,27 +1,32 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+  weight: ['400', '500', '600', '700', '800'],
+});
+
 export const metadata: Metadata = {
-  title: 'DealsPro — Produtos CSS Deals em tempo real',
-  description: 'Monitore e descubra os melhores produtos do CSS Deals antes de todo mundo.',
+  title: 'DealsPro — Deals do CSSDeals em tempo real',
+  description: 'Monitore os melhores achados do CSSDeals antes de esgotar. Alertas por Discord, filtros por tamanho e acesso premium em tempo real.',
   other: {
-    // Google AdSense site verification meta tag
     'google-adsense-account': 'ca-pub-5158893095104645',
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* Apply saved theme before first paint to avoid flash */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('dp-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}})();`,
           }}
         />
-        {/* Google AdSense — in <head> so the crawler finds it in the static HTML */}
         <Script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5158893095104645"

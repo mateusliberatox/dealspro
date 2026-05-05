@@ -79,11 +79,8 @@ export function Header() {
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2" onClick={closeMenu}>
-            <span className="text-xl font-bold text-orange-500">DealsPro</span>
-            <span className="rounded bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-400">
-              Beta
-            </span>
+          <Link href="/" className="flex items-center gap-1.5" onClick={closeMenu}>
+            <span className="text-[1.0625rem] font-bold tracking-tight text-orange-500">DealsPro</span>
           </Link>
 
           <nav className="flex items-center gap-2 sm:gap-3 text-sm">
@@ -176,7 +173,7 @@ export function Header() {
           >
             {/* Drawer header */}
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
-              <span className="font-bold text-orange-500">DealsPro</span>
+              <span className="text-[1.0625rem] font-bold tracking-tight text-orange-500">DealsPro</span>
               <button onClick={closeMenu} className="rounded-lg p-1" style={{ color: 'var(--text-3)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
