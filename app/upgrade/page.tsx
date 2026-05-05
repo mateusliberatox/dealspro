@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { UpgradeButton } from '@/components/upgrade-button';
+import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 
 const FEATURES = [
   { icon: '⚡', title: 'Acesso em tempo real', desc: 'Veja os deals 30 minutos antes dos usuários free.' },
@@ -11,6 +12,21 @@ const FEATURES = [
   { icon: '📐', title: 'Filtro por tamanho', desc: 'Encontre só o que cabe em você, sem filtrar manualmente.' },
   { icon: '🏷️', title: 'Canal premium exclusivo', desc: 'Notificações imediatas no Discord assim que um deal entra.' },
 ];
+
+async function getPriceDisplay(): Promise<string | null> {
+  try {
+    const price = await stripe.prices.retrieve(STRIPE_PRICE_ID);
+    if (!price.unit_amount) return null;
+    const amount   = (price.unit_amount / 100).toFixed(2).replace('.', ',');
+    const currency = price.currency === 'brl' ? 'R$' : price.currency.toUpperCase();
+    const interval = price.recurring?.interval === 'month' ? '/mês'
+                   : price.recurring?.interval === 'year'  ? '/ano'
+                   : '';
+    return `${currency} ${amount}${interval}`;
+  } catch {
+    return null;
+  }
+}
 
 export default async function UpgradePage() {
   const supabase = await createClient();
@@ -26,6 +42,8 @@ export default async function UpgradePage() {
 
   if (profile?.plan === 'premium') redirect('/');
 
+  const priceDisplay = await getPriceDisplay();
+
   return (
     <div className="min-h-screen">
       <Header />
@@ -33,7 +51,10 @@ export default async function UpgradePage() {
 
         {/* Headline */}
         <div className="text-center space-y-3">
-          <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold text-orange-400" style={{ background: 'rgba(249,115,22,0.15)' }}>
+          <span
+            className="inline-flex rounded-full px-3 py-1 text-xs font-semibold text-orange-400"
+            style={{ background: 'rgba(249,115,22,0.15)' }}
+          >
             ⚡ Premium
           </span>
           <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--text)' }}>
@@ -45,7 +66,10 @@ export default async function UpgradePage() {
         </div>
 
         {/* Features */}
-        <div className="rounded-2xl border divide-y overflow-hidden" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+        <div
+          className="rounded-2xl border divide-y overflow-hidden"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
           {FEATURES.map(({ icon, title, desc }) => (
             <div key={title} className="flex items-start gap-3 px-5 py-4">
               <span className="text-xl shrink-0 mt-0.5">{icon}</span>
@@ -59,8 +83,16 @@ export default async function UpgradePage() {
 
         {/* CTA */}
         <div className="space-y-3">
+          {/* Price badge */}
+          {priceDisplay && (
+            <div className="text-center">
+              <span className="text-3xl font-bold" style={{ color: 'var(--text)' }}>{priceDisplay}</span>
+            </div>
+          )}
+
           <UpgradeButton className="w-full py-4 text-base" />
-          <div className="flex items-center justify-center gap-3 text-xs" style={{ color: 'var(--text-4)' }}>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs" style={{ color: 'var(--text-4)' }}>
             <span>💳 Stripe seguro</span>
             <span>·</span>
             <span>Cancele quando quiser</span>

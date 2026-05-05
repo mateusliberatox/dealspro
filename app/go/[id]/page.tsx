@@ -6,6 +6,11 @@ import { RedirectCountdown } from '@/components/redirect-countdown';
 import { AdUnit } from '@/components/ad-unit';
 import type { Produto } from '@/lib/types';
 
+const CATEGORY_EMOJI: Record<string, string> = {
+  'Smartwatch': '⌚', 'Bolsa / Mochila': '👜', 'Roupas': '👕',
+  'Eletrônicos': '🔊', 'Calçados': '👟', 'Outros': '📦',
+};
+
 async function trackClick(productId: number, userId: string | null) {
   try {
     const supabase = await createClient();
@@ -28,29 +33,60 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
   const { data: { user } } = await supabase.auth.getUser();
   await trackClick(product.id, user?.id ?? null);
 
-  const nome = (product as Produto).nome_traduzido || (product as Produto).nome;
+  const p    = product as Produto;
+  const nome = p.nome_traduzido || p.nome;
+  const emoji = CATEGORY_EMOJI[p.categoria ?? ''] ?? '📦';
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
-      <div className="w-full max-w-lg space-y-6 text-center">
-        {/* Product info */}
-        <div>
-          <p className="text-sm font-medium text-orange-500">Redirecionando para o produto</p>
-          <h1 className="mt-2 text-xl font-bold" style={{ color: 'var(--text)' }}>{nome}</h1>
-          <p className="mt-1 text-2xl font-bold text-orange-400">{(product as Produto).preco}</p>
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8" style={{ background: 'var(--bg)' }}>
+      <div className="w-full max-w-sm space-y-5">
+
+        {/* Product card preview */}
+        <div className="overflow-hidden rounded-2xl border" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          {p.imagem ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={p.imagem}
+              alt={nome}
+              referrerPolicy="no-referrer"
+              className="w-full aspect-[4/3] object-cover"
+            />
+          ) : (
+            <div className="flex aspect-[4/3] items-center justify-center text-5xl" style={{ background: 'var(--surface-3)' }}>
+              {emoji}
+            </div>
+          )}
+
+          <div className="p-4 space-y-1">
+            {p.categoria && (
+              <p className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-4)' }}>
+                {emoji} {p.categoria}
+              </p>
+            )}
+            <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: 'var(--text)' }}>
+              {nome}
+            </p>
+            <p className="text-xl font-bold text-orange-400">{p.preco || '—'}</p>
+          </div>
         </div>
 
-        {/* AdSense — rectangle (redirect page) */}
+        {/* AdSense */}
         <AdUnit
           slot="1621510108"
           format="rectangle"
           className="w-full"
-          style={{ minHeight: 250 }}
+          style={{ minHeight: 200 }}
         />
 
-        <RedirectCountdown href={(product as Produto).link} seconds={5} />
+        {/* Redirect */}
+        <div className="text-center">
+          <p className="mb-4 text-sm" style={{ color: 'var(--text-3)' }}>
+            Você será redirecionado para o produto no CSSDeals.
+          </p>
+          <RedirectCountdown href={p.link} seconds={5} />
+        </div>
 
-        <p className="text-xs" style={{ color: 'var(--text-4)' }}>
+        <p className="text-center text-xs" style={{ color: 'var(--text-4)' }}>
           DealsPro não é afiliado ao cssdeals.com
         </p>
       </div>
