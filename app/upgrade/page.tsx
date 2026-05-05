@@ -7,10 +7,10 @@ import { UpgradeButton } from '@/components/upgrade-button';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 
 const FEATURES = [
-  { title: 'Sem delay de 30 minutos', desc: 'Você vê o produto assim que ele é detectado. Free espera.' },
+  { title: 'Sem delay de 30 minutos', desc: 'Você vê o produto assim que é detectado. Free espera.' },
   { title: 'Alerta por DM no Discord', desc: 'Palavra-chave + tamanho. Você recebe quando aparece.' },
   { title: 'Canal exclusivo no Discord', desc: 'Notificação imediata. Sem precisar abrir o site.' },
-  { title: 'Filtro por tamanho', desc: 'Não perde tempo olhando o que não tem no seu tamanho.' },
+  { title: 'Filtros avançados por tamanho', desc: 'Não perde tempo olhando o que não tem no seu tamanho.' },
 ];
 
 async function getPriceDisplay(): Promise<string | null> {
@@ -43,10 +43,8 @@ export default async function UpgradePage() {
     <div className="min-h-screen">
       <Header />
       <main className="mx-auto max-w-sm px-4 py-14 space-y-10">
-
-        {/* Headline */}
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--accent)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--accent-text)' }}>
             Premium
           </p>
           <h1 className="text-[1.75rem] font-bold leading-[1.2] tracking-tight" style={{ color: 'var(--text)' }}>
@@ -57,11 +55,13 @@ export default async function UpgradePage() {
           </p>
         </div>
 
-        {/* Features — lista limpa, sem box */}
         <ul className="space-y-5">
           {FEATURES.map(({ title, desc }) => (
             <li key={title} className="flex gap-3">
-              <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-orange-500/20 text-center text-[10px] font-bold leading-4 text-orange-400">
+              <span
+                className="mt-0.5 h-4 w-4 shrink-0 rounded-full text-center text-[10px] font-bold leading-4 text-white"
+                style={{ background: 'var(--accent)' }}
+              >
                 ✓
               </span>
               <div>
@@ -72,7 +72,6 @@ export default async function UpgradePage() {
           ))}
         </ul>
 
-        {/* CTA */}
         <div className="space-y-3">
           {priceDisplay && (
             <p className="text-[2rem] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
@@ -84,7 +83,6 @@ export default async function UpgradePage() {
             Cancele quando quiser. Sem contrato.
           </p>
         </div>
-
       </main>
     </div>
   );

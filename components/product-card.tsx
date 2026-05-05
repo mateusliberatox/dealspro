@@ -36,25 +36,22 @@ export function ProductCard({ produto }: { produto: Produto }) {
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <div
-            className="flex h-full w-full items-center justify-center text-3xl"
-            style={{ color: 'var(--text-3)' }}
-          >
+          <div className="flex h-full w-full items-center justify-center text-3xl" style={{ color: 'var(--text-3)' }}>
             ·
           </div>
         )}
 
-        {/* Badges sobre a imagem */}
-        <div className="absolute left-2 top-2 flex gap-1">
-          {novo && (
-            <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">
-              new
-            </span>
-          )}
-        </div>
+        {novo && (
+          <span
+            className="absolute left-2 top-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            new
+          </span>
+        )}
         <span
           className="absolute right-2 top-2 text-[10px] font-medium"
-          style={{ color: 'rgba(255,255,255,0.45)' }}
+          style={{ color: 'rgba(255,255,255,0.4)' }}
         >
           {timeAgo(produto.criado_em)}
         </span>
@@ -63,11 +60,11 @@ export function ProductCard({ produto }: { produto: Produto }) {
       {/* Conteúdo */}
       <div className="flex flex-1 flex-col p-2.5">
         {/* Preço — domina */}
-        <p className="text-[1.0625rem] font-bold leading-none text-orange-400">
+        <p className="text-[1.0625rem] font-bold leading-none" style={{ color: 'var(--accent-text)' }}>
           {produto.preco || '—'}
         </p>
 
-        {/* Nome — secundário */}
+        {/* Nome */}
         <p
           className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-[1.35] font-normal"
           style={{ color: 'var(--text-2)' }}
@@ -75,7 +72,7 @@ export function ProductCard({ produto }: { produto: Produto }) {
           {nome}
         </p>
 
-        {/* Tamanhos — discretos */}
+        {/* Tamanhos */}
         {produto.sizes && produto.sizes.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-0.5">
             {produto.sizes.slice(0, 5).map((s) => (
@@ -95,12 +92,11 @@ export function ProductCard({ produto }: { produto: Produto }) {
           </div>
         )}
 
-        {/* Link de ação — direto, sem fakebutton */}
         <span
-          className="mt-auto pt-3 text-[11px] font-medium transition-colors group-hover:text-orange-400"
+          className="mt-auto pt-3 text-[11px] font-medium transition-colors"
           style={{ color: 'var(--text-3)' }}
         >
-          Ver deal →
+          <span className="group-hover:text-[var(--accent-text)] transition-colors">Ver deal →</span>
         </span>
       </div>
     </a>

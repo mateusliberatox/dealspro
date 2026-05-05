@@ -97,7 +97,7 @@ export default async function AdminPage() {
                     <td className="px-4 py-2.5 max-w-xs">
                       <a
                         href={`/go/${p.id}`}
-                        className="line-clamp-1 hover:text-orange-400 transition-colors"
+                        className="line-clamp-1 transition-colors hover:underline"
                         style={{ color: 'var(--text-2)' }}
                       >
                         {p.nome_traduzido || p.nome}
@@ -109,14 +109,14 @@ export default async function AdminPage() {
                     <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-3)' }}>
                       {p.sizes?.length ? p.sizes.join(', ') : '—'}
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-orange-400">{p.preco}</td>
+                    <td className="px-4 py-2.5 font-medium" style={{ color: 'var(--accent-text)' }}>{p.preco}</td>
                     <td className="px-4 py-2.5 text-xs">
                       {isPending ? (
-                        <span className="rounded bg-orange-500/15 px-1.5 py-0.5 text-orange-400">
+                        <span className="rounded px-1.5 py-0.5" style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}>
                           {new Date(p.visible_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--text-4)' }}>Visível</span>
+                        <span style={{ color: 'var(--text-3)' }}>Visível</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-4)' }}>
@@ -136,7 +136,7 @@ export default async function AdminPage() {
 function StatCard({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
     <div className="rounded-xl border p-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-      <p className={`text-2xl font-bold ${highlight ? 'text-orange-400' : ''}`} style={highlight ? {} : { color: 'var(--text)' }}>
+      <p className="text-2xl font-bold" style={{ color: highlight ? 'var(--accent-text)' : 'var(--text)' }}>
         {value}
       </p>
       <p className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>{label}</p>

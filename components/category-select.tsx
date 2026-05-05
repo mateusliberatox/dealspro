@@ -18,7 +18,10 @@ export function CategorySelect({ id, current }: { id: number; current: string | 
       defaultValue={current ?? 'Outros'}
       onChange={handleChange}
       disabled={pending}
-      className="rounded border border-white/10 bg-[#1a1a1a] px-2 py-1 text-xs text-neutral-300 disabled:opacity-50 focus:border-orange-500 outline-none transition-colors"
+      className="rounded border px-2 py-1 text-xs disabled:opacity-50 outline-none transition-colors"
+      style={{ background: 'var(--surface-2)', borderColor: 'var(--border-strong)', color: 'var(--text-2)' }}
+      onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+      onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
     >
       {OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
     </select>

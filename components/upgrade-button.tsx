@@ -9,16 +9,9 @@ export function UpgradeButton({ className }: { className?: string }) {
   async function handleClick() {
     setLoading(true);
     setError('');
-
-    const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+    const res  = await fetch('/api/stripe/checkout', { method: 'POST' });
     const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.error ?? 'Erro ao iniciar checkout');
-      setLoading(false);
-      return;
-    }
-
+    if (!res.ok) { setError(data.error ?? 'Erro ao iniciar checkout'); setLoading(false); return; }
     window.location.href = data.url;
   }
 
@@ -27,9 +20,9 @@ export function UpgradeButton({ className }: { className?: string }) {
       <button
         onClick={handleClick}
         disabled={loading}
-        className={`rounded-xl bg-orange-500 px-6 py-3 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-60 transition-colors ${className}`}
+        className={`btn-accent rounded-xl px-6 py-3 text-sm font-bold ${className ?? ''}`}
       >
-        {loading ? 'Aguarde...' : '⚡ Assinar Premium'}
+        {loading ? 'Aguarde...' : 'Assinar Premium'}
       </button>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
     </div>

@@ -17,14 +17,12 @@ export function Header() {
     if (saved === 'light') setTheme('light');
   }, []);
 
-  // Close menu on resize to desktop
   useEffect(() => {
     const onResize = () => { if (window.innerWidth >= 640) setMenuOpen(false); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Lock body scroll when menu is open
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -32,7 +30,6 @@ export function Header() {
 
   useEffect(() => {
     const supabase = createClient();
-
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
       if (data.user) {
@@ -47,7 +44,6 @@ export function Header() {
           });
       }
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);
       if (!session?.user) { setIsAdmin(false); setIsPremium(false); }
@@ -78,9 +74,10 @@ export function Header() {
         style={{ background: 'var(--header-bg)', borderColor: 'var(--border)' }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-1.5" onClick={closeMenu}>
-            <span className="text-[1.0625rem] font-bold tracking-tight text-orange-500">DealsPro</span>
+          <Link href="/" className="flex items-center" onClick={closeMenu}>
+            <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
+              DealsPro
+            </span>
           </Link>
 
           <nav className="flex items-center gap-2 sm:gap-3 text-sm">
@@ -121,22 +118,22 @@ export function Header() {
                   className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
                 >
-                  {isPremium && <span className="text-orange-400">⚡</span>}
+                  {isPremium && <span style={{ color: 'var(--accent-text)' }}>★</span>}
                   <span>{user.email?.split('@')[0]}</span>
                 </Link>
                 {!isPremium && (
-                  <Link href="/upgrade" className="hidden sm:inline-flex rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-600 transition-colors">
+                  <Link href="/upgrade" className="hidden sm:inline-flex btn-accent rounded-lg px-3 py-1.5 text-xs font-bold">
                     Premium
                   </Link>
                 )}
               </>
             ) : (
-              <Link href="/login" className="hidden sm:inline-flex rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors">
+              <Link href="/login" className="hidden sm:inline-flex btn-accent rounded-lg px-4 py-1.5 text-sm font-semibold">
                 Entrar
               </Link>
             )}
 
-            {/* Hamburger — mobile only */}
+            {/* Hamburger */}
             <button
               onClick={() => setMenuOpen((o) => !o)}
               className="sm:hidden rounded-lg p-1.5 transition-colors"
@@ -157,75 +154,46 @@ export function Header() {
         </div>
       </header>
 
-      {/* Mobile drawer — rendered outside header so it overlays the page */}
+      {/* Mobile drawer */}
       {menuOpen && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40 sm:hidden"
-            style={{ background: 'rgba(0,0,0,0.6)' }}
-            onClick={closeMenu}
-          />
-          {/* Drawer */}
-          <div
-            className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col sm:hidden"
-            style={{ background: 'var(--surface)' }}
-          >
-            {/* Drawer header */}
+          <div className="fixed inset-0 z-40 sm:hidden" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={closeMenu} />
+          <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col sm:hidden" style={{ background: 'var(--surface)' }}>
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
-              <span className="text-[1.0625rem] font-bold tracking-tight text-orange-500">DealsPro</span>
+              <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>DealsPro</span>
               <button onClick={closeMenu} className="rounded-lg p-1" style={{ color: 'var(--text-3)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
             </div>
-
-            {/* Nav items */}
             <div className="flex flex-col gap-1 p-3 flex-1">
               <MobileNavLink href="/" onClick={closeMenu}>Feed de Deals</MobileNavLink>
-
               {user ? (
                 <>
-                  <MobileNavLink href="/alerts" onClick={closeMenu}>
-                    <span>🔔</span> Alertas
-                  </MobileNavLink>
-                  <MobileNavLink href="/minha-conta" onClick={closeMenu}>
-                    <span>👤</span> Minha conta
-                  </MobileNavLink>
-                  {isAdmin && (
-                    <MobileNavLink href="/admin" onClick={closeMenu}>
-                      <span>⚙️</span> Admin
-                    </MobileNavLink>
-                  )}
-                  {!isPremium && (
-                    <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>
-                      <span>⚡</span> Assinar Premium
-                    </MobileNavLink>
-                  )}
+                  <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
+                  <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
+                  {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}
+                  {!isPremium && <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>Assinar Premium</MobileNavLink>}
                   {isPremium && (
                     <div className="px-4 py-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-1 text-xs font-semibold text-orange-400">
-                        ⚡ Premium ativo
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}>
+                        ★ Premium ativo
                       </span>
                     </div>
                   )}
                 </>
               ) : (
-                <MobileNavLink href="/login" onClick={closeMenu} highlight>
-                  Entrar / Criar conta
-                </MobileNavLink>
+                <MobileNavLink href="/login" onClick={closeMenu} highlight>Entrar</MobileNavLink>
               )}
             </div>
-
-            {/* Sign out at bottom */}
             {user && (
               <div className="border-t p-4" style={{ borderColor: 'var(--border)' }}>
-                <p className="mb-3 truncate text-xs" style={{ color: 'var(--text-4)' }}>{user.email}</p>
+                <p className="mb-3 truncate text-xs" style={{ color: 'var(--text-3)' }}>{user.email}</p>
                 <button
                   onClick={signOut}
                   className="w-full rounded-xl border py-2.5 text-sm font-medium transition-colors"
-                  style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}
+                  style={{ borderColor: 'var(--border-strong)', color: 'var(--text-2)' }}
                 >
                   Sair
                 </button>
@@ -238,9 +206,7 @@ export function Header() {
   );
 }
 
-function MobileNavLink({
-  href, onClick, children, highlight = false,
-}: {
+function MobileNavLink({ href, onClick, children, highlight = false }: {
   href: string; onClick: () => void; children: React.ReactNode; highlight?: boolean;
 }) {
   return (
@@ -250,7 +216,7 @@ function MobileNavLink({
       className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors"
       style={
         highlight
-          ? { background: 'rgba(249,115,22,0.12)', color: 'var(--accent)' }
+          ? { background: 'var(--accent-dim)', color: 'var(--accent-text)' }
           : { color: 'var(--text-2)' }
       }
     >

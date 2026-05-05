@@ -15,18 +15,14 @@ export default function LoginPage() {
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
+    setError(''); setSuccess(''); setLoading(true);
     const supabase = createClient();
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else router.push('/');
+      if (error) setError(error.message); else router.push('/');
     } else {
       const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setError(error.message);
-      else setSuccess('Conta criada. Verifique seu e-mail para confirmar.');
+      if (error) setError(error.message); else setSuccess('Conta criada. Verifique seu e-mail para confirmar.');
     }
     setLoading(false);
   }, [email, password, mode, router]);
@@ -34,16 +30,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
       <div className="w-full max-w-xs space-y-7">
-
-        {/* Marca */}
         <div className="space-y-1">
-          <h1 className="text-[1.0625rem] font-bold tracking-tight text-orange-500">DealsPro</h1>
+          <h1 className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>DealsPro</h1>
           <p className="text-sm" style={{ color: 'var(--text-2)' }}>
             {mode === 'login' ? 'Entre na sua conta.' : 'Crie sua conta grátis.'}
           </p>
         </div>
 
-        {/* Discord — opção principal */}
         <button
           type="button"
           onClick={async () => {
@@ -69,13 +62,9 @@ export default function LoginPage() {
           <div className="flex-1 border-t" style={{ borderColor: 'var(--border-strong)' }} />
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
             placeholder="E-mail"
             className="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
             style={{ background: 'var(--surface)', borderColor: 'var(--border-strong)', color: 'var(--text)' }}
@@ -83,26 +72,16 @@ export default function LoginPage() {
             onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
           />
           <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
+            type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6}
             placeholder="Senha"
             className="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
             style={{ background: 'var(--surface)', borderColor: 'var(--border-strong)', color: 'var(--text)' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
             onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
           />
-
-          {error   && <p className="rounded-lg px-3 py-2 text-sm text-red-400"   style={{ background: 'rgba(239,68,68,0.08)'  }}>{error}</p>}
-          {success && <p className="rounded-lg px-3 py-2 text-sm text-green-400" style={{ background: 'rgba(34,197,94,0.08)'  }}>{success}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
-          >
+          {error   && <p className="rounded-lg px-3 py-2 text-sm text-red-400" style={{ background: 'rgba(239,68,68,0.08)' }}>{error}</p>}
+          {success && <p className="rounded-lg px-3 py-2 text-sm text-green-400" style={{ background: 'rgba(34,197,94,0.08)' }}>{success}</p>}
+          <button type="submit" disabled={loading} className="btn-accent w-full rounded-lg py-2.5 text-sm font-semibold">
             {loading ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
           </button>
         </form>
@@ -111,12 +90,12 @@ export default function LoginPage() {
           {mode === 'login' ? 'Sem conta?' : 'Já tem conta?'}{' '}
           <button
             onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-            className="font-medium text-orange-400 transition-colors hover:text-orange-300"
+            className="font-medium transition-colors"
+            style={{ color: 'var(--accent-text)' }}
           >
             {mode === 'login' ? 'Criar grátis' : 'Entrar'}
           </button>
         </p>
-
       </div>
     </div>
   );

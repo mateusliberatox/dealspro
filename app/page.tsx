@@ -32,7 +32,6 @@ async function getPageData() {
       .limit(200);
 
     if (!isPremium) query = query.lte('visible_at', now);
-
     const { data: produtos } = await query;
 
     let upcomingCount = 0;
@@ -57,49 +56,34 @@ export default async function HomePage() {
     <div className="min-h-screen">
       <Header />
       <main className="mx-auto max-w-6xl px-4 pt-8 pb-16">
-
-        {/* Cabeçalho da página */}
         <div className="mb-7 flex items-end justify-between gap-4">
           <div>
-            {isPremium ? (
-              <>
-                <h1 className="text-[1.375rem] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
-                  Feed de Deals
-                </h1>
-                <p className="mt-0.5 text-sm" style={{ color: 'var(--text-3)' }}>
-                  {produtos.length} produto{produtos.length !== 1 ? 's' : ''} · tempo real
-                  <span className="ml-2 text-orange-400 font-medium">⚡ Premium</span>
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="text-[1.375rem] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
-                  Deals do CSSDeals
-                </h1>
-                <p className="mt-0.5 text-sm" style={{ color: 'var(--text-3)' }}>
-                  Atualizado a cada 5 min · {produtos.length} disponíveis agora
-                </p>
-              </>
-            )}
+            <h1 className="text-[1.375rem] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
+              {isPremium ? 'Feed de Deals' : 'Deals do CSSDeals'}
+            </h1>
+            <p className="mt-0.5 text-sm" style={{ color: 'var(--text-2)' }}>
+              {isPremium
+                ? `${produtos.length} produto${produtos.length !== 1 ? 's' : ''} · tempo real`
+                : `Atualizado a cada 5 min · ${produtos.length} disponíveis`}
+              {isPremium && (
+                <span className="ml-2 text-xs font-medium" style={{ color: 'var(--accent-text)' }}>★ Premium</span>
+              )}
+            </p>
           </div>
 
-          {/* FOMO — compacto e direto, sem box */}
           {!isPremium && upcomingCount > 0 && (
             <a
               href={isLoggedIn ? '/upgrade' : '/login'}
-              className="shrink-0 flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors hover:bg-orange-500/20"
-              style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
+              className="shrink-0 flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors"
+              style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}
             >
               <span className="font-bold">+{upcomingCount}</span>
               <span className="hidden sm:inline" style={{ color: 'var(--text-3)' }}>chegando — ver agora</span>
-              <span className="sm:hidden" style={{ color: 'var(--text-3)' }}>chegando</span>
             </a>
           )}
         </div>
 
-        {/* AdSense */}
         <AdUnit slot="1621510108" format="horizontal" className="mb-6" style={{ minHeight: 90 }} />
-
         <Feed produtos={produtos} isPremium={isPremium} />
       </main>
     </div>

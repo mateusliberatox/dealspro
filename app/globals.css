@@ -2,36 +2,42 @@
 
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 :root {
-  --accent:       #f97316;
-  --accent-hover: #ea6c0a;
-  --accent-dim:   rgba(249,115,22,0.12);
+  /* Azul principal — #032890 */
+  --accent:       #032890;
+  --accent-hover: #021e6b;
+  --accent-dim:   rgba(3,40,144,0.10);
+  --accent-text:  #5580f0;   /* azul legível em backgrounds escuros */
 
-  /* Dark (default) — escala com separação real, não gradiente linear */
-  --bg:           #070707;
-  --surface:      #101010;
-  --surface-2:    #181818;
-  --surface-3:    #1f1f1f;
-  --border:       rgba(255,255,255,0.06);
+  /* Cinza da marca — #73757C */
+  --gray-brand:   #73757C;
+
+  /* Dark (default) */
+  --bg:            #070707;
+  --surface:       #101010;
+  --surface-2:     #181818;
+  --surface-3:     #1f1f1f;
+  --border:        rgba(255,255,255,0.06);
   --border-strong: rgba(255,255,255,0.12);
-  --header-bg:    rgba(7,7,7,0.92);
-
-  /* Texto: 3 níveis com diferença real de peso */
-  --text:   #f0f0f0;  /* primário — quase branco */
-  --text-2: #9a9a9a;  /* secundário */
-  --text-3: #555555;  /* muted / labels */
+  --header-bg:     rgba(7,7,7,0.92);
+  --text:          #f0f0f0;   /* primário */
+  --text-2:        #73757C;   /* secundário — cinza da marca */
+  --text-3:        #484a50;   /* muted */
+  --text-4:        #323438;   /* muito muted */
 }
 
 :root.light {
-  --bg:           #f4f4f4;
-  --surface:      #ffffff;
-  --surface-2:    #efefef;
-  --surface-3:    #e6e6e6;
-  --border:       rgba(0,0,0,0.07);
+  --bg:            #f4f4f4;
+  --surface:       #ffffff;
+  --surface-2:     #efefef;
+  --surface-3:     #e6e6e6;
+  --border:        rgba(0,0,0,0.07);
   --border-strong: rgba(0,0,0,0.14);
-  --header-bg:    rgba(244,244,244,0.92);
-  --text:   #111111;
-  --text-2: #666666;
-  --text-3: #999999;
+  --header-bg:     rgba(244,244,244,0.92);
+  --text:          #111111;
+  --text-2:        #73757C;   /* cinza da marca — funciona em ambos os temas */
+  --text-3:        #9a9b9f;
+  --text-4:        #b8b9bc;
+  --accent-text:   #032890;   /* no light o azul direto tem contraste suficiente */
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -53,6 +59,15 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ── Botão accent — substitui as classes Tailwind orange ───────────────────── */
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-accent:disabled              { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar         { width: 5px; height: 5px; }
