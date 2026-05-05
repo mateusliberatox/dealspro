@@ -4,8 +4,23 @@ import { useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserAlert, DealsproProfile } from '@/lib/types';
 
-const SIZE_OPTIONS = ['', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
 const MAX_ALERTS = 10;
+
+// Grupos de tamanho organizados por tipo
+const SIZE_GROUPS = [
+  {
+    label: 'Roupa',
+    sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'],
+  },
+  {
+    label: 'Calçado EU',
+    sizes: ['34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'],
+  },
+  {
+    label: 'Calçado US',
+    sizes: ['4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '12', '13'],
+  },
+];
 
 interface Props {
   profile: DealsproProfile | null;
@@ -71,21 +86,16 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   // ── Premium gate ─────────────────────────────────────────────────────────────
   if (!isPremium) {
     return (
-      <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-8 text-center space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/15 text-2xl">
-          🔒
-        </div>
-        <div className="space-y-1">
-          <p className="font-semibold text-lg" style={{ color: 'var(--text)' }}>Recurso Premium</p>
-          <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-            Receba uma DM no Discord quando um produto com sua palavra-chave aparecer.
-          </p>
-        </div>
+      <div className="rounded-xl border py-12 text-center space-y-4" style={{ borderColor: 'var(--border-strong)' }}>
+        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Recurso Premium</p>
+        <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+          Receba uma DM no Discord quando um produto com sua palavra-chave aparecer.
+        </p>
         <a
           href="/upgrade"
-          className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
         >
-          ⚡ Assinar Premium
+          Assinar Premium
         </a>
       </div>
     );
@@ -93,42 +103,45 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Discord connection */}
+
+      {/* Status do Discord */}
       <div
         className="flex items-center justify-between rounded-xl border p-4 gap-3"
         style={{
-          background: hasDiscord ? 'rgba(34,197,94,0.05)' : 'var(--surface)',
-          borderColor: hasDiscord ? 'rgba(34,197,94,0.3)' : 'var(--border)',
+          background: hasDiscord ? 'rgba(34,197,94,0.04)' : 'var(--surface)',
+          borderColor: hasDiscord ? 'rgba(34,197,94,0.25)' : 'var(--border)',
         }}
       >
         <div className="min-w-0">
           <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
             {hasDiscord ? `Discord: ${profile.discord_username}` : 'Conectar Discord'}
           </p>
-          <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-3)' }}>
-            {hasDiscord ? 'Você receberá DMs quando um alerta disparar.' : 'Necessário para receber notificações.'}
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+            {hasDiscord
+              ? 'Você receberá DMs quando um alerta disparar.'
+              : 'Necessário para receber notificações.'}
           </p>
         </div>
-        {!hasDiscord && (
+        {hasDiscord ? (
+          <span className="shrink-0 text-sm font-medium text-green-500">✓ Conectado</span>
+        ) : (
           <button
             onClick={connectDiscord}
-            className="shrink-0 rounded-lg bg-[#5865F2] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4752c4] transition-colors"
+            className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: '#5865F2' }}
           >
             Conectar
           </button>
         )}
-        {hasDiscord && (
-          <span className="shrink-0 text-green-500 text-lg">✓</span>
-        )}
       </div>
 
-      {/* Add alert form */}
+      {/* Form de novo alerta */}
       <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Novo alerta</p>
-          <span className="text-xs" style={{ color: 'var(--text-4)' }}>{alerts.length}/{MAX_ALERTS}</span>
+          <span className="text-xs" style={{ color: 'var(--text-3)' }}>{alerts.length}/{MAX_ALERTS}</span>
         </div>
-        {/* Stacked on mobile, row on sm+ */}
+
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={keyword}
@@ -138,9 +151,10 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
             className="flex-1 rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
             style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
             onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+            onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border)')}
           />
           <div className="flex gap-2">
+            {/* Select com grupos de tamanho */}
             <select
               value={size}
               onChange={(e) => setSize(e.target.value)}
@@ -148,7 +162,13 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
               style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)' }}
             >
               <option value="">Qualquer tam.</option>
-              {SIZE_OPTIONS.filter(Boolean).map((s) => <option key={s} value={s}>{s}</option>)}
+              {SIZE_GROUPS.map(({ label, sizes }) => (
+                <optgroup key={label} label={label}>
+                  {sizes.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
             <button
               onClick={addAlert}
@@ -162,33 +182,38 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
 
-      {/* Alert list */}
+      {/* Lista de alertas */}
       {alerts.length === 0 ? (
-        <div className="rounded-xl border py-10 text-center space-y-2" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <p className="text-2xl">🔔</p>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Nenhum alerta ainda</p>
-          <p className="text-xs" style={{ color: 'var(--text-4)' }}>Adicione uma palavra-chave acima para ser notificado.</p>
+        <div className="py-10 text-center">
+          <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+            Nenhum alerta. Adicione uma palavra-chave acima.
+          </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {alerts.map((alert) => (
             <div
               key={alert.id}
               className="flex items-center justify-between rounded-xl border px-4 py-3 transition-all"
               style={{
-                background: alert.is_active ? 'var(--surface)' : 'var(--bg)',
+                background: 'var(--surface)',
                 borderColor: 'var(--border)',
-                opacity: alert.is_active ? 1 : 0.5,
+                opacity: alert.is_active ? 1 : 0.45,
               }}
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: alert.is_active ? 'var(--accent)' : 'var(--text-4)' }}
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: alert.is_active ? 'var(--accent)' : 'var(--text-3)' }}
                 />
-                <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{alert.keyword}</span>
+                <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                  {alert.keyword}
+                </span>
                 {alert.size && (
-                  <span className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]" style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}>
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: 'var(--surface-3)', color: 'var(--text-3)' }}
+                  >
                     {alert.size}
                   </span>
                 )}
@@ -205,7 +230,8 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
                 <button
                   onClick={() => deleteAlert(alert.id)}
                   disabled={pending}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                  className="text-xs transition-colors disabled:opacity-50 hover:text-red-300"
+                  style={{ color: '#f87171' }}
                 >
                   Remover
                 </button>

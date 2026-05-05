@@ -11,7 +11,6 @@ const AD_EVERY = 12;
 const chunk = <T,>(arr: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 
-// Nomes curtos sem emoji — produto real não usa emoji em filtros de UI
 const CATEGORY_SHORT: Record<string, string> = {
   'Todos': 'Todos',
   'Smartwatch': 'Relógios',
@@ -22,85 +21,118 @@ const CATEGORY_SHORT: Record<string, string> = {
   'Outros': 'Outros',
 };
 
+// Ordena tamanhos: letras antes (XS→5XL), depois números crescente
+function sortSizes(sizes: string[]): string[] {
+  return [...sizes].sort((a, b) => {
+    const aNum = Number(a), bNum = Number(b);
+    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+    if (isNaN(aNum) && !isNaN(bNum)) return -1;
+    if (!isNaN(aNum) && isNaN(bNum)) return 1;
+    return a.localeCompare(b);
+  });
+}
+
 export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isPremium?: boolean }) {
-  const [categoria, setCategoria] = useState<string>('Todos');
-  const [size, setSize]           = useState<string>('');
+  // Multi-seleção: arrays vazios = sem filtro = mostra tudo
+  const [categorias, setCategorias] = useState<string[]>([]);
+  const [tamanhos, setTamanhos]     = useState<string[]>([]);
 
   const allSizes = useMemo(() => {
     const set = new Set<string>();
     produtos.forEach((p) => p.sizes?.forEach((s) => set.add(s)));
-    return [...set].sort((a, b) => {
-      const aNum = Number(a), bNum = Number(b);
-      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-      if (isNaN(aNum) && !isNaN(bNum)) return -1;
-      if (!isNaN(aNum) && isNaN(bNum)) return 1;
-      return a.localeCompare(b);
-    });
+    return sortSizes([...set]);
   }, [produtos]);
+
+  const toggleCat = (cat: string) => {
+    if (cat === 'Todos') { setCategorias([]); return; }
+    setCategorias((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
+    );
+  };
+
+  const toggleSize = (s: string) => {
+    setTamanhos((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    );
+  };
+
+  const clearAll = () => { setCategorias([]); setTamanhos([]); };
+
+  const isFiltered = categorias.length > 0 || tamanhos.length > 0;
 
   const filtered = useMemo(() => {
     return produtos.filter((p) => {
-      const catOk  = categoria === 'Todos' || p.categoria === categoria;
-      const sizeOk = !size || p.sizes?.includes(size);
+      const catOk  = categorias.length === 0 || categorias.includes(p.categoria ?? 'Outros');
+      const sizeOk = tamanhos.length === 0 || p.sizes?.some((s) => tamanhos.includes(s));
       return catOk && sizeOk;
     });
-  }, [produtos, categoria, size]);
+  }, [produtos, categorias, tamanhos]);
 
-  const isFiltered = categoria !== 'Todos' || size !== '';
+  const filterBtnStyle = (active: boolean) =>
+    active
+      ? { background: 'var(--accent)', color: '#fff' }
+      : { background: 'var(--surface-2)', color: 'var(--text-2)' };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
-      {/* Filtros de categoria */}
+      {/* Filtro de categoria — multi-seleção */}
       <div className="no-scrollbar flex gap-1 overflow-x-auto pb-0.5">
-        {CATEGORIES.map((cat) => {
-          const active = categoria === cat;
-          return (
-            <button
-              key={cat}
-              onClick={() => setCategoria(cat)}
-              className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-              style={
-                active
-                  ? { background: 'var(--accent)', color: '#fff' }
-                  : { background: 'var(--surface-2)', color: 'var(--text-2)' }
-              }
-            >
-              {CATEGORY_SHORT[cat] ?? cat}
-            </button>
-          );
-        })}
+        {/* Todos: limpa a seleção, ativo quando nada selecionado */}
+        <button
+          onClick={() => toggleCat('Todos')}
+          className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+          style={filterBtnStyle(categorias.length === 0)}
+        >
+          Todos
+        </button>
+        {CATEGORIES.filter((c) => c !== 'Todos').map((cat) => (
+          <button
+            key={cat}
+            onClick={() => toggleCat(cat)}
+            className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+            style={filterBtnStyle(categorias.includes(cat))}
+          >
+            {CATEGORY_SHORT[cat] ?? cat}
+          </button>
+        ))}
       </div>
 
-      {/* Filtro de tamanho */}
+      {/* Filtro de tamanho — multi-seleção */}
       {allSizes.length > 0 && (
-        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5">
-          <span className="shrink-0 text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
+        <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          <span className="shrink-0 text-[11px] font-medium uppercase tracking-widest mr-0.5" style={{ color: 'var(--text-3)' }}>
             Tam.
           </span>
-          {['', ...allSizes].map((s) => (
+          {allSizes.map((s) => (
             <button
-              key={s || '__all'}
-              onClick={() => setSize(s === size ? '' : s)}
+              key={s}
+              onClick={() => toggleSize(s)}
               className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-              style={
-                size === s
-                  ? { background: 'var(--accent)', color: '#fff' }
-                  : { background: 'var(--surface-2)', color: 'var(--text-2)' }
-              }
+              style={filterBtnStyle(tamanhos.includes(s))}
             >
-              {s || 'Todos'}
+              {s}
             </button>
           ))}
         </div>
       )}
 
-      {/* Contador discreto */}
-      {(isFiltered || filtered.length < produtos.length) && (
-        <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-          {filtered.length} {filtered.length === 1 ? 'produto' : 'produtos'}
-          {isFiltered ? ' encontrados' : ''}
-        </p>
+      {/* Barra de estado dos filtros ativos */}
+      {isFiltered && (
+        <div className="flex items-center gap-3">
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+            {filtered.length} {filtered.length === 1 ? 'produto' : 'produtos'}
+            {categorias.length > 0 && ` · ${categorias.length} ${categorias.length === 1 ? 'categoria' : 'categorias'}`}
+            {tamanhos.length > 0 && ` · ${tamanhos.length} ${tamanhos.length === 1 ? 'tamanho' : 'tamanhos'}`}
+          </p>
+          <button
+            onClick={clearAll}
+            className="text-xs underline-offset-2 hover:underline transition-colors"
+            style={{ color: 'var(--accent)' }}
+          >
+            Limpar
+          </button>
+        </div>
       )}
 
       {/* Grade */}
@@ -126,7 +158,7 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
           </p>
           {isFiltered && (
             <button
-              onClick={() => { setCategoria('Todos'); setSize(''); }}
+              onClick={clearAll}
               className="mt-3 text-sm underline-offset-2 hover:underline"
               style={{ color: 'var(--accent)' }}
             >
