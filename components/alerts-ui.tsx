@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { UserAlert, DealsproProfile } from '@/lib/types';
 
 const SIZE_OPTIONS = ['', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
+const MAX_ALERTS = 10;
 
 interface Props {
   profile: DealsproProfile | null;
@@ -36,6 +37,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
 
   const addAlert = () => {
     if (!keyword.trim()) { setError('Digite uma palavra-chave.'); return; }
+    if (alerts.length >= MAX_ALERTS) { setError(`Limite de ${MAX_ALERTS} alertas atingido.`); return; }
     setError('');
     startTrans(async () => {
       const supabase = createClient();
@@ -55,7 +57,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const toggleAlert = (id: string, current: boolean) => {
     startTrans(async () => {
       const supabase = createClient();
-      await supabase.from('user_alerts_dealspro').update({ is_active: !current }).eq('id', id);
+      await supabase.from('user_alerts').update({ is_active: !current }).eq('id', id);
       setAlerts((prev) =>
         prev.map((a) => (a.id === id ? { ...a, is_active: !current } : a)),
       );
@@ -65,7 +67,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const deleteAlert = (id: string) => {
     startTrans(async () => {
       const supabase = createClient();
-      await supabase.from('user_alerts_dealspro').delete().eq('id', id);
+      await supabase.from('user_alerts').delete().eq('id', id);
       setAlerts((prev) => prev.filter((a) => a.id !== id));
     });
   };
@@ -126,7 +128,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
           </select>
           <button
             onClick={addAlert}
-            disabled={pending}
+            disabled={pending || alerts.length >= MAX_ALERTS}
             className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
           >
             Adicionar

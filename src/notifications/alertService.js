@@ -9,30 +9,48 @@ import { logger } from '../utils/logger.js';
 export async function matchAndNotify(products) {
   if (!products.length) return;
 
-  // Fetch all active alerts for premium users
-  const { data: alerts, error } = await supabase
+  // 1. Fetch all active alerts
+  const { data: alerts, error: alertsError } = await supabase
     .from('user_alerts_dealspro')
-    .select('id, user_id, keyword, size, dealspro_profiles!inner(plan, discord_user_id)')
-    .eq('is_active', true)
-    .eq('dealspro_profiles.plan', 'premium');
+    .select('id, user_id, keyword, size')
+    .eq('is_active', true);
 
-  if (error) {
-    logger.error(`Alert fetch failed: ${error.message}`);
+  if (alertsError) {
+    logger.error(`Alert fetch failed: ${alertsError.message}`);
     return;
   }
   if (!alerts?.length) return;
 
+  // 2. Fetch profiles only for users that have active alerts (premium check)
+  const userIds = [...new Set(alerts.map((a) => a.user_id))];
+  const { data: profiles, error: profilesError } = await supabase
+    .from('dealspro_profiles')
+    .select('user_id, plan, discord_user_id')
+    .in('user_id', userIds)
+    .eq('plan', 'premium');
+
+  if (profilesError) {
+    logger.error(`Profile fetch failed: ${profilesError.message}`);
+    return;
+  }
+  if (!profiles?.length) return;
+
+  // 3. Build profile lookup and filter to premium-only alerts
+  const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
+  const premiumAlerts = alerts.filter((a) => profileMap.has(a.user_id));
+  if (!premiumAlerts.length) return;
+
   for (const product of products) {
     const searchText = `${product.nome} ${product.nome_traduzido ?? ''}`.toLowerCase();
 
-    for (const alert of alerts) {
+    for (const alert of premiumAlerts) {
       const keywordMatch = searchText.includes(alert.keyword.toLowerCase());
       if (!keywordMatch) continue;
 
       const sizeMatch = !alert.size || (product.sizes ?? []).includes(alert.size);
       if (!sizeMatch) continue;
 
-      const discordId = alert.dealspro_profiles?.discord_user_id;
+      const discordId = profileMap.get(alert.user_id)?.discord_user_id;
       await dispatchDM({ alert, product, discordId });
     }
   }

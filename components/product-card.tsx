@@ -9,6 +9,16 @@ function isNew(criado_em: string) {
   return Date.now() - new Date(criado_em).getTime() < 30 * 60 * 1000;
 }
 
+function timeAgo(criado_em: string): string {
+  const diff = Date.now() - new Date(criado_em).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'agora';
+  if (mins < 60) return `há ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `há ${hrs}h`;
+  return `há ${Math.floor(hrs / 24)}d`;
+}
+
 export function ProductCard({ produto }: { produto: Produto }) {
   const nome  = produto.nome_traduzido || produto.nome;
   const emoji = CATEGORY_EMOJI[produto.categoria ?? ''] ?? '📦';
@@ -73,7 +83,7 @@ export function ProductCard({ produto }: { produto: Produto }) {
         <div className="mt-auto flex items-center justify-between pt-2">
           <span className="text-base font-bold text-orange-400">{produto.preco || '—'}</span>
           <span className="text-[11px]" style={{ color: 'var(--text-4)' }}>
-            {new Date(produto.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            {timeAgo(produto.criado_em)}
           </span>
         </div>
       </div>

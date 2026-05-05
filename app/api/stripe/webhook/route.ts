@@ -3,13 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 
-// Service-role client — bypasses RLS for webhook updates
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
-
 export async function POST(request: NextRequest) {
+  // Instantiated inside the handler so env vars are only required at runtime, not build time.
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
   const body      = await request.text();
   const signature = request.headers.get('stripe-signature');
 
@@ -45,11 +44,29 @@ export async function POST(request: NextRequest) {
     case 'customer.subscription.deleted': {
       const sub        = event.data.object as Stripe.Subscription;
       const customerId = sub.customer as string;
+      const expiresAt  = sub.canceled_at
+        ? new Date(sub.canceled_at * 1000).toISOString()
+        : new Date().toISOString();
+
+      // Fetch user_id to deactivate alerts
+      const { data: profile } = await supabaseAdmin
+        .from('dealspro_profiles')
+        .select('user_id')
+        .eq('stripe_customer_id', customerId)
+        .single();
 
       await supabaseAdmin
         .from('dealspro_profiles')
-        .update({ plan: 'free', stripe_subscription_id: null })
+        .update({ plan: 'free', stripe_subscription_id: null, plan_expires_at: expiresAt })
         .eq('stripe_customer_id', customerId);
+
+      // Deactivate all alerts so they don't trigger after cancellation
+      if (profile?.user_id) {
+        await supabaseAdmin
+          .from('user_alerts_dealspro')
+          .update({ is_active: false })
+          .eq('user_id', profile.user_id);
+      }
       break;
     }
 

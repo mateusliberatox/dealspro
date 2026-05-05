@@ -6,20 +6,33 @@ import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 export function Header() {
-  const [user, setUser]   = useState<User | null>(null);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [user, setUser]       = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [theme, setTheme]     = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
-    // Sync theme state with what the layout script applied
     const saved = localStorage.getItem('dp-theme');
     if (saved === 'light') setTheme('light');
   }, []);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      if (data.user) {
+        supabase
+          .from('dealspro_profiles')
+          .select('is_admin')
+          .eq('user_id', data.user.id)
+          .single()
+          .then(({ data: p }) => setIsAdmin(!!p?.is_admin));
+      }
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);
+      if (!session?.user) setIsAdmin(false);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -71,9 +84,11 @@ export function Header() {
               <Link href="/alerts" className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
                 Alertas
               </Link>
-              <Link href="/admin" className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
-                Admin
-              </Link>
+              {isAdmin && (
+                <Link href="/admin" className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
+                  Admin
+                </Link>
+              )}
               <button onClick={signOut} className="transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
                 Sair
               </button>

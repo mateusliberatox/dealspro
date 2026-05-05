@@ -7,12 +7,27 @@ export async function GET(request: NextRequest) {
   const categoria = searchParams.get('categoria');
 
   const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let isPremium = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from('dealspro_profiles')
+      .select('plan')
+      .eq('user_id', user.id)
+      .single();
+    isPremium = profile?.plan === 'premium';
+  }
+
   let query = supabase
     .from('produtos_dealspro')
     .select('*')
     .order('criado_em', { ascending: false })
     .limit(limit);
 
+  if (!isPremium) query = query.lte('visible_at', now);
   if (categoria) query = query.eq('categoria', categoria);
 
   const { data, error } = await query;
