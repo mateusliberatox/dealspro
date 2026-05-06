@@ -35,8 +35,33 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const [error, setError]     = useState('');
   const [pending, startTrans] = useTransition();
 
+  // Estado do botão de teste de DM
+  const [dmStatus, setDmStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
+  const [dmError, setDmError]   = useState('');
+
   const isPremium  = profile?.plan === 'premium';
   const hasDiscord = !!profile?.discord_user_id;
+
+  const testDM = async () => {
+    setDmStatus('sending');
+    setDmError('');
+    try {
+      const res  = await fetch('/api/test-discord', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setDmStatus('ok');
+        setTimeout(() => setDmStatus('idle'), 5000);
+      } else {
+        setDmStatus('error');
+        setDmError(data.error ?? 'Erro desconhecido');
+        setTimeout(() => setDmStatus('idle'), 6000);
+      }
+    } catch {
+      setDmStatus('error');
+      setDmError('Falha de rede');
+      setTimeout(() => setDmStatus('idle'), 6000);
+    }
+  };
 
   const connectDiscord = async () => {
     const supabase = createClient();
@@ -123,7 +148,27 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
           </p>
         </div>
         {hasDiscord ? (
-          <span className="shrink-0 text-sm font-medium text-green-500">✓ Conectado</span>
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
+            <span className="text-sm font-medium text-green-500">✓ Conectado</span>
+            <button
+              onClick={testDM}
+              disabled={dmStatus === 'sending'}
+              className="text-xs font-medium transition-colors disabled:opacity-50"
+              style={{
+                color: dmStatus === 'ok'    ? '#22c55e'
+                     : dmStatus === 'error' ? '#f87171'
+                     : 'var(--text-3)',
+              }}
+            >
+              {dmStatus === 'sending' ? 'Enviando…'
+               : dmStatus === 'ok'    ? '✓ DM enviada!'
+               : dmStatus === 'error' ? '✗ Falhou'
+               : 'Testar DM'}
+            </button>
+            {dmStatus === 'error' && dmError && (
+              <p className="text-[10px] text-red-400 max-w-[150px] text-right">{dmError}</p>
+            )}
+          </div>
         ) : (
           <button
             onClick={connectDiscord}

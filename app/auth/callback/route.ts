@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { addPremiumRole } from '@/lib/discord';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -18,11 +19,8 @@ export async function GET(request: NextRequest) {
   }
 
   const userId = data.user.id;
-
-  // Ensure profile exists (handles existing users whose profile wasn't created by trigger)
   const profileUpdate: Record<string, unknown> = { user_id: userId };
 
-  // If logged in with Discord, save identity data
   const discord = data.user.identities?.find((i) => i.provider === 'discord');
   if (discord) {
     profileUpdate.discord_user_id  = discord.identity_data?.provider_id ?? discord.id;
@@ -33,10 +31,22 @@ export async function GET(request: NextRequest) {
     profileUpdate.discord_avatar   = discord.identity_data?.avatar_url ?? null;
   }
 
-  // upsert: creates profile if missing, updates discord fields if present
   await supabase
     .from('dealspro_profiles')
     .upsert(profileUpdate, { onConflict: 'user_id' });
+
+  // Se o usuário é premium e acabou de conectar o Discord → adiciona cargo imediatamente
+  if (discord && profileUpdate.discord_user_id) {
+    const { data: profile } = await supabase
+      .from('dealspro_profiles')
+      .select('plan')
+      .eq('user_id', userId)
+      .single();
+
+    if (profile?.plan === 'premium') {
+      await addPremiumRole(profileUpdate.discord_user_id as string).catch(() => {});
+    }
+  }
 
   return NextResponse.redirect(`${origin}${next}`);
 }
