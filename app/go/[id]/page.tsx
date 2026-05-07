@@ -161,6 +161,11 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
           </div>
         )}
 
+        {/* Ad após deals similares — usuário que chegou até aqui tem alta intenção */}
+        {similar && similar.length > 0 && (
+          <AdUnit slot="1621510108" format="rectangle" style={{ minHeight: 250 }} />
+        )}
+
         {/* FOMO — apenas para free, apenas se houver produtos em delay */}
         {!isPremium && upcomingCount > 0 && (
           <a

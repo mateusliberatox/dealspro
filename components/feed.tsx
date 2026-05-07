@@ -138,6 +138,11 @@ export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean })
             </div>
           )}
 
+          {/* In-feed ad — após o featured, antes do grid. Alta intenção, scroll imediato. */}
+          {featured && (
+            <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
+          )}
+
           {/* Regular card chunks with ads between */}
           {restChunks.map((chunkItems, gi) => (
             <div key={gi} className="space-y-8">
