@@ -24,9 +24,12 @@ export async function getExistingHashes() {
 
 export async function insertProducts(products) {
   if (!products.length) return [];
-  const { data, error } = await supabase.from(TABLE).insert(products).select();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .upsert(products, { onConflict: 'hash', ignoreDuplicates: true })
+    .select();
   if (error) throw new Error(`Failed to insert products: ${error.message}`);
-  return data;
+  return data ?? [];
 }
 
 /**
