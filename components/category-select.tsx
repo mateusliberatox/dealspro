@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { updateCategoriaAction } from '@/app/admin/actions';
 
-const OPTIONS = ['Smartwatch', 'Bolsa / Mochila', 'Roupas', 'Eletrônicos', 'Calçados', 'Outros'];
+const OPTIONS = ['Roupas', 'Calçados', 'Bolsa / Mochila', 'Acessórios', 'Smartwatch', 'Eletrônicos', 'Outros'];
 
 export function CategorySelect({ id, current }: { id: number; current: string | null }) {
   const [pending, startTransition] = useTransition();

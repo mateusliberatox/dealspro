@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 const ALLOWED_CATEGORIES = [
-  'Smartwatch', 'Bolsa / Mochila', 'Roupas', 'Eletrônicos', 'Calçados', 'Outros',
+  'Roupas', 'Calçados', 'Bolsa / Mochila', 'Acessórios', 'Smartwatch', 'Eletrônicos', 'Outros',
 ];
 
 export async function updateCategoriaAction(id: number, categoria: string) {

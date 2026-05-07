@@ -9,7 +9,7 @@ import { matchAndNotify } from '../notifications/alertService.js';
 import { sendFreeDelayedNotifications } from '../notifications/discord.js';
 import { supabase } from '../database/supabase.js';
 
-const MAX_QC_FETCHES   = 25;
+const MAX_QC_FETCHES   = 100; // tenta QC para todos os produtos novos
 const QC_BATCH_SIZE    = 3;   // parallel QC fetches
 const FREE_DELAY_MS    = 30 * 60 * 1000; // 30 minutes
 

@@ -8,11 +8,12 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const COLOR = 0xf97316;
 
 const CATEGORY_EMOJI = {
-  'Smartwatch': '⌚',
-  'Bolsa / Mochila': '👜',
   'Roupas': '👕',
-  'Eletrônicos': '🔊',
   'Calçados': '👟',
+  'Bolsa / Mochila': '👜',
+  'Acessórios': '🕶️',
+  'Smartwatch': '⌚',
+  'Eletrônicos': '🔊',
   'Outros': '📦',
 };
 

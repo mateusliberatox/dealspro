@@ -48,10 +48,11 @@ export interface NotificationLog {
 
 export const CATEGORIES = [
   'Todos',
-  'Smartwatch',
-  'Bolsa / Mochila',
   'Roupas',
-  'Eletrônicos',
   'Calçados',
+  'Bolsa / Mochila',
+  'Acessórios',
+  'Smartwatch',
+  'Eletrônicos',
   'Outros',
 ] as const;

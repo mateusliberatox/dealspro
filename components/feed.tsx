@@ -9,13 +9,14 @@ import { CATEGORIES } from '@/lib/types';
 const AD_EVERY = 12;
 
 const CATEGORY_SHORT: Record<string, string> = {
-  'Todos':          'Todos',
-  'Smartwatch':     'Relógios',
-  'Bolsa / Mochila':'Bolsas',
-  'Roupas':         'Roupas',
-  'Eletrônicos':    'Eletrônicos',
-  'Calçados':       'Calçados',
-  'Outros':         'Outros',
+  'Todos':           'Todos',
+  'Roupas':          'Roupas',
+  'Calçados':        'Calçados',
+  'Bolsa / Mochila': 'Bolsas',
+  'Acessórios':      'Acessórios',
+  'Smartwatch':      'Relógios',
+  'Eletrônicos':     'Eletrônicos',
+  'Outros':          'Outros',
 };
 
 function sortSizes(sizes: string[]): string[] {
