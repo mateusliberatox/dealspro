@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { UserAlert, DealsproProfile } from '@/lib/types';
+import { CATEGORIES } from '@/lib/types';
 
 const MAX_ALERTS = 10;
 
@@ -29,10 +30,11 @@ interface Props {
 }
 
 export function AlertsUI({ profile, alerts: initial, userId }: Props) {
-  const [alerts, setAlerts]   = useState<UserAlert[]>(initial);
-  const [keyword, setKeyword] = useState('');
-  const [size, setSize]       = useState('');
-  const [error, setError]     = useState('');
+  const [alerts, setAlerts]       = useState<UserAlert[]>(initial);
+  const [keyword, setKeyword]     = useState('');
+  const [size, setSize]           = useState('');
+  const [categoria, setCategoria] = useState('');
+  const [error, setError]         = useState('');
   const [pending, startTrans] = useTransition();
 
   // Estado do botão de teste de DM
@@ -75,20 +77,26 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   };
 
   const addAlert = () => {
-    if (!keyword.trim()) { setError('Digite uma palavra-chave.'); return; }
+    if (!keyword.trim() && !categoria) { setError('Informe ao menos uma palavra-chave ou categoria.'); return; }
     if (alerts.length >= MAX_ALERTS) { setError(`Limite de ${MAX_ALERTS} alertas atingido.`); return; }
     setError('');
     startTrans(async () => {
       const supabase = createClient();
       const { data, error: err } = await supabase
         .from('user_alerts_dealspro')
-        .insert({ user_id: userId, keyword: keyword.trim(), size: size || null })
+        .insert({
+          user_id:   userId,
+          keyword:   keyword.trim() || '',
+          size:      size || null,
+          categoria: categoria || null,
+        })
         .select()
         .single();
       if (err) { setError(err.message); return; }
       setAlerts((prev) => [data as UserAlert, ...prev]);
       setKeyword('');
       setSize('');
+      setCategoria('');
     });
   };
 
@@ -187,43 +195,61 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
           <span className="text-xs" style={{ color: 'var(--text-3)' }}>{alerts.length}/{MAX_ALERTS}</span>
         </div>
 
+        {/* Linha 1: palavra-chave */}
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addAlert()}
+          placeholder="Palavra-chave (ex: hoodie, backpack…)"
+          className="w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
+          style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+          onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border)')}
+        />
+
+        {/* Linha 2: categoria + tamanho + botão */}
         <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addAlert()}
-            placeholder="Palavra-chave (ex: hoodie, backpack…)"
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
             className="flex-1 rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
-            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-            onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border)')}
-          />
-          <div className="flex gap-2">
-            {/* Select com grupos de tamanho */}
-            <select
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              className="flex-1 sm:flex-none rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
-              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)' }}
-            >
-              <option value="">Qualquer tam.</option>
-              {SIZE_GROUPS.map(({ label, sizes }) => (
-                <optgroup key={label} label={label}>
-                  {sizes.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <button
-              onClick={addAlert}
-              disabled={pending || alerts.length >= MAX_ALERTS}
-              className="shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
-            >
-              Adicionar
-            </button>
-          </div>
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: categoria ? 'var(--text)' : 'var(--text-3)' }}
+          >
+            <option value="">Qualquer categoria</option>
+            {CATEGORIES.filter((c) => c !== 'Todos').map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          <select
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+            className="flex-1 sm:flex-none rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text-2)' }}
+          >
+            <option value="">Qualquer tam.</option>
+            {SIZE_GROUPS.map(({ label, sizes }) => (
+              <optgroup key={label} label={label}>
+                {sizes.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+
+          <button
+            onClick={addAlert}
+            disabled={pending || alerts.length >= MAX_ALERTS}
+            className="shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+          >
+            Adicionar
+          </button>
         </div>
+
+        <p className="text-[11px]" style={{ color: 'var(--text-3)' }}>
+          Preencha palavra-chave e/ou categoria. Se ambos, o produto deve satisfazer os dois filtros.
+        </p>
+
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
 
@@ -252,8 +278,16 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
                   style={{ background: alert.is_active ? 'var(--accent)' : 'var(--text-3)' }}
                 />
                 <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
-                  {alert.keyword}
+                  {alert.keyword || <em style={{ color: 'var(--text-3)', fontStyle: 'normal' }}>Qualquer produto</em>}
                 </span>
+                {alert.categoria && (
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: 'rgba(251,146,60,0.12)', color: 'var(--accent)' }}
+                  >
+                    {alert.categoria}
+                  </span>
+                )}
                 {alert.size && (
                   <span
                     className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"

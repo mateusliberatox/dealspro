@@ -6,12 +6,10 @@ import 'dotenv/config';
 const BASE_URL = process.env.CSSDEALS_URL ?? 'https://cssdeals.com';
 
 /**
- * Category pages to scrape in addition to the homepage.
- * Each page 1 shows the most recent products (sorted by position/itemid desc).
- * Only the categories with highest product velocity are included to keep
- * each run under ~3 minutes total.
+ * Fallback used when dynamic category discovery fails.
+ * Keep this in sync with any known category IDs.
  */
-const CATEGORY_PAGES = [
+const FALLBACK_CATEGORIES = [
   { name: 'Fashion',     id: 18 },
   { name: 'Shoes',       id: 11 },
   { name: 'Electronics', id: 19 },
@@ -71,17 +69,58 @@ async function extractProducts(page, sourceLabel) {
 }
 
 /**
- * Scrapes the homepage carousel.
+ * Extracts all category links from the navigation of the already-loaded page.
+ * Falls back to FALLBACK_CATEGORIES if nothing is found.
+ */
+async function discoverCategories(page) {
+  try {
+    const categories = await page.evaluate(() => {
+      const links = document.querySelectorAll('a[href*="shop-left-sidebar.html?id="]');
+      const seen = new Set();
+      const result = [];
+
+      for (const link of links) {
+        const href = link.getAttribute('href') ?? '';
+        const match = href.match(/[?&]id=(\d+)/);
+        if (!match) continue;
+
+        const id = parseInt(match[1], 10);
+        if (seen.has(id)) continue;
+        seen.add(id);
+
+        const name = link.textContent?.trim() || `Category-${id}`;
+        result.push({ name, id });
+      }
+
+      return result;
+    });
+
+    if (categories.length > 0) {
+      logger.info(`Discovered ${categories.length} categories from navigation`);
+      return categories;
+    }
+  } catch (err) {
+    logger.warn(`Category discovery error: ${err.message}`);
+  }
+
+  logger.warn('Falling back to hardcoded category list');
+  return FALLBACK_CATEGORIES;
+}
+
+/**
+ * Scrapes the homepage carousel and discovers all category links from the nav.
  */
 async function scrapeHomepage() {
   const page = await newPage();
   try {
     await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForSelector('a[href*="itemid="]', { timeout: 35_000 });
-    return await extractProducts(page, 'Homepage');
+    const products   = await extractProducts(page, 'Homepage');
+    const categories = await discoverCategories(page);
+    return { products, categories };
   } catch (err) {
     logger.warn(`Homepage scrape failed: ${err.message}`);
-    return [];
+    return { products: [], categories: FALLBACK_CATEGORIES };
   } finally {
     await page.context().close();
   }
@@ -106,31 +145,36 @@ async function scrapeCategory(categoryId, categoryName) {
 }
 
 /**
- * Main scraper: homepage + all category pages in parallel batches.
+ * Main scraper: homepage + all category pages (discovered dynamically) in batches.
  * Returns deduplicated list by link.
  */
 export async function scrapeCssDeals() {
   logger.info('Starting multi-page scrape...');
 
-  // Homepage first, then categories in batches to control memory/time
-  const homepageResult = await Promise.allSettled([scrapeHomepage()]);
+  // Homepage loads first — products + category discovery happen in the same page load
+  const { products: homepageProducts, categories } = await scrapeHomepage();
 
   const categoryResults = [];
-  for (let i = 0; i < CATEGORY_PAGES.length; i += BATCH_SIZE) {
-    const batch = CATEGORY_PAGES.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < categories.length; i += BATCH_SIZE) {
+    const batch = categories.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.allSettled(
       batch.map((c) => scrapeCategory(c.id, c.name)),
     );
     categoryResults.push(...batchResults);
   }
 
-  const results = [...homepageResult, ...categoryResults];
-
   // Merge and deduplicate by link
   const seen = new Set();
   const merged = [];
 
-  for (const result of results) {
+  for (const product of homepageProducts) {
+    if (!seen.has(product.link)) {
+      seen.add(product.link);
+      merged.push(product);
+    }
+  }
+
+  for (const result of categoryResults) {
     if (result.status !== 'fulfilled') continue;
     for (const product of result.value) {
       if (!seen.has(product.link)) {
@@ -140,8 +184,7 @@ export async function scrapeCssDeals() {
     }
   }
 
-  const pageCount = 1 + CATEGORY_PAGES.length;
-  logger.success(`Total unique products scraped: ${merged.length} (from ${pageCount} pages)`);
+  logger.success(`Total unique products scraped: ${merged.length} (from ${1 + categories.length} pages)`);
   return merged;
 }
 

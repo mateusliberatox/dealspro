@@ -18,16 +18,7 @@ export default async function AdminPage() {
     .eq('user_id', user.id)
     .single();
 
-  if (!profile?.is_admin) {
-    return (
-      <div className="min-h-screen">
-        <Header />
-        <main className="mx-auto max-w-6xl px-4 py-8">
-          <p style={{ color: 'var(--text-3)' }}>Acesso restrito.</p>
-        </main>
-      </div>
-    );
-  }
+  if (!profile?.is_admin) redirect('/');
 
   const now = new Date().toISOString();
 

@@ -30,6 +30,7 @@ export interface UserAlert {
   user_id: string;
   keyword: string;
   size: string | null;
+  categoria: string | null;
   is_active: boolean;
   created_at: string;
 }

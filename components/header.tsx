@@ -70,25 +70,37 @@ export function Header() {
   return (
     <>
       <header
-        className="sticky top-0 z-50 border-b backdrop-blur-sm"
-        style={{ background: 'var(--header-bg)', borderColor: 'var(--border)' }}
+        className="sticky top-0 z-50 animate-fade-in-down"
+        style={{
+          background:            'var(--header-bg)',
+          backdropFilter:        'blur(14px)',
+          WebkitBackdropFilter:  'blur(14px)',
+          borderBottom:          '1px solid rgba(59, 130, 246, 0.18)',
+        }}
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/" className="flex items-center gap-2" onClick={closeMenu}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="" aria-hidden="true" className="h-7 w-7 rounded-full" />
-            <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>
+
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 animate-slide-in-right" onClick={closeMenu}>
+            <span className="animate-float block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.svg" alt="" aria-hidden className="h-8 w-8 rounded-full" />
+            </span>
+            <span className="text-lg font-extrabold tracking-tight gradient-blue-text">
               DealsPro
             </span>
           </Link>
 
-          <nav className="flex items-center gap-2 sm:gap-3 text-sm">
+          <nav className="flex items-center gap-1 sm:gap-2 text-sm">
+
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
               aria-label="Alternar tema"
-              className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
+              className="rounded-lg p-2 transition-colors"
               style={{ color: 'var(--text-3)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(59,130,246,0.08)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               {theme === 'dark' ? (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -104,33 +116,43 @@ export function Header() {
             {/* Desktop nav */}
             {user ? (
               <>
-                <Link href="/alerts" className="hidden sm:inline-flex transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
-                  Alertas
-                </Link>
-                {isAdmin && (
-                  <Link href="/admin" className="hidden sm:inline-flex transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
-                    Admin
-                  </Link>
-                )}
-                <button onClick={signOut} className="hidden sm:inline-flex transition-colors hover:text-white" style={{ color: 'var(--text-3)' }}>
+                <NavLink href="/alerts" onClick={closeMenu}>Alertas</NavLink>
+                {isAdmin && <NavLink href="/admin" onClick={closeMenu}>Admin</NavLink>}
+                <button
+                  onClick={signOut}
+                  className="hidden sm:inline-flex rounded-lg px-3 py-1.5 text-sm transition-colors"
+                  style={{ color: 'var(--text-3)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
+                >
                   Sair
                 </button>
                 <Link
                   href="/minha-conta"
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors"
-                  style={{ background: 'var(--surface-2)', color: 'var(--text-2)' }}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                  style={{
+                    background:  'var(--surface-2)',
+                    border:      '1px solid var(--border)',
+                    color:       'var(--text-2)',
+                  }}
                 >
                   {isPremium && <span style={{ color: 'var(--accent-text)' }}>★</span>}
                   <span>{user.email?.split('@')[0]}</span>
                 </Link>
                 {!isPremium && (
-                  <Link href="/upgrade" className="hidden sm:inline-flex btn-accent rounded-lg px-3 py-1.5 text-xs font-bold">
+                  <Link
+                    href="/upgrade"
+                    className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
+                  >
                     Premium
                   </Link>
                 )}
               </>
             ) : (
-              <Link href="/login" className="hidden sm:inline-flex btn-accent rounded-lg px-4 py-1.5 text-sm font-semibold">
+              <Link
+                href="/login"
+                className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              >
                 Entrar
               </Link>
             )}
@@ -159,13 +181,28 @@ export function Header() {
       {/* Mobile drawer */}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-40 sm:hidden" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={closeMenu} />
-          <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col sm:hidden" style={{ background: 'var(--surface)' }}>
-            <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--border)' }}>
+          <div
+            className="fixed inset-0 z-40 sm:hidden"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            onClick={closeMenu}
+          />
+          <div
+            className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col animate-slide-in-right sm:hidden"
+            style={{
+              background:            'rgba(15, 23, 42, 0.97)',
+              backdropFilter:        'blur(20px)',
+              WebkitBackdropFilter:  'blur(20px)',
+              borderLeft:            '1px solid rgba(59, 130, 246, 0.2)',
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: '1px solid rgba(59, 130, 246, 0.14)' }}
+            >
               <div className="flex items-center gap-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.svg" alt="" aria-hidden="true" className="h-6 w-6 rounded-full" />
-                <span className="text-[1.0625rem] font-bold tracking-tight" style={{ color: 'var(--accent)' }}>DealsPro</span>
+                <img src="/logo.svg" alt="" aria-hidden className="h-6 w-6 rounded-full" />
+                <span className="text-base font-bold gradient-blue-text">DealsPro</span>
               </div>
               <button onClick={closeMenu} className="rounded-lg p-1" style={{ color: 'var(--text-3)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -173,6 +210,7 @@ export function Header() {
                 </svg>
               </button>
             </div>
+
             <div className="flex flex-col gap-1 p-3 flex-1">
               <MobileNavLink href="/" onClick={closeMenu}>Feed de Deals</MobileNavLink>
               {user ? (
@@ -180,10 +218,17 @@ export function Header() {
                   <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
                   <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
                   {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}
-                  {!isPremium && <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>Assinar Premium</MobileNavLink>}
+                  {!isPremium && (
+                    <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>
+                      Assinar Premium
+                    </MobileNavLink>
+                  )}
                   {isPremium && (
-                    <div className="px-4 py-2">
-                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}>
+                    <div className="px-4 py-2 mt-1">
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                        style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}
+                      >
                         ★ Premium ativo
                       </span>
                     </div>
@@ -193,13 +238,14 @@ export function Header() {
                 <MobileNavLink href="/login" onClick={closeMenu} highlight>Entrar</MobileNavLink>
               )}
             </div>
+
             {user && (
-              <div className="border-t p-4" style={{ borderColor: 'var(--border)' }}>
+              <div className="p-4" style={{ borderTop: '1px solid rgba(59, 130, 246, 0.12)' }}>
                 <p className="mb-3 truncate text-xs" style={{ color: 'var(--text-3)' }}>{user.email}</p>
                 <button
                   onClick={signOut}
-                  className="w-full rounded-xl border py-2.5 text-sm font-medium transition-colors"
-                  style={{ borderColor: 'var(--border-strong)', color: 'var(--text-2)' }}
+                  className="w-full rounded-xl py-2.5 text-sm font-medium transition-colors"
+                  style={{ border: '1px solid var(--border)', color: 'var(--text-2)' }}
                 >
                   Sair
                 </button>
@@ -212,6 +258,29 @@ export function Header() {
   );
 }
 
+function NavLink({ href, onClick, children }: {
+  href: string; onClick?: () => void; children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="hidden sm:inline-flex rounded-lg px-3 py-1.5 text-sm font-medium transition-all"
+      style={{ color: 'var(--text-2)' }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = 'var(--accent-text)';
+        e.currentTarget.style.background = 'rgba(59,130,246,0.08)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = 'var(--text-2)';
+        e.currentTarget.style.background = 'transparent';
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function MobileNavLink({ href, onClick, children, highlight = false }: {
   href: string; onClick: () => void; children: React.ReactNode; highlight?: boolean;
 }) {
@@ -219,7 +288,7 @@ function MobileNavLink({ href, onClick, children, highlight = false }: {
     <Link
       href={href}
       onClick={onClick}
-      className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors"
+      className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all"
       style={
         highlight
           ? { background: 'var(--accent-dim)', color: 'var(--accent-text)' }

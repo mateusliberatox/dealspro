@@ -12,7 +12,7 @@ export async function matchAndNotify(products) {
   // 1. Fetch all active alerts
   const { data: alerts, error: alertsError } = await supabase
     .from('user_alerts_dealspro')
-    .select('id, user_id, keyword, size')
+    .select('id, user_id, keyword, size, categoria')
     .eq('is_active', true);
 
   if (alertsError) {
@@ -44,8 +44,24 @@ export async function matchAndNotify(products) {
     const searchText = `${product.nome} ${product.nome_traduzido ?? ''}`.toLowerCase();
 
     for (const alert of premiumAlerts) {
-      const keywordMatch = searchText.includes(alert.keyword.toLowerCase());
-      if (!keywordMatch) continue;
+      // Um alerta dispara quando satisfaz keyword OU categoria (ambos opcionais entre si)
+      // mas ao menos um deve estar preenchido e coincidir.
+      const hasKeyword   = !!alert.keyword;
+      const hasCategoria = !!alert.categoria;
+
+      const keywordMatch   = hasKeyword   && searchText.includes(alert.keyword.toLowerCase());
+      const categoriaMatch = hasCategoria && product.categoria === alert.categoria;
+
+      if (hasKeyword && hasCategoria) {
+        // Ambos preenchidos → os dois devem coincidir
+        if (!keywordMatch || !categoriaMatch) continue;
+      } else if (hasKeyword) {
+        if (!keywordMatch) continue;
+      } else if (hasCategoria) {
+        if (!categoriaMatch) continue;
+      } else {
+        continue;
+      }
 
       const sizeMatch = !alert.size || (product.sizes ?? []).includes(alert.size);
       if (!sizeMatch) continue;

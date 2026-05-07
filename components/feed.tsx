@@ -8,20 +8,16 @@ import { CATEGORIES } from '@/lib/types';
 
 const AD_EVERY = 12;
 
-const chunk = <T,>(arr: T[], size: number): T[][] =>
-  Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
-
 const CATEGORY_SHORT: Record<string, string> = {
-  'Todos': 'Todos',
-  'Smartwatch': 'Relógios',
-  'Bolsa / Mochila': 'Bolsas',
-  'Roupas': 'Roupas',
-  'Eletrônicos': 'Eletrônicos',
-  'Calçados': 'Calçados',
-  'Outros': 'Outros',
+  'Todos':          'Todos',
+  'Smartwatch':     'Relógios',
+  'Bolsa / Mochila':'Bolsas',
+  'Roupas':         'Roupas',
+  'Eletrônicos':    'Eletrônicos',
+  'Calçados':       'Calçados',
+  'Outros':         'Outros',
 };
 
-// Ordena tamanhos: letras antes (XS→5XL), depois números crescente
 function sortSizes(sizes: string[]): string[] {
   return [...sizes].sort((a, b) => {
     const aNum = Number(a), bNum = Number(b);
@@ -32,8 +28,13 @@ function sortSizes(sizes: string[]): string[] {
   });
 }
 
-export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isPremium?: boolean }) {
-  // Multi-seleção: arrays vazios = sem filtro = mostra tudo
+function chunk<T>(arr: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
+    arr.slice(i * size, i * size + size),
+  );
+}
+
+export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean }) {
   const [categorias, setCategorias] = useState<string[]>([]);
   const [tamanhos, setTamanhos]     = useState<string[]>([]);
 
@@ -56,9 +57,8 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
     );
   };
 
-  const clearAll = () => { setCategorias([]); setTamanhos([]); };
-
-  const isFiltered = categorias.length > 0 || tamanhos.length > 0;
+  const clearAll    = () => { setCategorias([]); setTamanhos([]); };
+  const isFiltered  = categorias.length > 0 || tamanhos.length > 0;
 
   const filtered = useMemo(() => {
     return produtos.filter((p) => {
@@ -68,58 +68,50 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
     });
   }, [produtos, categorias, tamanhos]);
 
-  const filterBtnStyle = (active: boolean) =>
-    active
-      ? { background: 'var(--accent)', color: '#fff' }
-      : { background: 'var(--surface-2)', color: 'var(--text-2)' };
+  const featured   = !isFiltered && filtered.length > 0 ? filtered[0] : null;
+  const rest       = featured ? filtered.slice(1) : filtered;
+  const restChunks = chunk(rest, AD_EVERY);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
 
-      {/* Filtro de categoria — multi-seleção */}
-      <div className="no-scrollbar flex gap-1 overflow-x-auto pb-0.5">
-        {/* Todos: limpa a seleção, ativo quando nada selecionado */}
-        <button
-          onClick={() => toggleCat('Todos')}
-          className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-          style={filterBtnStyle(categorias.length === 0)}
-        >
+      {/* Category filters */}
+      <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 animate-fade-in-up" style={{ animationDelay: '0.08s' }}>
+        <FilterBtn active={categorias.length === 0} onClick={() => toggleCat('Todos')}>
           Todos
-        </button>
-        {CATEGORIES.filter((c) => c !== 'Todos').map((cat) => (
-          <button
+        </FilterBtn>
+        {CATEGORIES.filter((c) => c !== 'Todos').map((cat, i) => (
+          <FilterBtn
             key={cat}
+            active={categorias.includes(cat)}
             onClick={() => toggleCat(cat)}
-            className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-            style={filterBtnStyle(categorias.includes(cat))}
+            delay={`${0.1 + i * 0.04}s`}
           >
             {CATEGORY_SHORT[cat] ?? cat}
-          </button>
+          </FilterBtn>
         ))}
       </div>
 
-      {/* Filtro de tamanho — multi-seleção */}
+      {/* Size filters */}
       {allSizes.length > 0 && (
-        <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          <span className="shrink-0 text-[11px] font-medium uppercase tracking-widest mr-0.5" style={{ color: 'var(--text-3)' }}>
+        <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+          <span
+            className="shrink-0 mr-1 text-[9px] font-bold uppercase tracking-widest"
+            style={{ color: 'var(--text-3)' }}
+          >
             Tam.
           </span>
           {allSizes.map((s) => (
-            <button
-              key={s}
-              onClick={() => toggleSize(s)}
-              className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-              style={filterBtnStyle(tamanhos.includes(s))}
-            >
+            <FilterBtn key={s} active={tamanhos.includes(s)} onClick={() => toggleSize(s)} small>
               {s}
-            </button>
+            </FilterBtn>
           ))}
         </div>
       )}
 
-      {/* Barra de estado dos filtros ativos */}
+      {/* Active filter status */}
       {isFiltered && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 animate-fade-in-up">
           <p className="text-xs" style={{ color: 'var(--text-3)' }}>
             {filtered.length} {filtered.length === 1 ? 'produto' : 'produtos'}
             {categorias.length > 0 && ` · ${categorias.length} ${categorias.length === 1 ? 'categoria' : 'categorias'}`}
@@ -127,40 +119,56 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
           </p>
           <button
             onClick={clearAll}
-            className="text-xs underline-offset-2 hover:underline transition-colors"
-            style={{ color: 'var(--accent)' }}
+            className="text-xs underline-offset-2 transition-opacity hover:underline"
+            style={{ color: 'var(--accent-text)' }}
           >
             Limpar
           </button>
         </div>
       )}
 
-      {/* Grade */}
+      {/* Grid */}
       {filtered.length > 0 ? (
-        <div className="space-y-8">
-          {chunk(filtered, AD_EVERY).map((group, gi) => (
-            <div key={gi}>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
-                {group.map((p) => (
-                  <ProductCard key={p.id} produto={p} />
+        <div className="space-y-10">
+
+          {/* Featured card — first product, no active filters */}
+          {featured && (
+            <div className="animate-scale-in" style={{ animationDelay: '0.18s' }}>
+              <ProductCard produto={featured} featured index={0} />
+            </div>
+          )}
+
+          {/* Regular card chunks with ads between */}
+          {restChunks.map((chunkItems, gi) => (
+            <div key={gi} className="space-y-8">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                {chunkItems.map((p, i) => (
+                  <ProductCard
+                    key={p.id}
+                    produto={p}
+                    index={gi * AD_EVERY + i + (featured ? 1 : 0)}
+                  />
                 ))}
               </div>
-              {gi < Math.ceil(filtered.length / AD_EVERY) - 1 && (
-                <AdUnit slot="1621510108" format="horizontal" className="mt-6" style={{ minHeight: 90 }} />
+              {gi < restChunks.length - 1 && (
+                <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
               )}
             </div>
           ))}
         </div>
       ) : (
-        <div className="py-20 text-center">
+        <div className="py-24 text-center animate-fade-in-up">
+          <p className="text-4xl mb-4">🔍</p>
           <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>
-            {isFiltered ? 'Nenhum produto com esses filtros.' : 'Nenhum produto disponível no momento.'}
+            {isFiltered
+              ? 'Nenhum produto com esses filtros.'
+              : 'Nenhum produto disponível no momento.'}
           </p>
           {isFiltered && (
             <button
               onClick={clearAll}
-              className="mt-3 text-sm underline-offset-2 hover:underline"
-              style={{ color: 'var(--accent)' }}
+              className="mt-4 text-sm underline-offset-2 hover:underline"
+              style={{ color: 'var(--accent-text)' }}
             >
               Limpar filtros
             </button>
@@ -168,5 +176,34 @@ export function Feed({ produtos, isPremium = false }: { produtos: Produto[]; isP
         </div>
       )}
     </div>
+  );
+}
+
+function FilterBtn({
+  active,
+  onClick,
+  children,
+  small  = false,
+  delay  = '0s',
+}: {
+  active:    boolean;
+  onClick:   () => void;
+  children:  React.ReactNode;
+  small?:    boolean;
+  delay?:    string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 shine-effect animate-fade-in-up font-medium transition-all ${
+        small ? 'rounded-md px-2.5 py-1 text-[11px]' : 'rounded-lg px-4 py-2 text-sm'
+      } ${active ? 'gradient-blue-bright text-white' : 'glass-btn'}`}
+      style={{
+        animationDelay: delay,
+        color:          active ? '#fff' : 'var(--text-2)',
+      }}
+    >
+      {children}
+    </button>
   );
 }
