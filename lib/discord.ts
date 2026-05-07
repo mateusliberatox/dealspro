@@ -9,12 +9,14 @@ function roleId() { return process.env.DISCORD_PREMIUM_ROLE_ID; }
  * Silencioso se não estiver configurado ou se o usuário não estiver no servidor.
  */
 export async function addPremiumRole(discordUserId: string): Promise<void> {
-  if (!token() || !guild() || !roleId()) return;
+  if (!token() || !guild() || !roleId()) {
+    console.warn('[Discord] addPremiumRole ignorado — DISCORD_BOT_TOKEN, DISCORD_GUILD_ID ou DISCORD_PREMIUM_ROLE_ID não configurados no Vercel.');
+    return;
+  }
   await fetch(
     `${DISCORD_API}/guilds/${guild()}/members/${discordUserId}/roles/${roleId()}`,
     { method: 'PUT', headers: { Authorization: `Bot ${token()}` } },
   );
-  // Não lança erro — role é best-effort (usuário pode não estar no servidor ainda)
 }
 
 /**

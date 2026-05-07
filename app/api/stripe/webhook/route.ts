@@ -31,7 +31,18 @@ export async function POST(request: NextRequest) {
       const userId  = session.client_reference_id ?? session.metadata?.user_id;
       if (!userId) break;
 
-      // Busca discord_user_id antes de atualizar
+      // Busca current_period_end da subscription para salvar plan_expires_at
+      let planExpiresAt: string | null = null;
+      if (session.subscription) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const sub = await stripe.subscriptions.retrieve(session.subscription as string) as any;
+          if (sub.current_period_end) {
+            planExpiresAt = new Date(sub.current_period_end * 1000).toISOString();
+          }
+        } catch {}
+      }
+
       const { data: existing } = await supabaseAdmin
         .from('dealspro_profiles')
         .select('discord_user_id')
@@ -44,13 +55,40 @@ export async function POST(request: NextRequest) {
           plan:                   'premium',
           stripe_customer_id:     session.customer as string,
           stripe_subscription_id: session.subscription as string,
-          plan_expires_at:        null,
+          plan_expires_at:        planExpiresAt,
         })
         .eq('user_id', userId);
 
-      // Adiciona cargo premium no Discord (silencioso se não configurado ou user não está no server)
       if (existing?.discord_user_id) {
         await addPremiumRole(existing.discord_user_id).catch(() => {});
+      }
+      break;
+    }
+
+    case 'customer.subscription.updated': {
+      const sub        = event.data.object as Stripe.Subscription;
+      const customerId = sub.customer as string;
+      const active     = sub.status === 'active' || sub.status === 'trialing';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const periodEnd  = (sub as any).current_period_end as number | undefined;
+      const planExpiresAt = active && periodEnd
+        ? new Date(periodEnd * 1000).toISOString()
+        : null;
+
+      const { data: profile } = await supabaseAdmin
+        .from('dealspro_profiles')
+        .select('discord_user_id')
+        .eq('stripe_customer_id', customerId)
+        .single();
+
+      await supabaseAdmin
+        .from('dealspro_profiles')
+        .update({ plan: active ? 'premium' : 'free', plan_expires_at: planExpiresAt })
+        .eq('stripe_customer_id', customerId);
+
+      if (profile?.discord_user_id) {
+        if (active) await addPremiumRole(profile.discord_user_id).catch(() => {});
+        else        await removePremiumRole(profile.discord_user_id).catch(() => {});
       }
       break;
     }
@@ -73,7 +111,6 @@ export async function POST(request: NextRequest) {
         .update({ plan: 'free', stripe_subscription_id: null, plan_expires_at: expiresAt })
         .eq('stripe_customer_id', customerId);
 
-      // Remove cargo premium e desativa alertas
       if (profile?.discord_user_id) {
         await removePremiumRole(profile.discord_user_id).catch(() => {});
       }
@@ -82,30 +119,6 @@ export async function POST(request: NextRequest) {
           .from('user_alerts_dealspro')
           .update({ is_active: false })
           .eq('user_id', profile.user_id);
-      }
-      break;
-    }
-
-    case 'customer.subscription.updated': {
-      const sub        = event.data.object as Stripe.Subscription;
-      const customerId = sub.customer as string;
-      const active     = sub.status === 'active' || sub.status === 'trialing';
-
-      const { data: profile } = await supabaseAdmin
-        .from('dealspro_profiles')
-        .select('discord_user_id')
-        .eq('stripe_customer_id', customerId)
-        .single();
-
-      await supabaseAdmin
-        .from('dealspro_profiles')
-        .update({ plan: active ? 'premium' : 'free' })
-        .eq('stripe_customer_id', customerId);
-
-      // Sincroniza cargo Discord com status da assinatura
-      if (profile?.discord_user_id) {
-        if (active) await addPremiumRole(profile.discord_user_id).catch(() => {});
-        else        await removePremiumRole(profile.discord_user_id).catch(() => {});
       }
       break;
     }
