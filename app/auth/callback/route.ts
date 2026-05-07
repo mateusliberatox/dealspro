@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const discord = data.user.identities?.find((i) => i.provider === 'discord');
   if (discord) {
-    profileUpdate.discord_user_id  = discord.identity_data?.provider_id ?? discord.id;
+    profileUpdate.discord_user_id  = discord.identity_data?.provider_id ?? null;
     profileUpdate.discord_username = discord.identity_data?.full_name
       ?? discord.identity_data?.name
       ?? discord.identity_data?.preferred_username

@@ -13,10 +13,14 @@ export async function addPremiumRole(discordUserId: string): Promise<void> {
     console.warn('[Discord] addPremiumRole ignorado — DISCORD_BOT_TOKEN, DISCORD_GUILD_ID ou DISCORD_PREMIUM_ROLE_ID não configurados no Vercel.');
     return;
   }
-  await fetch(
+  const res = await fetch(
     `${DISCORD_API}/guilds/${guild()}/members/${discordUserId}/roles/${roleId()}`,
     { method: 'PUT', headers: { Authorization: `Bot ${token()}` } },
   );
+  if (!res.ok && res.status !== 204) {
+    const body = await res.text().catch(() => '');
+    console.warn(`[Discord] addPremiumRole falhou (${res.status}): ${body}`);
+  }
 }
 
 /**
@@ -25,10 +29,14 @@ export async function addPremiumRole(discordUserId: string): Promise<void> {
  */
 export async function removePremiumRole(discordUserId: string): Promise<void> {
   if (!token() || !guild() || !roleId()) return;
-  await fetch(
+  const res = await fetch(
     `${DISCORD_API}/guilds/${guild()}/members/${discordUserId}/roles/${roleId()}`,
     { method: 'DELETE', headers: { Authorization: `Bot ${token()}` } },
   );
+  if (!res.ok && res.status !== 204) {
+    const body = await res.text().catch(() => '');
+    console.warn(`[Discord] removePremiumRole falhou (${res.status}): ${body}`);
+  }
 }
 
 /**

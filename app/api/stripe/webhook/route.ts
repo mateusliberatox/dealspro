@@ -40,7 +40,9 @@ export async function POST(request: NextRequest) {
           if (sub.current_period_end) {
             planExpiresAt = new Date(sub.current_period_end * 1000).toISOString();
           }
-        } catch {}
+        } catch (err) {
+          console.warn('[Stripe] subscription.retrieve falhou — plan_expires_at ficará null:', err);
+        }
       }
 
       const { data: existing } = await supabaseAdmin
