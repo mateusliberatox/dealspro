@@ -18,6 +18,7 @@ const FALLBACK_CATEGORIES = [
 ];
 
 const BATCH_SIZE = 3; // max concurrent Playwright contexts
+const MAX_PAGES  = parseInt(process.env.SCRAPE_PAGES ?? '2', 10); // pages per category
 
 /**
  * Extracts product cards from whatever cssdeals listing page is already loaded.
@@ -127,21 +128,42 @@ async function scrapeHomepage() {
 }
 
 /**
- * Scrapes page 1 of a category (shows newest products first).
+ * Scrapes a single page of a category listing.
+ * Returns [] if the page has no products (signals last page).
  */
-async function scrapeCategory(categoryId, categoryName) {
-  const url = `${BASE_URL}/shop-left-sidebar.html?id=${categoryId}`;
-  const page = await newPage();
+async function scrapeCategoryPage(categoryId, categoryName, pageNum) {
+  const url = pageNum === 1
+    ? `${BASE_URL}/shop-left-sidebar.html?id=${categoryId}`
+    : `${BASE_URL}/shop-left-sidebar.html?id=${categoryId}&page=${pageNum}`;
+  const label = pageNum > 1 ? `${categoryName} p${pageNum}` : categoryName;
+  const page  = await newPage();
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForSelector('a[href*="itemid="]', { timeout: 30_000 });
-    return await extractProducts(page, categoryName);
+    await page.waitForSelector('a[href*="itemid="]', { timeout: pageNum > 1 ? 15_000 : 30_000 });
+    return await extractProducts(page, label);
   } catch (err) {
-    logger.warn(`Category ${categoryName} scrape failed: ${err.message}`);
+    if (pageNum > 1) {
+      logger.info(`  ${label}: sem produtos (última página ou timeout)`);
+    } else {
+      logger.warn(`Category ${categoryName} scrape failed: ${err.message}`);
+    }
     return [];
   } finally {
     await page.context().close();
   }
+}
+
+/**
+ * Scrapes up to MAX_PAGES pages of a category, stopping early if a page is empty.
+ */
+async function scrapeCategory(categoryId, categoryName) {
+  const all = [];
+  for (let p = 1; p <= MAX_PAGES; p++) {
+    const products = await scrapeCategoryPage(categoryId, categoryName, p);
+    all.push(...products);
+    if (products.length === 0) break; // no more pages
+  }
+  return all;
 }
 
 /**
@@ -184,7 +206,7 @@ export async function scrapeCssDeals() {
     }
   }
 
-  logger.success(`Total unique products scraped: ${merged.length} (from ${1 + categories.length} pages)`);
+  logger.success(`Total unique products scraped: ${merged.length} (homepage + ${categories.length} categories × até ${MAX_PAGES} páginas)`);
   return merged;
 }
 
