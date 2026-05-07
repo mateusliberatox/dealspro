@@ -17,8 +17,9 @@ const FALLBACK_CATEGORIES = [
   { name: 'Watches',     id: 20 },
 ];
 
-const BATCH_SIZE = 3; // max concurrent Playwright contexts
-const MAX_PAGES  = parseInt(process.env.SCRAPE_PAGES ?? '2', 10); // pages per category
+const BATCH_SIZE      = 3;  // max concurrent Playwright contexts
+const MAX_PAGES       = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
+const MAX_CATEGORIES  = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
 
 /**
  * Extracts product cards from whatever cssdeals listing page is already loaded.
@@ -174,7 +175,11 @@ export async function scrapeCssDeals() {
   logger.info('Starting multi-page scrape...');
 
   // Homepage loads first — products + category discovery happen in the same page load
-  const { products: homepageProducts, categories } = await scrapeHomepage();
+  const { products: homepageProducts, categories: discovered } = await scrapeHomepage();
+  const categories = discovered.slice(0, MAX_CATEGORIES);
+  if (discovered.length > MAX_CATEGORIES) {
+    logger.info(`Discovered ${discovered.length} categories — limiting to ${MAX_CATEGORIES}`);
+  }
 
   const categoryResults = [];
   for (let i = 0; i < categories.length; i += BATCH_SIZE) {

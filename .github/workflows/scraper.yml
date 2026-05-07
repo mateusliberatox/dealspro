@@ -8,14 +8,16 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     env:
       SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       DISCORD_WEBHOOK_URL:       ${{ secrets.DISCORD_WEBHOOK_URL }}
       DISCORD_FREE_WEBHOOK_URL:  ${{ secrets.DISCORD_FREE_WEBHOOK_URL }}
-      HEADLESS: 'true'
+      DISCORD_BOT_TOKEN:         ${{ secrets.DISCORD_BOT_TOKEN }}
+      HEADLESS:                  'true'
+      SCRAPE_MAX_CATEGORIES:     '12'
 
     steps:
       - uses: actions/checkout@v4
@@ -28,8 +30,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run scraper
         run: npm run scrape:once
