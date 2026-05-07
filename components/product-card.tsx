@@ -46,17 +46,13 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
   return (
     <a
       href={`/go/${produto.id}`}
-      className={`glass-card group flex overflow-hidden rounded-xl animate-fade-in-up ${
-        featured ? 'flex-col sm:flex-row' : 'flex-col'
-      }`}
+      className="glass-card group flex flex-col overflow-hidden rounded-xl animate-fade-in-up"
       style={{ animationDelay: delay }}
     >
       {/* Image area */}
       <div
-        className={`relative overflow-hidden shrink-0 ${
-          featured
-            ? 'aspect-[4/3] sm:aspect-auto sm:w-[42%]'
-            : 'aspect-square w-full'
+        className={`relative overflow-hidden w-full ${
+          featured ? 'aspect-[16/9]' : 'aspect-square'
         }`}
         style={{ background: 'var(--surface-3)' }}
       >
@@ -84,7 +80,7 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
       </div>
 
       {/* Content */}
-      <div className={`flex flex-1 flex-col ${featured ? 'p-4 sm:p-6' : 'p-3'}`}>
+      <div className={`flex flex-1 flex-col ${featured ? 'p-3.5' : 'p-3'}`}>
         {produto.categoria && (
           <p
             className="mb-1.5 text-[9px] font-bold uppercase tracking-widest"
@@ -94,12 +90,12 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
           </p>
         )}
 
-        <p className={`font-extrabold gradient-blue-text ${featured ? 'text-3xl sm:text-4xl' : 'text-xl'}`}>
+        <p className={`font-extrabold gradient-blue-text ${featured ? 'text-2xl' : 'text-xl'}`}>
           {produto.preco || '—'}
         </p>
 
         <p
-          className={`mt-1.5 line-clamp-2 leading-snug font-medium ${featured ? 'text-sm sm:text-base' : 'text-[0.8rem]'} group-hover:text-[var(--accent-text)] transition-colors`}
+          className="mt-1.5 line-clamp-2 leading-snug font-medium text-[0.8rem] group-hover:text-[var(--accent-text)] transition-colors"
           style={{ color: 'var(--text-2)' }}
         >
           {nome}

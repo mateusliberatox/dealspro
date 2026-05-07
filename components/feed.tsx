@@ -129,33 +129,42 @@ export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean })
 
       {/* Grid */}
       {filtered.length > 0 ? (
-        <div className="space-y-10">
+        <div className="space-y-8">
 
-          {/* Featured card — first product, no active filters */}
-          {featured && (
-            <div className="animate-scale-in" style={{ animationDelay: '0.18s' }}>
-              <ProductCard produto={featured} featured index={0} />
-            </div>
-          )}
+          {/* Primeiro grid — featured (col-span-2) + primeiro chunk de cards normais */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            {featured && (
+              <div className="col-span-2 animate-scale-in" style={{ animationDelay: '0.18s' }}>
+                <ProductCard produto={featured} featured index={0} />
+              </div>
+            )}
+            {restChunks[0]?.map((p, i) => (
+              <ProductCard
+                key={p.id}
+                produto={p}
+                index={i + (featured ? 1 : 0)}
+              />
+            ))}
+          </div>
 
-          {/* In-feed ad — após o featured, antes do grid. Alta intenção, scroll imediato. */}
-          {featured && (
+          {/* In-feed ad após o primeiro grid */}
+          {(featured || restChunks.length > 1) && (
             <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
           )}
 
-          {/* Regular card chunks with ads between */}
-          {restChunks.map((chunkItems, gi) => (
+          {/* Chunks restantes com ads entre eles */}
+          {restChunks.slice(1).map((chunkItems, gi) => (
             <div key={gi} className="space-y-8">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
                 {chunkItems.map((p, i) => (
                   <ProductCard
                     key={p.id}
                     produto={p}
-                    index={gi * AD_EVERY + i + (featured ? 1 : 0)}
+                    index={AD_EVERY * (gi + 1) + i + (featured ? 1 : 0)}
                   />
                 ))}
               </div>
-              {gi < restChunks.length - 1 && (
+              {gi < restChunks.slice(1).length - 1 && (
                 <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
               )}
             </div>

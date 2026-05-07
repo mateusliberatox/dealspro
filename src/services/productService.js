@@ -9,7 +9,8 @@ import { matchAndNotify } from '../notifications/alertService.js';
 import { sendFreeDelayedNotifications } from '../notifications/discord.js';
 import { supabase } from '../database/supabase.js';
 
-const MAX_QC_FETCHES   = 8;
+const MAX_QC_FETCHES   = 25;
+const QC_BATCH_SIZE    = 3;   // parallel QC fetches
 const FREE_DELAY_MS    = 30 * 60 * 1000; // 30 minutes
 
 export async function detectAndSaveNewProducts() {
@@ -54,23 +55,27 @@ export async function detectAndSaveNewProducts() {
 
   if (!newItems.length) return [];
 
-  // 5. Enrich: translate + categorize + QC image (capped)
-  const qcEligible = newItems.length <= MAX_QC_FETCHES;
-  if (!qcEligible) logger.info(`${newItems.length} new products — skipping QC (bulk import)`);
+  // 5. Enrich: translate + categorize (sequential) + QC image (parallel batches)
+  if (newItems.length > MAX_QC_FETCHES) {
+    logger.info(`${newItems.length} new products — QC fetching first ${MAX_QC_FETCHES}`);
+  }
 
+  // 5a. Translate + categorize sequentially (rate-limit safe)
   const enriched = [];
   for (const p of newItems) {
     const nome_traduzido = await translateName(p.nome);
     const categoria      = categorize(p.nome, nome_traduzido);
+    enriched.push({ ...p, nome_traduzido, categoria });
+  }
 
-    let imagem = p.imagem;
-    if (qcEligible) {
-      const qc = await fetchQcImage(p.link);
-      if (qc) imagem = qc;
-      await new Promise((r) => setTimeout(r, 400));
-    }
-
-    enriched.push({ ...p, nome_traduzido, categoria, imagem });
+  // 5b. QC images in parallel batches — replaces listing image with buyer QC photo
+  const toFetchQC = enriched.slice(0, MAX_QC_FETCHES);
+  for (let i = 0; i < toFetchQC.length; i += QC_BATCH_SIZE) {
+    const batch   = toFetchQC.slice(i, i + QC_BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map((p) => fetchQcImage(p.link)));
+    results.forEach((r, j) => {
+      if (r.status === 'fulfilled' && r.value) toFetchQC[i + j].imagem = r.value;
+    });
   }
 
   // 6. Persist with visible_at = now + 30min (free delay)
