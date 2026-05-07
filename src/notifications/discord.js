@@ -22,15 +22,21 @@ export async function sendToDiscord(products) {
   if (!WEBHOOK_URL) { logger.warn('DISCORD_WEBHOOK_URL not set'); return; }
   if (!products.length) return;
 
+  let sent = 0;
   for (const product of products) {
-    await postWebhook(WEBHOOK_URL, {
-      content: '🔥 **Novo produto detectado!**',
-      embeds: [buildEmbed(product)],
-    });
+    try {
+      await postWebhook(WEBHOOK_URL, {
+        content: '🔥 **Novo produto detectado!**',
+        embeds: [buildEmbed(product)],
+      });
+      sent++;
+    } catch (err) {
+      logger.warn(`Premium webhook failed for ${product.id}: ${err.message}`);
+    }
     if (products.length > 1) await sleep(1000);
   }
 
-  logger.success(`Discord webhook: sent ${products.length} product(s)`);
+  if (sent > 0) logger.success(`Discord webhook: sent ${sent}/${products.length} product(s)`);
 }
 
 // ── Free channel (delayed 30 min) ────────────────────────────────────────────
@@ -56,19 +62,24 @@ export async function sendFreeDelayedNotifications() {
   if (!due?.length) return;
 
   for (const product of due) {
+    let sent = false;
     try {
       await postWebhook(FREE_WEBHOOK_URL, {
         content: '⏰ **Novo produto disponível!**',
         embeds: [buildEmbed(product)],
       });
+      sent = true;
     } catch (err) {
       logger.error(`Free webhook failed for ${product.id}: ${err.message}`);
     }
 
-    await supabase
-      .from('produtos_dealspro')
-      .update({ free_notified: true })
-      .eq('id', product.id);
+    // Só marca como notificado se o envio realmente ocorreu — falhas serão reprocessadas no próximo ciclo
+    if (sent) {
+      await supabase
+        .from('produtos_dealspro')
+        .update({ free_notified: true })
+        .eq('id', product.id);
+    }
 
     await sleep(1000);
   }
@@ -133,7 +144,10 @@ function buildEmbed(p) {
   };
 
   if (original) embed.description = `*Nome original: ${truncate(original, 150)}*`;
-  if (p.imagem)  embed.image = { url: p.imagem };
+
+  // Discord rejeita embeds com URLs de imagem inválidas (400) — só inclui se for https
+  const imagemValida = p.imagem && /^https?:\/\/.+/.test(p.imagem);
+  if (imagemValida) embed.image = { url: p.imagem };
 
   if (p.sizes?.length) {
     embed.fields.push({ name: '📐 Tamanhos', value: p.sizes.join(' · '), inline: false });
