@@ -79,7 +79,7 @@ export default async function HomePage() {
             <p className="mt-0.5 text-sm" style={{ color: 'var(--text-2)' }}>
               {isPremium
                 ? `${produtos.length} produto${produtos.length !== 1 ? 's' : ''} · atualizado agora`
-                : `${produtos.length} disponíveis · atualizado a cada 5 min`}
+                : `${produtos.length} disponíveis · atualizado a cada 2 min`}
               {isPremium && (
                 <span className="ml-2 text-xs font-semibold" style={{ color: 'var(--accent-text)' }}>
                   ★ Premium

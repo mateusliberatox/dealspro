@@ -6,8 +6,6 @@ import { AdUnit } from './ad-unit';
 import type { Produto } from '@/lib/types';
 import { CATEGORIES } from '@/lib/types';
 
-const AD_EVERY = 12;
-
 const CATEGORY_SHORT: Record<string, string> = {
   'Todos':           'Todos',
   'Roupas':          'Roupas',
@@ -29,10 +27,37 @@ function sortSizes(sizes: string[]): string[] {
   });
 }
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
-    arr.slice(i * size, i * size + size),
-  );
+function dayKey(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo',
+  });
+}
+
+function dayLabel(dateStr: string): string {
+  const key = dayKey(dateStr);
+  const today     = dayKey(new Date().toISOString());
+  const yesterday = dayKey(new Date(Date.now() - 86_400_000).toISOString());
+  if (key === today)     return 'Hoje';
+  if (key === yesterday) return 'Ontem';
+  return new Date(dateStr).toLocaleDateString('pt-BR', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo',
+  });
+}
+
+interface DayGroup { key: string; label: string; items: Produto[] }
+
+function groupByDay(produtos: Produto[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (const p of produtos) {
+    const k = dayKey(p.criado_em);
+    const last = groups[groups.length - 1];
+    if (!last || last.key !== k) {
+      groups.push({ key: k, label: dayLabel(p.criado_em), items: [p] });
+    } else {
+      last.items.push(p);
+    }
+  }
+  return groups;
 }
 
 export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean }) {
@@ -58,8 +83,8 @@ export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean })
     );
   };
 
-  const clearAll    = () => { setCategorias([]); setTamanhos([]); };
-  const isFiltered  = categorias.length > 0 || tamanhos.length > 0;
+  const clearAll   = () => { setCategorias([]); setTamanhos([]); };
+  const isFiltered = categorias.length > 0 || tamanhos.length > 0;
 
   const filtered = useMemo(() => {
     return produtos.filter((p) => {
@@ -69,9 +94,7 @@ export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean })
     });
   }, [produtos, categorias, tamanhos]);
 
-  const featured   = !isFiltered && filtered.length > 0 ? filtered[0] : null;
-  const rest       = featured ? filtered.slice(1) : filtered;
-  const restChunks = chunk(rest, AD_EVERY);
+  const groups = useMemo(() => groupByDay(filtered), [filtered]);
 
   return (
     <div className="space-y-5">
@@ -128,48 +151,57 @@ export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean })
         </div>
       )}
 
-      {/* Grid */}
-      {filtered.length > 0 ? (
-        <div className="space-y-8">
+      {/* Day groups */}
+      {groups.length > 0 ? (
+        <div className="space-y-10">
+          {groups.map((group, gi) => {
+            // Apenas o primeiro card do primeiro grupo recebe destaque featured
+            const featured = gi === 0 && !isFiltered && group.items.length > 0
+              ? group.items[0]
+              : null;
+            const items = featured ? group.items.slice(1) : group.items;
+            let cardIndex = featured ? 1 : 0;
 
-          {/* Primeiro grid — featured (col-span-2) + primeiro chunk de cards normais */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-            {featured && (
-              <div className="col-span-2 animate-scale-in" style={{ animationDelay: '0.18s' }}>
-                <ProductCard produto={featured} featured index={0} />
+            return (
+              <div key={group.key} className="space-y-4">
+
+                {/* Date header */}
+                <div className="flex items-center gap-3 animate-fade-in-up">
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: 'var(--text)' }}
+                  >
+                    {group.label}
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                  <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                    {group.items.length} {group.items.length === 1 ? 'produto' : 'produtos'}
+                  </span>
+                </div>
+
+                {/* Grid */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                  {featured && (
+                    <div className="col-span-2 animate-scale-in" style={{ animationDelay: '0.18s' }}>
+                      <ProductCard produto={featured} featured index={0} />
+                    </div>
+                  )}
+                  {items.map((p, i) => (
+                    <ProductCard
+                      key={p.id}
+                      produto={p}
+                      index={cardIndex++}
+                    />
+                  ))}
+                </div>
+
+                {/* Ad entre grupos (exceto após o último) */}
+                {gi < groups.length - 1 && (
+                  <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
+                )}
               </div>
-            )}
-            {restChunks[0]?.map((p, i) => (
-              <ProductCard
-                key={p.id}
-                produto={p}
-                index={i + (featured ? 1 : 0)}
-              />
-            ))}
-          </div>
-
-          {/* In-feed ad após o primeiro grid */}
-          {(featured || restChunks.length > 1) && (
-            <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
-          )}
-
-          {/* Chunks restantes com ads entre eles */}
-          {restChunks.slice(1).map((chunkItems, gi) => (
-            <div key={gi} className="space-y-8">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
-                {chunkItems.map((p, i) => (
-                  <ProductCard
-                    key={p.id}
-                    produto={p}
-                    index={AD_EVERY * (gi + 1) + i + (featured ? 1 : 0)}
-                  />
-                ))}
-              </div>
-              {gi < restChunks.slice(1).length - 1 && (
-                <AdUnit slot="1621510108" format="horizontal" style={{ minHeight: 90 }} />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="py-24 text-center animate-fade-in-up">
