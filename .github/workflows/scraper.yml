@@ -2,7 +2,7 @@ name: Scraper
 
 on:
   schedule:
-    - cron: '*/3 * * * *'   # fallback — primary trigger is cron-job.org
+    - cron: '*/2 * * * *'   # fallback — primary trigger is cron-job.org
   workflow_dispatch:
 
 jobs:
