@@ -32,14 +32,15 @@ export async function POST(request: NextRequest) {
       if (!userId) break;
 
       // Busca current_period_end da subscription para salvar plan_expires_at
+      // SDK v22: current_period_end está em items.data[0], não no topo
       let planExpiresAt: string | null = null;
       if (session.subscription) {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const sub = await stripe.subscriptions.retrieve(session.subscription as string) as any;
-          if (sub.current_period_end) {
-            planExpiresAt = new Date(sub.current_period_end * 1000).toISOString();
-          }
+          const ts: number | undefined =
+            sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
+          if (ts) planExpiresAt = new Date(ts * 1000).toISOString();
         } catch (err) {
           console.warn('[Stripe] subscription.retrieve falhou — plan_expires_at ficará null:', err);
         }
@@ -72,7 +73,10 @@ export async function POST(request: NextRequest) {
       const customerId = sub.customer as string;
       const active     = sub.status === 'active' || sub.status === 'trialing';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const periodEnd  = (sub as any).current_period_end as number | undefined;
+      const subAny     = sub as any;
+      // SDK v22: current_period_end pode estar em items.data[0]
+      const periodEnd: number | undefined =
+        subAny.current_period_end ?? subAny.items?.data?.[0]?.current_period_end;
       const planExpiresAt = active && periodEnd
         ? new Date(periodEnd * 1000).toISOString()
         : null;

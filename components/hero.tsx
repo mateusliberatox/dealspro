@@ -4,7 +4,7 @@ interface HeroProps {
 
 export function Hero({ totalDeals }: HeroProps) {
   const stats = [
-    { icon: '⏱️', label: 'A cada 5 min' },
+    { icon: '⚡', label: 'Imediato' },
     { icon: '📦', label: `${totalDeals > 0 ? `${totalDeals}+` : '200+'} deals` },
     { icon: '🔥', label: 'Alertas Discord' },
   ];
