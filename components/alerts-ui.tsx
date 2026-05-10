@@ -67,13 +67,14 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
 
   const connectDiscord = async () => {
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.linkIdentity({
       provider: 'discord',
       options: {
         redirectTo: `${location.origin}/auth/callback?next=/alerts`,
         scopes: 'identify email',
       },
     });
+    if (error) setError(`Erro ao conectar Discord: ${error.message}`);
   };
 
   const addAlert = () => {
