@@ -139,25 +139,39 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
 
       {/* Status do Discord */}
       <div
-        className="flex items-center justify-between rounded-xl border p-4 gap-3"
+        className="rounded-xl border p-4"
         style={{
           background: hasDiscord ? 'rgba(34,197,94,0.04)' : 'var(--surface)',
           borderColor: hasDiscord ? 'rgba(34,197,94,0.25)' : 'var(--border)',
         }}
       >
-        <div className="min-w-0">
-          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-            {hasDiscord ? `Discord: ${profile.discord_username}` : 'Conectar Discord'}
-          </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
-            {hasDiscord
-              ? 'Você receberá DMs quando um alerta disparar.'
-              : 'Necessário para receber notificações.'}
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+              {hasDiscord ? `Discord: ${profile.discord_username}` : 'Conectar Discord'}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+              {hasDiscord
+                ? 'Você receberá DMs quando um alerta disparar.'
+                : 'Necessário para receber notificações por DM.'}
+            </p>
+          </div>
+          {hasDiscord ? (
+            <span className="shrink-0 text-sm font-medium text-green-500">✓ Conectado</span>
+          ) : (
+            <button
+              onClick={connectDiscord}
+              className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: '#5865F2' }}
+            >
+              Conectar
+            </button>
+          )}
         </div>
-        {hasDiscord ? (
-          <div className="shrink-0 flex flex-col items-end gap-1.5">
-            <span className="text-sm font-medium text-green-500">✓ Conectado</span>
+
+        {/* Testar DM — linha separada para não comprimir o botão Conectar */}
+        {hasDiscord && (
+          <div className="mt-3 flex items-center gap-3 pt-3" style={{ borderTop: '1px solid rgba(34,197,94,0.15)' }}>
             <button
               onClick={testDM}
               disabled={dmStatus === 'sending'}
@@ -174,17 +188,9 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
                : 'Testar DM'}
             </button>
             {dmStatus === 'error' && dmError && (
-              <p className="text-[10px] text-red-400 max-w-[150px] text-right">{dmError}</p>
+              <p className="text-[10px] text-red-400">{dmError}</p>
             )}
           </div>
-        ) : (
-          <button
-            onClick={connectDiscord}
-            className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: '#5865F2' }}
-          >
-            Conectar
-          </button>
         )}
       </div>
 

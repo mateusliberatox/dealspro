@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
@@ -15,6 +15,19 @@ export default function LoginPage() {
   const [loading, setLoading]   = useState(false);
   const [success, setSuccess]   = useState('');
   const router = useRouter();
+
+  // Lê erros passados via query param pelo callback OAuth
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const e = params.get('error');
+    if (e === 'auth_failed') {
+      setError('Autenticação com Discord falhou. Verifique se sua conta Discord tem e-mail verificado e tente novamente.');
+    } else if (e === 'missing_code') {
+      setError('Código de autenticação ausente. Tente novamente.');
+    } else if (e) {
+      setError(`Erro de autenticação: ${e}`);
+    }
+  }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

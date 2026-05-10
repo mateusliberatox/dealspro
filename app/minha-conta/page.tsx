@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { PortalButton } from '@/components/portal-button';
 import { UpgradeButton } from '@/components/upgrade-button';
+import { DiscordConnectButton } from '@/components/discord-connect-button';
 
 export default async function MinhaContaPage() {
   const supabase = await createClient();
@@ -14,7 +15,7 @@ export default async function MinhaContaPage() {
 
   const { data: profile } = await supabase
     .from('dealspro_profiles')
-    .select('plan, discord_username, discord_avatar, stripe_customer_id, created_at')
+    .select('plan, discord_user_id, discord_username, discord_avatar, stripe_customer_id, created_at')
     .eq('user_id', user.id)
     .single();
 
@@ -99,6 +100,29 @@ export default async function MinhaContaPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        {/* Discord */}
+        <section className="rounded-xl border p-5 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Discord</p>
+          {profile?.discord_user_id ? (
+            <div className="flex items-center gap-3">
+              {profile.discord_avatar && (
+                <img src={profile.discord_avatar} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
+              )}
+              <div>
+                <p className="text-sm font-medium text-green-500">✓ Vinculado</p>
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>{profile.discord_username}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+                Vincule para receber alertas por DM.
+              </p>
+              <DiscordConnectButton />
+            </div>
           )}
         </section>
 
