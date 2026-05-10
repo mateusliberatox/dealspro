@@ -1,32 +1,47 @@
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createAdmin } from '@supabase/supabase-js';
 import { addPremiumRole } from '@/lib/discord';
 import { NextRequest, NextResponse } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
-async function syncDiscordIdentity(supabase: SupabaseClient, user: { id: string; identities?: { provider: string; identity_data?: Record<string, unknown> }[] }) {
+function getAdmin() {
+  return createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+async function syncDiscordByUserId(userId: string) {
+  const admin = getAdmin();
+
+  // Busca dados frescos do banco — independente de qual JWT está em memória
+  const { data: { user }, error } = await admin.auth.admin.getUserById(userId);
+  if (error || !user) return;
+
   const discord = user.identities?.find((i) => i.provider === 'discord');
   if (!discord) return;
 
-  const profileUpdate: Record<string, unknown> = {
-    user_id:          user.id,
-    discord_user_id:  discord.identity_data?.provider_id ?? null,
-    discord_username: discord.identity_data?.full_name
+  const profileUpdate = {
+    user_id:          userId,
+    discord_user_id:  (discord.identity_data?.provider_id ?? discord.identity_data?.sub ?? null) as string | null,
+    discord_username: (discord.identity_data?.full_name
       ?? discord.identity_data?.name
       ?? discord.identity_data?.preferred_username
-      ?? null,
-    discord_avatar:   discord.identity_data?.avatar_url ?? null,
+      ?? null) as string | null,
+    discord_avatar:   (discord.identity_data?.avatar_url ?? null) as string | null,
   };
 
-  await supabase.from('dealspro_profiles').upsert(profileUpdate, { onConflict: 'user_id' });
+  await admin
+    .from('dealspro_profiles')
+    .upsert(profileUpdate, { onConflict: 'user_id' });
 
   if (profileUpdate.discord_user_id) {
-    const { data: profile } = await supabase
+    const { data: profile } = await admin
       .from('dealspro_profiles')
       .select('plan')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
     if (profile?.plan === 'premium') {
-      await addPremiumRole(profileUpdate.discord_user_id as string).catch(() => {});
+      await addPremiumRole(profileUpdate.discord_user_id).catch(() => {});
     }
   }
 }
@@ -38,24 +53,22 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
-  // Sem código: pode ser retorno do linkIdentity (sessão já existe no cookie)
   if (!code) {
+    // Retorno do linkIdentity: sessão já existe, sem código PKCE
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // Sessão ativa — sincroniza identidades Discord caso linkIdentity tenha vinculado
-      await syncDiscordIdentity(supabase, user);
+      await syncDiscordByUserId(user.id);
       return NextResponse.redirect(`${origin}${next}`);
     }
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
   }
 
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-
   if (error || !data.user) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  await syncDiscordIdentity(supabase, data.user as Parameters<typeof syncDiscordIdentity>[1]);
+  await syncDiscordByUserId(data.user.id);
 
   return NextResponse.redirect(`${origin}${next}`);
 }
