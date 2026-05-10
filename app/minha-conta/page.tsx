@@ -107,21 +107,17 @@ export default async function MinhaContaPage() {
         <section className="rounded-xl border p-5 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Discord</p>
           {profile?.discord_user_id ? (
-            <div className="flex items-center gap-3">
-              {profile.discord_avatar && (
-                <img src={profile.discord_avatar} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
-              )}
-              <div>
-                <p className="text-sm font-medium text-green-500">✓ Vinculado</p>
-                <p className="text-xs" style={{ color: 'var(--text-3)' }}>{profile.discord_username}</p>
-              </div>
-            </div>
+            <DiscordConnectButton
+              connected
+              username={profile.discord_username}
+              avatar={profile.discord_avatar}
+            />
           ) : (
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm" style={{ color: 'var(--text-2)' }}>
                 Vincule para receber alertas por DM.
               </p>
-              <DiscordConnectButton />
+              <DiscordConnectButton connected={false} />
             </div>
           )}
         </section>

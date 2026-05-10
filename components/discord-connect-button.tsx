@@ -3,8 +3,15 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-export function DiscordConnectButton() {
-  const [error, setError] = useState('');
+interface Props {
+  connected: boolean;
+  username?: string | null;
+  avatar?: string | null;
+}
+
+export function DiscordConnectButton({ connected, username, avatar }: Props) {
+  const [error, setError]       = useState('');
+  const [dmStatus, setDmStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
 
   const connect = async () => {
     setError('');
@@ -18,6 +25,61 @@ export function DiscordConnectButton() {
     });
     if (error) setError(error.message);
   };
+
+  const testDM = async () => {
+    setDmStatus('sending');
+    try {
+      const res  = await fetch('/api/test-discord', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setDmStatus('ok');
+        setTimeout(() => setDmStatus('idle'), 5000);
+      } else {
+        setDmStatus('error');
+        setError(data.error ?? 'Erro desconhecido');
+        setTimeout(() => { setDmStatus('idle'); setError(''); }, 6000);
+      }
+    } catch {
+      setDmStatus('error');
+      setError('Falha de rede');
+      setTimeout(() => { setDmStatus('idle'); setError(''); }, 6000);
+    }
+  };
+
+  if (connected) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          {avatar && (
+            <img src={avatar} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
+          )}
+          <div>
+            <p className="text-sm font-medium text-green-500">✓ Vinculado</p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>{username}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={testDM}
+            disabled={dmStatus === 'sending'}
+            className="text-xs font-medium transition-colors disabled:opacity-50"
+            style={{
+              color: dmStatus === 'ok'    ? '#22c55e'
+                   : dmStatus === 'error' ? '#f87171'
+                   : 'var(--text-3)',
+            }}
+          >
+            {dmStatus === 'sending' ? 'Enviando…'
+             : dmStatus === 'ok'    ? '✓ DM enviada!'
+             : dmStatus === 'error' ? '✗ Falhou'
+             : 'Testar DM'}
+          </button>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-end gap-1">

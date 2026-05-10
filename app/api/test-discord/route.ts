@@ -16,10 +16,6 @@ export async function POST() {
     .eq('user_id', user.id)
     .single();
 
-  if (profile?.plan !== 'premium') {
-    return NextResponse.json({ error: 'Recurso Premium' }, { status: 403 });
-  }
-
   if (!profile?.discord_user_id) {
     return NextResponse.json({ error: 'Conta Discord não conectada. Conecte em Alertas.' }, { status: 400 });
   }
