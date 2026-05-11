@@ -41,9 +41,19 @@ export async function detectAndSaveNewProducts() {
   logger.info(`DB has ${existingMap.size} existing hashes`);
 
   const scrapedLinks = new Set(withHashes.map((p) => p.link));
-  const { markedUnavailable, restored } = await syncAvailability(scrapedLinks);
+  const { markedUnavailable, restored, restoredIds } = await syncAvailability(scrapedLinks);
   if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
-  if (restored > 0)          logger.info(`Restored ${restored} product(s) to available (restocado)`);
+  if (restored > 0) {
+    logger.info(`Restored ${restored} product(s) to available (restocado)`);
+    // Notifica usuários premium com alertas que correspondem aos produtos restocados
+    if (restoredIds.length) {
+      const { data: restocked } = await supabase
+        .from('produtos_dealspro')
+        .select('*')
+        .in('id', restoredIds);
+      if (restocked?.length) await matchAndNotify(restocked, { isRestock: true });
+    }
+  }
 
   const newItems      = withHashes.filter((p) => !existingMap.has(p.hash));
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));

@@ -26,11 +26,11 @@ export default async function MinhaContaPage() {
     .eq('user_id', user.id)
     .single();
 
-  const { count: alertCount } = await supabase
-    .from('user_alerts_dealspro')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('is_active', true);
+  const [{ count: alertCount }, { count: clickCount }, { count: dmCount }] = await Promise.all([
+    supabase.from('user_alerts_dealspro').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_active', true),
+    supabase.from('click_logs').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabase.from('notification_logs').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'sent'),
+  ]);
 
   const isPremium = profile?.plan === 'premium';
   const memberSince = profile?.created_at
@@ -63,9 +63,6 @@ export default async function MinhaContaPage() {
               <p className="text-sm" style={{ color: 'var(--text-2)' }}>{user.email}</p>
             </div>
           </div>
-          {memberSince && (
-            <p className="text-xs" style={{ color: 'var(--text-3)' }}>Membro desde {memberSince}</p>
-          )}
         </section>
 
         {/* Plano */}
@@ -151,13 +148,30 @@ export default async function MinhaContaPage() {
                 {isPremium ? (alertCount ?? 0) : '—'}
               </p>
             </div>
-            <Link
-              href="/alerts"
-              className="btn-accent rounded-lg px-4 py-2 text-sm font-semibold"
-            >
+            <Link href="/alerts" className="btn-accent rounded-lg px-4 py-2 text-sm font-semibold">
               {isPremium ? 'Gerenciar alertas' : 'Ver alertas'}
             </Link>
           </div>
+        </section>
+
+        {/* Estatísticas */}
+        <section className="rounded-xl border p-5 space-y-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Sua atividade</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg p-3 text-center" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{clickCount ?? 0}</p>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--text-3)' }}>Deals acessados</p>
+            </div>
+            <div className="rounded-lg p-3 text-center" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-2xl font-bold" style={{ color: isPremium ? 'var(--accent-text)' : 'var(--text)' }}>
+                {isPremium ? (dmCount ?? 0) : '—'}
+              </p>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--text-3)' }}>Alertas recebidos</p>
+            </div>
+          </div>
+          {memberSince && (
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>Membro desde {memberSince}</p>
+          )}
         </section>
       </main>
     </div>

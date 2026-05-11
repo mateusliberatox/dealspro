@@ -115,7 +115,7 @@ export async function sendFreeDelayedNotifications() {
 
 // ── Direct Message (premium alerts) ──────────────────────────────────────────
 
-export async function sendDiscordDM(discordUserId, product) {
+export async function sendDiscordDM(discordUserId, product, isRestock = false) {
   if (!BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN not configured');
 
   // 1. Open DM channel
@@ -137,7 +137,9 @@ export async function sendDiscordDM(discordUserId, product) {
     method: 'POST',
     headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      content: '🔔 **Alerta DealsPro — produto encontrado!**',
+      content: isRestock
+        ? '🔄 **Alerta DealsPro — produto restocado!**'
+        : '🔔 **Alerta DealsPro — produto encontrado!**',
       embeds: [buildEmbed(product)],
     }),
   });

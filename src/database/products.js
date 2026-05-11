@@ -102,7 +102,11 @@ export async function syncAvailability(scrapedLinks) {
     await supabase.from(TABLE).update({ disponivel: true }).in('id', toRestore);
   }
 
-  return { markedUnavailable: toMarkUnavailable.length, restored: toRestore.length };
+  return {
+    markedUnavailable: toMarkUnavailable.length,
+    restored:          toRestore.length,
+    restoredIds:       toRestore, // para notificar usuários com alertas
+  };
 }
 
 export async function getLatestProducts(limit = 20) {

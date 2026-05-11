@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { RedirectCountdown } from '@/components/redirect-countdown';
 import { AdUnit } from '@/components/ad-unit';
+import { ShareButton } from '@/components/share-button';
 import type { Produto } from '@/lib/types';
 
 async function trackClick(productId: number, userId: string | null) {
@@ -97,6 +98,14 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
               {p.preco || '—'}
             </p>
           </div>
+        </div>
+
+        {/* Share */}
+        <div className="flex justify-end">
+          <ShareButton
+            url={`https://dealspro-chi.vercel.app/go/${p.id}`}
+            title={`${nome} — R$ ${p.preco} no CSSDeals`}
+          />
         </div>
 
         {/* Countdown — ação principal, bem destacada */}

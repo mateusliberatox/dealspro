@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js';
  * For each newly inserted product, find matching active premium alerts
  * and dispatch Discord DM notifications.
  */
-export async function matchAndNotify(products) {
+export async function matchAndNotify(products, { isRestock = false } = {}) {
   if (!products.length) return;
 
   // 1. Fetch all active alerts
@@ -67,12 +67,12 @@ export async function matchAndNotify(products) {
       if (!sizeMatch) continue;
 
       const discordId = profileMap.get(alert.user_id)?.discord_user_id;
-      await dispatchDM({ alert, product, discordId });
+      await dispatchDM({ alert, product, discordId, isRestock });
     }
   }
 }
 
-async function dispatchDM({ alert, product, discordId }) {
+async function dispatchDM({ alert, product, discordId, isRestock = false }) {
   const logEntry = {
     user_id: alert.user_id,
     product_id: product.id,
@@ -87,7 +87,7 @@ async function dispatchDM({ alert, product, discordId }) {
   }
 
   try {
-    await sendDiscordDM(discordId, product);
+    await sendDiscordDM(discordId, product, isRestock);
     await logNotification({ ...logEntry, status: 'sent' });
     logger.success(`Alert DM sent to user ${alert.user_id} for "${product.nome_traduzido || product.nome}"`);
   } catch (err) {

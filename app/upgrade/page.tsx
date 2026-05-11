@@ -138,6 +138,9 @@ export default async function UpgradePage() {
           <p className="text-xs" style={{ color: 'var(--text-4)' }}>
             Prefere assinar pelo Discord? Use o comando <span className="font-mono" style={{ color: 'var(--accent-text)' }}>/assinar</span> no servidor.
           </p>
+          <a href="/faq" className="text-xs underline-offset-2 hover:underline" style={{ color: 'var(--text-4)' }}>
+            Tem dúvidas? Veja o FAQ →
+          </a>
         </div>
 
       </main>
