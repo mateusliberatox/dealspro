@@ -5,7 +5,7 @@
  */
 
 const BOT_TOKEN = 'COLE_SEU_BOT_TOKEN_AQUI';
-const APP_ID    = 'COLE_O_APPLICATION_ID_AQUI';
+const APP_ID    = '1500985388422926346';
 const GUILD_ID  = '1499402192975560774';
 
 const commands = [
