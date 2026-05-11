@@ -1,5 +1,3 @@
-import { Header } from '@/components/header';
-
 function SkeletonCard() {
   return (
     <div
@@ -19,7 +17,16 @@ function SkeletonCard() {
 export default function Loading() {
   return (
     <div className="min-h-screen">
-      <Header />
+      {/* Placeholder com mesma altura do Header para evitar layout shift */}
+      <div
+        className="sticky top-0 z-50 h-[53px]"
+        style={{
+          background:           'var(--header-bg)',
+          backdropFilter:       'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          borderBottom:         '1px solid rgba(59, 130, 246, 0.18)',
+        }}
+      />
       <main className="mx-auto max-w-6xl px-4 pt-8 pb-16">
         {/* Header skeleton */}
         <div className="mb-7 h-10 w-48 rounded-lg animate-pulse" style={{ background: 'var(--surface)' }} />
