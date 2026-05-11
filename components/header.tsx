@@ -116,8 +116,8 @@ export function Header() {
               )}
             </button>
 
-            {/* Desktop nav */}
-            {user ? (
+            {/* Desktop nav — só renderiza após auth resolver para evitar flash */}
+            {authReady && user ? (
               <>
                 <NavLink href="/historico" onClick={closeMenu}>Histórico</NavLink>
                 <NavLink href="/alerts" onClick={closeMenu}>Alertas</NavLink>
@@ -220,7 +220,7 @@ export function Header() {
 
             <div className="flex flex-col gap-1 p-3 flex-1">
               <MobileNavLink href="/" onClick={closeMenu}>Feed de Deals</MobileNavLink>
-              {user ? (
+              {authReady && user ? (
                 <>
                   <MobileNavLink href="/historico" onClick={closeMenu}>Histórico</MobileNavLink>
                   <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
