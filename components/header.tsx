@@ -87,7 +87,7 @@ export function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 animate-slide-in-right" onClick={closeMenu}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="" aria-hidden className="h-8 w-8 rounded-full" />
+            <img src="/logo.png" alt="" aria-hidden className="h-8 w-8 rounded-full" />
             <span className="text-[1.05rem] font-black uppercase tracking-[0.03em] leading-none">
               <span style={{ color: 'var(--text)' }}>DEALS</span>
               <span className="gradient-blue-text">PRO</span>
@@ -207,7 +207,7 @@ export function Header() {
             >
               <div className="flex items-center gap-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.svg" alt="" aria-hidden className="h-6 w-6 rounded-full" />
+                <img src="/logo.png" alt="" aria-hidden className="h-6 w-6 rounded-full" />
                 <span className="text-sm font-black uppercase tracking-[0.03em]">
                   <span style={{ color: 'var(--text)' }}>DEALS</span>
                   <span className="gradient-blue-text">PRO</span>

@@ -86,7 +86,7 @@ export default function LoginPage() {
         <div className="mb-8 flex flex-col items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="" aria-hidden className="h-10 w-10 rounded-full" />
+            <img src="/logo.png" alt="" aria-hidden className="h-10 w-10 rounded-full" />
             <span className="text-xl font-black uppercase tracking-[0.03em]">
               <span style={{ color: 'var(--text)' }}>DEALS</span>
               <span className="gradient-blue-text">PRO</span>
