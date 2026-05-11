@@ -78,6 +78,33 @@ export async function deleteOldProducts() {
   return data?.length ?? 0;
 }
 
+/**
+ * Marks products as unavailable when their links are no longer present in the current scrape.
+ * Also restores products that reappeared (restocked).
+ * Returns { markedUnavailable, restored } counts.
+ */
+export async function syncAvailability(scrapedLinks) {
+  if (!scrapedLinks.size) return { markedUnavailable: 0, restored: 0 };
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('id, link, disponivel');
+
+  if (error) throw new Error(`syncAvailability fetch failed: ${error.message}`);
+
+  const toMarkUnavailable = (data ?? []).filter((p) =>  p.disponivel && !scrapedLinks.has(p.link)).map((p) => p.id);
+  const toRestore         = (data ?? []).filter((p) => !p.disponivel &&  scrapedLinks.has(p.link)).map((p) => p.id);
+
+  if (toMarkUnavailable.length) {
+    await supabase.from(TABLE).update({ disponivel: false }).in('id', toMarkUnavailable);
+  }
+  if (toRestore.length) {
+    await supabase.from(TABLE).update({ disponivel: true }).in('id', toRestore);
+  }
+
+  return { markedUnavailable: toMarkUnavailable.length, restored: toRestore.length };
+}
+
 export async function getLatestProducts(limit = 20) {
   const { data, error } = await supabase
     .from(TABLE)

@@ -9,6 +9,7 @@ export interface Produto {
   sizes: string[];
   visible_at: string;
   criado_em: string;
+  disponivel: boolean;
 }
 
 export interface DealsproProfile {

@@ -171,8 +171,10 @@ function buildEmbed(p) {
 
   if (original) embed.description = `*Nome original: ${truncate(original, 150)}*`;
 
-  // Discord rejeita embeds com URLs de imagem inválidas (400) — só inclui se for https
-  const imagemValida = p.imagem && /^https?:\/\/.+/.test(p.imagem);
+  // Rejeita placeholders e URLs inválidas
+  const imagemValida = p.imagem &&
+    /^https?:\/\/.+/.test(p.imagem) &&
+    !/placeholder|800.?x.?900|via\.placeholder|picsum/i.test(p.imagem);
   if (imagemValida) embed.image = { url: p.imagem };
 
   if (p.sizes?.length) {

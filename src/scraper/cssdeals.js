@@ -233,6 +233,14 @@ export async function fetchQcImage(detailUrl) {
     });
 
     if (!src) return null;
+
+    // Rejeita placeholders (produto esgotado mostra imagem genérica)
+    if (
+      src.startsWith('data:') ||
+      /placeholder|800.?x.?900|via\.placeholder|picsum/i.test(src) ||
+      !/^https?:\/\/.+/.test(src)
+    ) return null;
+
     return src.replace(
       /x-oss-process=image\/resize,w_\d+(\/quality,Q_\d+)?/,
       'x-oss-process=image/resize,w_800/quality,Q_80',

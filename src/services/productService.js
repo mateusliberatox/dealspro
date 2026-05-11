@@ -1,5 +1,5 @@
 import { scrapeCssDeals, fetchQcImage } from '../scraper/index.js';
-import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts } from '../database/products.js';
+import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
 import { categorize } from '../utils/categorize.js';
@@ -36,9 +36,14 @@ export async function detectAndSaveNewProducts() {
     hash: generateProductHash(p.nome, p.preco, p.link),
   }));
 
-  // 3. Diff against DB
+  // 3. Diff against DB + sync availability (marca esgotados / restaura restocados)
   const existingMap = await getExistingHashMap();
   logger.info(`DB has ${existingMap.size} existing hashes`);
+
+  const scrapedLinks = new Set(withHashes.map((p) => p.link));
+  const { markedUnavailable, restored } = await syncAvailability(scrapedLinks);
+  if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
+  if (restored > 0)          logger.info(`Restored ${restored} product(s) to available (restocado)`);
 
   const newItems      = withHashes.filter((p) => !existingMap.has(p.hash));
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));

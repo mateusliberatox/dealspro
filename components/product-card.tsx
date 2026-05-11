@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import type { Produto } from '@/lib/types';
 
 interface ProductCardProps {
@@ -36,17 +39,25 @@ function Badge({ type }: { type: 'hot' | 'new' | 'time' }) {
   );
 }
 
+function isPlaceholder(url: string) {
+  return /placeholder|800.?x.?900|via\.placeholder|picsum/i.test(url) || url.startsWith('data:');
+}
+
 export function ProductCard({ produto, featured = false, index = 0 }: ProductCardProps) {
-  const nome  = produto.nome_traduzido || produto.nome;
-  const novo  = isNew(produto.criado_em);
-  const badge = featured ? 'hot' : novo ? 'new' : null;
-  const delay = `${Math.min(index * 0.055, 0.5)}s`;
-  const maxSizes = featured ? 8 : 5;
+  const nome       = produto.nome_traduzido || produto.nome;
+  const novo       = isNew(produto.criado_em);
+  const esgotado   = produto.disponivel === false;
+  const badge      = esgotado ? null : featured ? 'hot' : novo ? 'new' : null;
+  const delay      = `${Math.min(index * 0.055, 0.5)}s`;
+  const maxSizes   = featured ? 8 : 5;
+  const [imgError, setImgError] = useState(false);
+
+  const hasValidImage = produto.imagem && !isPlaceholder(produto.imagem) && !imgError;
 
   return (
     <a
       href={`/go/${produto.id}`}
-      className="glass-card group flex flex-col overflow-hidden rounded-xl animate-fade-in-up"
+      className={`glass-card group flex flex-col overflow-hidden rounded-xl animate-fade-in-up ${esgotado ? 'opacity-60' : ''}`}
       style={{ animationDelay: delay }}
     >
       {/* Image area */}
@@ -56,7 +67,7 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
         }`}
         style={{ background: 'var(--surface-3)' }}
       >
-        {produto.imagem ? (
+        {hasValidImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={produto.imagem}
@@ -64,9 +75,18 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
             referrerPolicy="no-referrer"
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+            onError={() => setImgError(true)}
           />
         ) : (
           <div className="shimmer-placeholder h-full w-full" />
+        )}
+
+        {esgotado && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: 'rgba(239,68,68,0.85)' }}>
+              Esgotado
+            </span>
+          </div>
         )}
 
         {badge && <Badge type={badge} />}

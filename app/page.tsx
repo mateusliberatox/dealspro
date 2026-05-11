@@ -31,6 +31,7 @@ async function getPageData() {
         let q = supabase
           .from('produtos_dealspro')
           .select('*')
+          .eq('disponivel', true)
           .order('criado_em', { ascending: false })
           .limit(200);
         if (!isPremium) q = q.lte('visible_at', now);
