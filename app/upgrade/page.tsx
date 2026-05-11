@@ -11,17 +11,22 @@ import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { UpgradeButton } from '@/components/upgrade-button';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
+import { createClient as createAdmin } from '@supabase/supabase-js';
 
-const FEATURES = [
-  { title: 'Sem delay de 30 minutos', desc: 'Você vê o produto assim que é detectado. Free espera.' },
-  { title: 'Alerta por DM no Discord', desc: 'Palavra-chave + tamanho. Você recebe quando aparece.' },
-  { title: 'Canal exclusivo no Discord', desc: 'Notificação imediata. Sem precisar abrir o site.' },
-  { title: 'Filtros avançados por tamanho', desc: 'Não perde tempo olhando o que não tem no seu tamanho.' },
+const COMPARE = [
+  { feature: 'Feed de deals',                free: true,  premium: true  },
+  { feature: 'Filtros por categoria',        free: true,  premium: true  },
+  { feature: 'Acesso sem delay',             free: false, premium: true  },
+  { feature: 'Canal exclusivo no Discord',   free: false, premium: true  },
+  { feature: 'Alertas por DM no Discord',    free: false, premium: true  },
+  { feature: 'Filtro por palavra-chave',     free: false, premium: true  },
+  { feature: 'Filtro por tamanho',           free: false, premium: true  },
+  { feature: 'Histórico completo de deals',  free: false, premium: true  },
 ];
 
 async function getPriceDisplay(): Promise<string | null> {
   try {
-    const price  = await stripe.prices.retrieve(STRIPE_PRICE_ID);
+    const price    = await stripe.prices.retrieve(STRIPE_PRICE_ID);
     if (!price.unit_amount) return null;
     const amount   = (price.unit_amount / 100).toFixed(2).replace('.', ',');
     const currency = price.currency === 'brl' ? 'R$' : price.currency.toUpperCase();
@@ -29,6 +34,18 @@ async function getPriceDisplay(): Promise<string | null> {
                    : price.recurring?.interval === 'year'  ? '/ano' : '';
     return `${currency} ${amount}${interval}`;
   } catch { return null; }
+}
+
+async function getPremiumCount(): Promise<number> {
+  const admin = createAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  const { count } = await admin
+    .from('dealspro_profiles')
+    .select('*', { count: 'exact', head: true })
+    .eq('plan', 'premium');
+  return count ?? 0;
 }
 
 export default async function UpgradePage() {
@@ -43,52 +60,86 @@ export default async function UpgradePage() {
     .single();
   if (profile?.plan === 'premium') redirect('/');
 
-  const priceDisplay = await getPriceDisplay();
+  const [priceDisplay, premiumCount] = await Promise.all([
+    getPriceDisplay(),
+    getPremiumCount(),
+  ]);
 
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="mx-auto max-w-sm px-4 py-14 space-y-10">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--accent-text)' }}>
+      <main className="mx-auto max-w-2xl px-4 py-14 space-y-12">
+
+        {/* Hero */}
+        <div className="text-center space-y-4 animate-fade-in-up">
+          <span
+            className="inline-block rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest"
+            style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}
+          >
             Premium
-          </p>
-          <h1 className="text-[1.75rem] font-bold leading-[1.2] tracking-tight" style={{ color: 'var(--text)' }}>
-            Veja os deals antes que esgotem.
+          </span>
+          <h1 className="text-3xl sm:text-4xl font-extrabold leading-[1.15] tracking-tight" style={{ color: 'var(--text)' }}>
+            Veja os deals<br />
+            <span className="gradient-blue-text">antes que esgotem</span>
           </h1>
-          <p className="text-[0.9375rem]" style={{ color: 'var(--text-2)' }}>
-            Free users esperam 30 minutos. Premium recebe na hora, no site e no Discord.
+          <p className="text-base max-w-md mx-auto" style={{ color: 'var(--text-2)' }}>
+            Enquanto usuários free esperam 30 minutos, você recebe na hora — no site e direto no Discord.
           </p>
-        </div>
-
-        <ul className="space-y-5">
-          {FEATURES.map(({ title, desc }) => (
-            <li key={title} className="flex gap-3">
-              <span
-                className="mt-0.5 h-4 w-4 shrink-0 rounded-full text-center text-[10px] font-bold leading-4 text-white"
-                style={{ background: 'var(--accent)' }}
-              >
-                ✓
-              </span>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{title}</p>
-                <p className="text-sm" style={{ color: 'var(--text-2)' }}>{desc}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        <div className="space-y-3">
-          {priceDisplay && (
-            <p className="text-[2rem] font-bold tracking-tight" style={{ color: 'var(--text)' }}>
-              {priceDisplay}
+          {premiumCount > 0 && (
+            <p className="text-sm font-medium" style={{ color: 'var(--text-3)' }}>
+              🔥 {premiumCount} {premiumCount === 1 ? 'membro' : 'membros'} já com acesso Premium
             </p>
           )}
-          <UpgradeButton className="w-full py-3.5 text-[0.9375rem]" />
-          <p className="text-xs text-center" style={{ color: 'var(--text-3)' }}>
-            Cancele quando quiser. Sem contrato.
+        </div>
+
+        {/* Comparativo */}
+        <div className="glass rounded-2xl overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {/* Header */}
+          <div className="grid grid-cols-3 px-5 py-3 text-xs font-bold uppercase tracking-widest" style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', color: 'var(--text-3)' }}>
+            <span>Recurso</span>
+            <span className="text-center">Free</span>
+            <span className="text-center gradient-blue-text">Premium</span>
+          </div>
+
+          {COMPARE.map(({ feature, free, premium }, i) => (
+            <div
+              key={feature}
+              className="grid grid-cols-3 items-center px-5 py-3.5 text-sm"
+              style={{
+                borderBottom: i < COMPARE.length - 1 ? '1px solid var(--border)' : 'none',
+                background:   i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+              }}
+            >
+              <span style={{ color: 'var(--text-2)' }}>{feature}</span>
+              <span className="text-center text-base">{free ? '✓' : <span style={{ color: 'var(--text-4)' }}>—</span>}</span>
+              <span className="text-center text-base" style={{ color: premium ? '#22c55e' : 'var(--text-4)' }}>
+                {premium ? '✓' : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div className="glass rounded-2xl p-7 text-center space-y-5 animate-fade-in-up" style={{ animationDelay: '0.2s', border: '1px solid rgba(59,130,246,0.3)' }}>
+          {priceDisplay && (
+            <div>
+              <p className="text-4xl font-extrabold tracking-tight gradient-blue-text">{priceDisplay}</p>
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>Cancele quando quiser. Sem contrato.</p>
+            </div>
+          )}
+
+          <UpgradeButton className="w-full py-4 text-base" />
+
+          <div className="flex items-center justify-center gap-6 text-xs" style={{ color: 'var(--text-3)' }}>
+            <span>🔒 Pagamento seguro via Stripe</span>
+            <span>↩️ Cancele a qualquer momento</span>
+          </div>
+
+          <p className="text-xs" style={{ color: 'var(--text-4)' }}>
+            Prefere assinar pelo Discord? Use o comando <span className="font-mono" style={{ color: 'var(--accent-text)' }}>/assinar</span> no servidor.
           </p>
         </div>
+
       </main>
     </div>
   );

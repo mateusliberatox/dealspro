@@ -26,7 +26,7 @@ async function getPageData() {
 
     const isPremium = plan === 'premium';
 
-    const [productsRes, totalRes, upcomingRes] = await Promise.all([
+    const [productsRes, totalRes, upcomingRes, premiumRes] = await Promise.all([
       (() => {
         let q = supabase
           .from('produtos_dealspro')
@@ -46,6 +46,10 @@ async function getPageData() {
             .select('*', { count: 'exact', head: true })
             .gt('visible_at', now)
         : Promise.resolve({ count: 0 }),
+      supabase
+        .from('dealspro_profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('plan', 'premium'),
     ]);
 
     return {
@@ -54,20 +58,26 @@ async function getPageData() {
       upcomingCount: upcomingRes.count ?? 0,
       isLoggedIn:    !!user,
       totalDeals:    totalRes.count ?? 0,
+      premiumCount:  premiumRes.count ?? 0,
     };
   } catch {
-    return { produtos: [], isPremium: false, upcomingCount: 0, isLoggedIn: false, totalDeals: 0 };
+    return { produtos: [], isPremium: false, upcomingCount: 0, isLoggedIn: false, totalDeals: 0, premiumCount: 0 };
   }
 }
 
 export default async function HomePage() {
-  const { produtos, isPremium, upcomingCount, isLoggedIn, totalDeals } = await getPageData();
+  const { produtos, isPremium, upcomingCount, isLoggedIn, totalDeals, premiumCount } = await getPageData();
 
   return (
     <div className="min-h-screen">
       <Header />
 
-      <Hero totalDeals={totalDeals} />
+      <Hero
+        totalDeals={totalDeals}
+        premiumCount={premiumCount}
+        isLoggedIn={isLoggedIn}
+        isPremium={isPremium}
+      />
 
       <main className="mx-auto max-w-6xl px-4 pb-16">
 

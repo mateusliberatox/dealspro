@@ -53,6 +53,9 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
+  // Lê código de indicação do cookie (salvo pela rota /r/[code])
+  const refCode = request.cookies.get('dp_ref')?.value ?? null;
+
   if (!code) {
     // Retorno do linkIdentity: sessão já existe, sem código PKCE
     const { data: { user } } = await supabase.auth.getUser();
@@ -70,5 +73,36 @@ export async function GET(request: NextRequest) {
 
   await syncDiscordByUserId(data.user.id);
 
-  return NextResponse.redirect(`${origin}${next}`);
+  // Salva código de indicação se for um novo cadastro
+  if (refCode) {
+    const admin = getAdmin();
+    const { data: profile } = await admin
+      .from('dealspro_profiles')
+      .select('referred_by')
+      .eq('user_id', data.user.id)
+      .single();
+
+    // Só salva se ainda não tiver indicação (evita sobrescrever)
+    if (profile && !profile.referred_by) {
+      // Verifica se o código pertence a outro usuário (não a si mesmo)
+      const { data: referrer } = await admin
+        .from('dealspro_profiles')
+        .select('user_id')
+        .eq('referral_code', refCode)
+        .neq('user_id', data.user.id)
+        .single();
+
+      if (referrer) {
+        await admin
+          .from('dealspro_profiles')
+          .update({ referred_by: refCode })
+          .eq('user_id', data.user.id);
+      }
+    }
+  }
+
+  // Limpa cookie de indicação após uso
+  const redirectResponse = NextResponse.redirect(`${origin}${next}`);
+  if (refCode) redirectResponse.cookies.delete('dp_ref');
+  return redirectResponse;
 }
