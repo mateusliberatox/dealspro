@@ -199,7 +199,14 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
       <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Novo alerta</p>
-          <span className="text-xs" style={{ color: 'var(--text-3)' }}>{alerts.length}/{MAX_ALERTS}</span>
+          <span
+            className="text-xs font-medium"
+            style={{ color: alerts.length >= MAX_ALERTS - 2 ? '#f97316' : 'var(--text-3)' }}
+          >
+            {alerts.length}/{MAX_ALERTS}
+            {alerts.length >= MAX_ALERTS - 2 && alerts.length < MAX_ALERTS && ' — quase no limite'}
+            {alerts.length >= MAX_ALERTS && ' — limite atingido'}
+          </span>
         </div>
 
         {/* Linha 1: palavra-chave */}

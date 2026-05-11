@@ -19,6 +19,10 @@ async function verifySignature(request: NextRequest, body: string): Promise<bool
   const ts  = request.headers.get('x-signature-timestamp');
   const key = process.env.DISCORD_PUBLIC_KEY;
   if (!sig || !ts || !key) return false;
+
+  // Rejeita timestamps com mais de 5 minutos (replay attack)
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false;
+
   try {
     const cryptoKey = await crypto.subtle.importKey(
       'raw', hexToBuffer(key),
@@ -32,6 +36,8 @@ async function verifySignature(request: NextRequest, body: string): Promise<bool
     );
   } catch { return false; }
 }
+
+const DISCORD_ID_RE = /^\d{17,19}$/;
 
 function ephemeral(content: string) {
   return NextResponse.json({ type: 4, data: { content, flags: 64 } });
@@ -135,7 +141,8 @@ export async function POST(request: NextRequest) {
     const discordUserId: string =
       interaction.member?.user?.id ?? interaction.user?.id ?? '';
 
-    if (!discordUserId) return ephemeral('❌ Não foi possível identificar seu usuário.');
+    if (!discordUserId || !DISCORD_ID_RE.test(discordUserId))
+      return ephemeral('❌ Não foi possível identificar seu usuário.');
 
     if (name === 'assinar') return handleAssinar(discordUserId);
     if (name === 'status')  return handleStatus(discordUserId);
