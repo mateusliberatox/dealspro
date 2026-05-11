@@ -17,6 +17,31 @@ const CATEGORY_EMOJI = {
   'Outros': '📦',
 };
 
+const BATCH_ANNOUNCE_THRESHOLD = 8; // anuncia no canal free quando lote >= N produtos novos
+
+// ── Anúncio de lote grande ────────────────────────────────────────────────────
+
+export async function announceNewBatch(count, categories) {
+  if (!FREE_WEBHOOK_URL || count < BATCH_ANNOUNCE_THRESHOLD) return;
+
+  const catList = [...new Set(categories.filter(Boolean))].slice(0, 5).join(', ');
+
+  await postWebhook(FREE_WEBHOOK_URL, {
+    embeds: [{
+      color: 0x3b82f6,
+      title: `🛍️ ${count} produtos novos acabaram de chegar!`,
+      description:
+        `Foram detectados **${count} deals novos** no CSSDeals agora.\n\n` +
+        (catList ? `📂 Categorias: ${catList}\n\n` : '') +
+        `⭐ Membros **Premium** já estão vendo — você terá acesso em **30 minutos**.\n\n` +
+        `[Assinar Premium para ver agora](https://dealspro-chi.vercel.app/upgrade)`,
+      footer: { text: 'DealsPro • cssdeals.com' },
+      timestamp: new Date().toISOString(),
+    }],
+  }).catch(() => {}); // silencioso se falhar
+  logger.success(`Announced batch of ${count} new products to free channel`);
+}
+
 // ── Webhook (channel feed) ────────────────────────────────────────────────────
 
 export async function sendToDiscord(products) {

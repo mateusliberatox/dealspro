@@ -90,6 +90,64 @@ async function handleAssinar(discordUserId: string) {
   );
 }
 
+async function handleMeusAlertas(discordUserId: string) {
+  const db = admin();
+
+  const { data: profile } = await db
+    .from('dealspro_profiles')
+    .select('user_id, plan')
+    .eq('discord_user_id', discordUserId)
+    .single();
+
+  if (!profile) return ephemeral(`❌ Conta não encontrada. Crie a sua em ${SITE_URL}`);
+  if (profile.plan !== 'premium') return ephemeral(`📦 **Plano Gratuito** — alertas são exclusivos para Premium.\n\nUse **/assinar** para ativar.`);
+
+  const { data: alerts } = await db
+    .from('user_alerts_dealspro')
+    .select('keyword, categoria, size, is_active')
+    .eq('user_id', profile.user_id)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  if (!alerts?.length) return ephemeral(`🔔 Você não tem alertas ativos.\n\nCrie alertas em ${SITE_URL}/alerts`);
+
+  const lines = alerts.map((a, i) => {
+    const parts = [a.keyword && `\`${a.keyword}\``, a.categoria, a.size].filter(Boolean);
+    return `${i + 1}. ${parts.join(' · ')}`;
+  });
+
+  return ephemeral(`🔔 **Seus alertas ativos (${alerts.length}):**\n\n${lines.join('\n')}\n\nGerenciar: ${SITE_URL}/alerts`);
+}
+
+async function handleCancelar(discordUserId: string, keyword: string) {
+  const db = admin();
+
+  const { data: profile } = await db
+    .from('dealspro_profiles')
+    .select('user_id')
+    .eq('discord_user_id', discordUserId)
+    .single();
+
+  if (!profile) return ephemeral(`❌ Conta não encontrada.`);
+
+  const { data: alert } = await db
+    .from('user_alerts_dealspro')
+    .select('id, keyword')
+    .eq('user_id', profile.user_id)
+    .ilike('keyword', keyword)
+    .eq('is_active', true)
+    .single();
+
+  if (!alert) return ephemeral(`❌ Nenhum alerta ativo encontrado com a keyword **"${keyword}"**.`);
+
+  await db
+    .from('user_alerts_dealspro')
+    .update({ is_active: false })
+    .eq('id', alert.id);
+
+  return ephemeral(`✅ Alerta **"${alert.keyword}"** desativado com sucesso.`);
+}
+
 async function handleStatus(discordUserId: string) {
   const db = admin();
 
@@ -144,8 +202,14 @@ export async function POST(request: NextRequest) {
     if (!discordUserId || !DISCORD_ID_RE.test(discordUserId))
       return ephemeral('❌ Não foi possível identificar seu usuário.');
 
-    if (name === 'assinar') return handleAssinar(discordUserId);
-    if (name === 'status')  return handleStatus(discordUserId);
+    if (name === 'assinar')       return handleAssinar(discordUserId);
+    if (name === 'status')        return handleStatus(discordUserId);
+    if (name === 'meus-alertas')  return handleMeusAlertas(discordUserId);
+    if (name === 'cancelar') {
+      const keyword = (interaction.data?.options?.[0]?.value as string) ?? '';
+      if (!keyword) return ephemeral('❌ Informe a keyword do alerta. Ex: `/cancelar hoodie`');
+      return handleCancelar(discordUserId, keyword);
+    }
   }
 
   return NextResponse.json({ type: 1 });

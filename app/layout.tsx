@@ -10,13 +10,36 @@ const inter = Inter({
   weight: ['400', '500', '600', '700', '800'],
 });
 
+const SITE_URL = 'https://dealspro-chi.vercel.app';
+
 export const metadata: Metadata = {
-  title: 'DealsPro — Deals do CSSDeals em tempo real',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default:  'DealsPro — Deals do CSSDeals em tempo real',
+    template: '%s | DealsPro',
+  },
   description: 'Monitore os melhores achados do CSSDeals antes de esgotar. Alertas por Discord, filtros por tamanho e acesso premium em tempo real.',
+  keywords: ['cssdeals', 'deals', 'roupas importadas', 'desconto', 'promoção', 'alerta de preço'],
+  authors: [{ name: 'DealsPro' }],
+  openGraph: {
+    type:        'website',
+    locale:      'pt_BR',
+    url:          SITE_URL,
+    siteName:    'DealsPro',
+    title:       'DealsPro — Deals do CSSDeals em tempo real',
+    description: 'Monitore os melhores achados do CSSDeals antes de esgotar. Alertas por Discord, filtros por tamanho e acesso premium em tempo real.',
+    images: [{ url: '/icon.png', width: 512, height: 512, alt: 'DealsPro' }],
+  },
+  twitter: {
+    card:        'summary',
+    title:       'DealsPro — Deals do CSSDeals em tempo real',
+    description: 'Alertas de deals em tempo real. Nunca mais perca um achado.',
+    images:      ['/icon.png'],
+  },
   icons: {
     icon: [
-      { url: '/logo.svg',  type: 'image/svg+xml' },
-      { url: '/icon.png',  type: 'image/png', sizes: '512x512' },
+      { url: '/logo.svg', type: 'image/svg+xml' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
     ],
     apple: '/icon.png',
   },

@@ -115,6 +115,7 @@ export function Header() {
             {/* Desktop nav */}
             {user ? (
               <>
+                <NavLink href="/historico" onClick={closeMenu}>Histórico</NavLink>
                 <NavLink href="/alerts" onClick={closeMenu}>Alertas</NavLink>
                 {isAdmin && <NavLink href="/admin" onClick={closeMenu}>Admin</NavLink>}
                 <button
@@ -217,6 +218,7 @@ export function Header() {
               <MobileNavLink href="/" onClick={closeMenu}>Feed de Deals</MobileNavLink>
               {user ? (
                 <>
+                  <MobileNavLink href="/historico" onClick={closeMenu}>Histórico</MobileNavLink>
                   <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
                   <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
                   {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}

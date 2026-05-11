@@ -1,5 +1,11 @@
 export const dynamic = 'force-dynamic';
 
+import type { Metadata } from 'next';
+export const metadata: Metadata = {
+  title: 'Meus Alertas',
+  description: 'Gerencie seus alertas de deals por palavra-chave, categoria e tamanho. Receba notificações por DM no Discord.',
+};
+
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';

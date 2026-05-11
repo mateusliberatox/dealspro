@@ -33,6 +33,22 @@ const commands = [
     name:        'status',
     description: 'Veja seu status de assinatura no DealsPro',
   },
+  {
+    name:        'meus-alertas',
+    description: 'Lista seus alertas ativos no DealsPro',
+  },
+  {
+    name:        'cancelar',
+    description: 'Desativa um alerta pela keyword',
+    options: [
+      {
+        name:        'keyword',
+        description: 'Keyword do alerta a cancelar (ex: hoodie)',
+        type:        3, // STRING
+        required:    true,
+      },
+    ],
+  },
 ];
 
 const res = await fetch(

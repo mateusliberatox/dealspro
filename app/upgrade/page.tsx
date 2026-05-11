@@ -1,5 +1,11 @@
 export const dynamic = 'force-dynamic';
 
+import type { Metadata } from 'next';
+export const metadata: Metadata = {
+  title: 'Assinar Premium',
+  description: 'Veja os deals do CSSDeals em tempo real, sem delay, com alertas por DM no Discord. A partir de R$ 7,99/mês.',
+};
+
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
