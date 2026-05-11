@@ -79,22 +79,47 @@ export async function deleteOldProducts() {
 }
 
 /**
- * Marks products as unavailable when their links are no longer present in the current scrape.
+ * Marks products as unavailable only after they've been absent from the scrape
+ * for at least UNAVAIL_THRESHOLD_MS (30 min = ~15 scrape cycles).
+ * A single missed scrape cycle (page 3+, timeout, etc.) does not trigger the mark.
  * Also restores products that reappeared (restocked).
- * Returns { markedUnavailable, restored } counts.
  */
+const UNAVAIL_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+
 export async function syncAvailability(scrapedLinks) {
-  if (!scrapedLinks.size) return { markedUnavailable: 0, restored: 0 };
+  if (!scrapedLinks.size) return { markedUnavailable: 0, restored: 0, restoredIds: [] };
+
+  const now = new Date();
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, link, disponivel');
+    .select('id, link, disponivel, last_seen_at');
 
   if (error) throw new Error(`syncAvailability fetch failed: ${error.message}`);
 
-  const toMarkUnavailable = (data ?? []).filter((p) =>  p.disponivel && !scrapedLinks.has(p.link)).map((p) => p.id);
-  const toRestore         = (data ?? []).filter((p) => !p.disponivel &&  scrapedLinks.has(p.link)).map((p) => p.id);
+  const seen       = [];
+  const toMarkUnavailable = [];
+  const toRestore  = [];
 
+  for (const p of data ?? []) {
+    const inScrape = scrapedLinks.has(p.link);
+
+    if (inScrape) {
+      // Update last_seen_at for all products found in this scrape
+      seen.push(p.id);
+      if (!p.disponivel) toRestore.push(p.id);
+    } else if (p.disponivel) {
+      // Only mark unavailable if absent for longer than threshold
+      const lastSeen = p.last_seen_at ? new Date(p.last_seen_at) : new Date(0);
+      if (now - lastSeen >= UNAVAIL_THRESHOLD_MS) {
+        toMarkUnavailable.push(p.id);
+      }
+    }
+  }
+
+  if (seen.length) {
+    await supabase.from(TABLE).update({ last_seen_at: now.toISOString() }).in('id', seen);
+  }
   if (toMarkUnavailable.length) {
     await supabase.from(TABLE).update({ disponivel: false }).in('id', toMarkUnavailable);
   }
@@ -105,7 +130,7 @@ export async function syncAvailability(scrapedLinks) {
   return {
     markedUnavailable: toMarkUnavailable.length,
     restored:          toRestore.length,
-    restoredIds:       toRestore, // para notificar usuários com alertas
+    restoredIds:       toRestore,
   };
 }
 

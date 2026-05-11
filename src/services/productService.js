@@ -13,6 +13,9 @@ import { supabase } from '../database/supabase.js';
 const MAX_QC_FETCHES   = 100; // tenta QC para todos os produtos novos
 const QC_BATCH_SIZE    = 3;   // parallel QC fetches
 const FREE_DELAY_MS    = 30 * 60 * 1000; // 30 minutes
+// Scrapes com menos produtos que este mínimo são tratados como falha parcial
+// e não disparam syncAvailability para evitar falsos positivos de "esgotado"
+const MIN_SCRAPE_QUALITY = 40;
 
 export async function detectAndSaveNewProducts() {
   logger.info('Starting detection cycle');
@@ -43,7 +46,15 @@ export async function detectAndSaveNewProducts() {
   logger.info(`DB has ${existingMap.size} existing hashes`);
 
   const scrapedLinks = new Set(withHashes.map((p) => p.link));
-  const { markedUnavailable, restored, restoredIds } = await syncAvailability(scrapedLinks);
+
+  // Guarda de qualidade: scrapes muito pequenos indicam falha parcial — não marcar esgotados
+  const scrapeOk = scraped.length >= MIN_SCRAPE_QUALITY;
+  if (!scrapeOk) {
+    logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping availability sync to avoid false sold-out marks`);
+  }
+  const { markedUnavailable, restored, restoredIds } = scrapeOk
+    ? await syncAvailability(scrapedLinks)
+    : { markedUnavailable: 0, restored: 0, restoredIds: [] };
   if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
   if (restored > 0) {
     logger.info(`Restored ${restored} product(s) to available (restocado)`);
