@@ -15,6 +15,7 @@ import { ReferralCopy } from '@/components/referral-copy';
 import { UpgradeButton } from '@/components/upgrade-button';
 import { DiscordConnectButton } from '@/components/discord-connect-button';
 import { TelegramConnectButton } from '@/components/telegram-connect-button';
+import { TelegramModeSelector } from '@/components/telegram-mode-selector';
 
 export default async function MinhaContaPage() {
   const supabase = await createClient();
@@ -23,7 +24,7 @@ export default async function MinhaContaPage() {
 
   const { data: profile } = await supabase
     .from('dealspro_profiles')
-    .select('plan, discord_user_id, discord_username, discord_avatar, stripe_customer_id, created_at, referral_code, telegram_chat_id, telegram_username')
+    .select('plan, discord_user_id, discord_username, discord_avatar, stripe_customer_id, created_at, referral_code, telegram_chat_id, telegram_username, telegram_notify_mode')
     .eq('user_id', user.id)
     .single();
 
@@ -170,6 +171,17 @@ export default async function MinhaContaPage() {
                 </a>
               ) : null}
             </div>
+
+            {/* Seletor de modo Telegram */}
+            {hasTelegram && (
+              <>
+                <div className="h-px" style={{ background: 'var(--border)' }} />
+                <TelegramModeSelector
+                  current={(profile?.telegram_notify_mode as 'alerts_only' | 'all_deals' | 'both' | null) ?? 'alerts_only'}
+                  isPremium={isPremium}
+                />
+              </>
+            )}
 
             {/* Testar DM */}
             {hasDiscord && (

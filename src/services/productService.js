@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
 import { sendFreeDelayedNotifications, announceNewBatch } from '../notifications/discord.js';
+import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 
 const MAX_QC_FETCHES   = 100; // tenta QC para todos os produtos novos
@@ -22,6 +23,7 @@ export async function detectAndSaveNewProducts() {
 
   // 0b. Send delayed free Discord notifications for products now past visible_at
   await sendFreeDelayedNotifications();
+  await notifyTelegramFreeFeed();
 
   // 1. Scrape all pages
   const scraped = await scrapeCssDeals();
@@ -114,6 +116,7 @@ export async function detectAndSaveNewProducts() {
   // 7. Premium webhook fires immediately; free webhook fires after visible_at (handled in next cycles)
   await dispatchNotifications(inserted);
   await matchAndNotify(inserted);
+  await notifyTelegramPremiumFeed(inserted);
   await announceNewBatch(inserted.length, inserted.map((p) => p.categoria));
 
   return inserted;

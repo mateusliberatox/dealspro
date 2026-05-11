@@ -22,6 +22,7 @@ export interface DealsproProfile {
   discord_avatar: string | null;
   telegram_chat_id: number | null;
   telegram_username: string | null;
+  telegram_notify_mode: 'alerts_only' | 'all_deals' | 'both' | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   plan_expires_at: string | null;
