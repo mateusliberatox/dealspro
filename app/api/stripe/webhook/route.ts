@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
       const { data: existing } = await supabaseAdmin
         .from('dealspro_profiles')
-        .select('discord_user_id')
+        .select('discord_user_id, referred_by, is_admin')
         .eq('user_id', userId)
         .single();
 
@@ -64,6 +64,29 @@ export async function POST(request: NextRequest) {
 
       if (existing?.discord_user_id) {
         await addPremiumRole(existing.discord_user_id).catch(() => {});
+      }
+
+      // Recompensa de indicação: 1 mês grátis para quem indicou
+      // Admin não conta como indicado nem como indicador
+      if (existing?.referred_by && !existing?.is_admin) {
+        const { data: referrer } = await supabaseAdmin
+          .from('dealspro_profiles')
+          .select('user_id, plan, plan_expires_at, stripe_subscription_id, is_admin')
+          .eq('referral_code', existing.referred_by)
+          .single();
+
+        // Não recompensa admin nem a si mesmo
+        if (referrer && !referrer.is_admin) {
+          const base = referrer.plan_expires_at && new Date(referrer.plan_expires_at) > new Date()
+            ? new Date(referrer.plan_expires_at)
+            : new Date();
+          base.setDate(base.getDate() + 30);
+          await supabaseAdmin
+            .from('dealspro_profiles')
+            .update({ plan: 'premium', plan_expires_at: base.toISOString() })
+            .eq('user_id', referrer.user_id);
+          console.log(`[Referral] +30 days for ${referrer.user_id} (referred ${userId})`);
+        }
       }
       break;
     }

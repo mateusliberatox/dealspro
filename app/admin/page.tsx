@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdmin } from '@supabase/supabase-js';
 import { Header } from '@/components/header';
 import { CategorySelect } from '@/components/category-select';
+import { GrantTrialForm } from '@/components/grant-trial-form';
 import type { Produto } from '@/lib/types';
 
 export default async function AdminPage() {
@@ -152,6 +153,17 @@ export default async function AdminPage() {
             ))}
           </div>
 
+        </div>
+
+        {/* Trial premium */}
+        <div>
+          <p className="mb-3 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Conceder Trial Premium</p>
+          <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <p className="mb-3 text-sm" style={{ color: 'var(--text-2)' }}>
+              Ativa premium temporário para um usuário pelo email. Expira automaticamente sem cobrar.
+            </p>
+            <GrantTrialForm />
+          </div>
         </div>
 
         {/* Tabela de produtos */}

@@ -18,10 +18,27 @@ async function getPageData() {
     if (user) {
       const { data: profile } = await supabase
         .from('dealspro_profiles')
-        .select('plan')
+        .select('plan, plan_expires_at, stripe_subscription_id')
         .eq('user_id', user.id)
         .single();
-      plan = profile?.plan ?? 'free';
+
+      // Auto-expira trial: premium sem Stripe e plan_expires_at vencido
+      if (
+        profile?.plan === 'premium' &&
+        !profile.stripe_subscription_id &&
+        profile.plan_expires_at &&
+        new Date(profile.plan_expires_at) < new Date()
+      ) {
+        plan = 'free';
+        // Reverte no banco de forma assíncrona (não bloqueia o render)
+        supabase
+          .from('dealspro_profiles')
+          .update({ plan: 'free' })
+          .eq('user_id', user.id)
+          .then(() => {});
+      } else {
+        plan = profile?.plan ?? 'free';
+      }
     }
 
     const isPremium = plan === 'premium';
