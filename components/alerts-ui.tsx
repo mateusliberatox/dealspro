@@ -37,31 +37,35 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const [error, setError]         = useState('');
   const [pending, startTrans] = useTransition();
 
-  // Estado do botão de teste de DM
-  const [dmStatus, setDmStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
-  const [dmError, setDmError]   = useState('');
-
   const isPremium  = profile?.plan === 'premium';
   const hasDiscord = !!profile?.discord_user_id;
+  const hasTelegram = !!profile?.telegram_chat_id;
 
-  const testDM = async () => {
-    setDmStatus('sending');
+  type DmState = 'idle' | 'sending' | 'ok' | 'error';
+  const [discordDm, setDiscordDm]   = useState<DmState>('idle');
+  const [telegramDm, setTelegramDm] = useState<DmState>('idle');
+  const [dmError, setDmError]       = useState('');
+
+  const testDm = async (channel: 'discord' | 'telegram') => {
+    const set = channel === 'discord' ? setDiscordDm : setTelegramDm;
+    set('sending');
     setDmError('');
     try {
-      const res  = await fetch('/api/test-discord', { method: 'POST' });
+      const endpoint = channel === 'discord' ? '/api/test-discord' : '/api/test-telegram';
+      const res  = await fetch(endpoint, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        setDmStatus('ok');
-        setTimeout(() => setDmStatus('idle'), 5000);
+        set('ok');
+        setTimeout(() => set('idle'), 5000);
       } else {
-        setDmStatus('error');
+        set('error');
         setDmError(data.error ?? 'Erro desconhecido');
-        setTimeout(() => setDmStatus('idle'), 6000);
+        setTimeout(() => { set('idle'); setDmError(''); }, 6000);
       }
     } catch {
-      setDmStatus('error');
+      set('error');
       setDmError('Falha de rede');
-      setTimeout(() => setDmStatus('idle'), 6000);
+      setTimeout(() => { set('idle'); setDmError(''); }, 6000);
     }
   };
 
@@ -138,62 +142,67 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   return (
     <div className="space-y-6">
 
-      {/* Status do Discord */}
-      <div
-        className="rounded-xl border p-4"
-        style={{
-          background: hasDiscord ? 'rgba(34,197,94,0.04)' : 'var(--surface)',
-          borderColor: hasDiscord ? 'rgba(34,197,94,0.25)' : 'var(--border)',
-        }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-              {hasDiscord ? `Discord: ${profile.discord_username}` : 'Conectar Discord'}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
-              {hasDiscord
-                ? 'Você receberá DMs quando um alerta disparar.'
-                : 'Necessário para receber notificações por DM.'}
-            </p>
-          </div>
-          {hasDiscord ? (
-            <span className="shrink-0 text-sm font-medium text-green-500">✓ Conectado</span>
-          ) : (
-            <button
-              onClick={connectDiscord}
-              className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ background: '#5865F2' }}
-            >
-              Conectar
-            </button>
-          )}
-        </div>
-
-        {/* Testar DM — linha separada para não comprimir o botão Conectar */}
-        {hasDiscord && (
-          <div className="mt-3 flex items-center gap-3 pt-3" style={{ borderTop: '1px solid rgba(34,197,94,0.15)' }}>
-            <button
-              onClick={testDM}
-              disabled={dmStatus === 'sending'}
-              className="text-xs font-medium transition-colors disabled:opacity-50"
-              style={{
-                color: dmStatus === 'ok'    ? '#22c55e'
-                     : dmStatus === 'error' ? '#f87171'
-                     : 'var(--text-3)',
-              }}
-            >
-              {dmStatus === 'sending' ? 'Enviando…'
-               : dmStatus === 'ok'    ? '✓ DM enviada!'
-               : dmStatus === 'error' ? '✗ Falhou'
-               : 'Testar DM'}
-            </button>
-            {dmStatus === 'error' && dmError && (
-              <p className="text-[10px] text-red-400">{dmError}</p>
+      {/* Testar notificações */}
+      {(hasDiscord || hasTelegram) && (
+        <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>
+            Testar notificações
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {hasDiscord && (
+              <button
+                onClick={() => testDm('discord')}
+                disabled={discordDm === 'sending'}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all disabled:opacity-50"
+                style={{
+                  background:  discordDm === 'ok' ? 'rgba(34,197,94,0.08)' : 'rgba(88,101,242,0.08)',
+                  borderColor: discordDm === 'ok' ? 'rgba(34,197,94,0.4)' : discordDm === 'error' ? 'rgba(248,113,113,0.4)' : 'rgba(88,101,242,0.3)',
+                  color:       discordDm === 'ok' ? '#22c55e' : discordDm === 'error' ? '#f87171' : '#5865F2',
+                }}
+              >
+                <svg width="14" height="11" viewBox="0 0 127.14 96.36" fill="currentColor" aria-hidden>
+                  <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
+                </svg>
+                {discordDm === 'sending' ? 'Enviando…' : discordDm === 'ok' ? '✓ Enviado!' : discordDm === 'error' ? '✗ Falhou' : 'Testar Discord'}
+              </button>
+            )}
+            {hasTelegram && (
+              <button
+                onClick={() => testDm('telegram')}
+                disabled={telegramDm === 'sending'}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all disabled:opacity-50"
+                style={{
+                  background:  telegramDm === 'ok' ? 'rgba(34,197,94,0.08)' : 'rgba(34,158,217,0.08)',
+                  borderColor: telegramDm === 'ok' ? 'rgba(34,197,94,0.4)' : telegramDm === 'error' ? 'rgba(248,113,113,0.4)' : 'rgba(34,158,217,0.3)',
+                  color:       telegramDm === 'ok' ? '#22c55e' : telegramDm === 'error' ? '#f87171' : '#229ED9',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.16 13.67l-2.965-.924c-.644-.204-.657-.644.136-.953l11.57-4.461c.537-.194 1.006.131.993.889z"/>
+                </svg>
+                {telegramDm === 'sending' ? 'Enviando…' : telegramDm === 'ok' ? '✓ Enviado!' : telegramDm === 'error' ? '✗ Falhou' : 'Testar Telegram'}
+              </button>
             )}
           </div>
-        )}
-      </div>
+          {dmError && <p className="text-[11px] text-red-400">{dmError}</p>}
+        </div>
+      )}
+
+      {/* Prompt para conectar Discord se ainda não vinculado */}
+      {!hasDiscord && !hasTelegram && (
+        <div className="rounded-xl border p-4 flex items-center justify-between gap-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+            Vincule ao menos um canal para receber alertas por DM.
+          </p>
+          <button
+            onClick={connectDiscord}
+            className="shrink-0 rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: '#5865F2' }}
+          >
+            Conectar Discord
+          </button>
+        </div>
+      )}
 
       {/* Form de novo alerta */}
       <div className="rounded-xl border p-4 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>

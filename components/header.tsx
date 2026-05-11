@@ -117,48 +117,50 @@ export function Header() {
             </button>
 
             {/* Desktop nav — só renderiza após auth resolver para evitar flash */}
-            {authReady && user ? (
-              <>
-                <NavLink href="/historico" onClick={closeMenu}>Histórico</NavLink>
-                <NavLink href="/alerts" onClick={closeMenu}>Alertas</NavLink>
-                {isAdmin && <NavLink href="/admin" onClick={closeMenu}>Admin</NavLink>}
-                <button
-                  onClick={signOut}
-                  className="hidden sm:inline-flex rounded-lg px-3 py-1.5 text-sm transition-colors"
-                  style={{ color: 'var(--text-3)' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-2)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
-                >
-                  Sair
-                </button>
-                <Link
-                  href="/minha-conta"
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
-                  style={{
-                    background:  'var(--surface-2)',
-                    border:      '1px solid var(--border)',
-                    color:       'var(--text-2)',
-                  }}
-                >
-                  {isPremium && <span style={{ color: 'var(--accent-text)' }}>★</span>}
-                  <span>{user.email?.split('@')[0]}</span>
-                </Link>
-                {authReady && !isPremium && (
-                  <Link
-                    href="/upgrade"
-                    className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
+            {authReady && (
+              user ? (
+                <>
+                  <NavLink href="/historico" onClick={closeMenu}>Histórico</NavLink>
+                  <NavLink href="/alerts" onClick={closeMenu}>Alertas</NavLink>
+                  {isAdmin && <NavLink href="/admin" onClick={closeMenu}>Admin</NavLink>}
+                  <button
+                    onClick={signOut}
+                    className="hidden sm:inline-flex rounded-lg px-3 py-1.5 text-sm transition-colors"
+                    style={{ color: 'var(--text-3)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-2)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
                   >
-                    Premium
+                    Sair
+                  </button>
+                  <Link
+                    href="/minha-conta"
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                    style={{
+                      background:  'var(--surface-2)',
+                      border:      '1px solid var(--border)',
+                      color:       'var(--text-2)',
+                    }}
+                  >
+                    {isPremium && <span style={{ color: 'var(--accent-text)' }}>★</span>}
+                    <span>{user.email?.split('@')[0]}</span>
                   </Link>
-                )}
-              </>
-            ) : (
-              <Link
-                href="/login"
-                className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              >
-                Entrar
-              </Link>
+                  {!isPremium && (
+                    <Link
+                      href="/upgrade"
+                      className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
+                    >
+                      Premium
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  Entrar
+                </Link>
+              )
             )}
 
             {/* Hamburger */}
@@ -220,30 +222,32 @@ export function Header() {
 
             <div className="flex flex-col gap-1 p-3 flex-1">
               <MobileNavLink href="/" onClick={closeMenu}>Feed de Deals</MobileNavLink>
-              {authReady && user ? (
-                <>
-                  <MobileNavLink href="/historico" onClick={closeMenu}>Histórico</MobileNavLink>
-                  <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
-                  <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
-                  {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}
-                  {authReady && !isPremium && (
-                    <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>
-                      Assinar Premium
-                    </MobileNavLink>
-                  )}
-                  {isPremium && (
-                    <div className="px-4 py-2 mt-1">
-                      <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-                        style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}
-                      >
-                        ★ Premium ativo
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <MobileNavLink href="/login" onClick={closeMenu} highlight>Entrar</MobileNavLink>
+              {authReady && (
+                user ? (
+                  <>
+                    <MobileNavLink href="/historico" onClick={closeMenu}>Histórico</MobileNavLink>
+                    <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
+                    <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
+                    {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}
+                    {!isPremium && (
+                      <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>
+                        Assinar Premium
+                      </MobileNavLink>
+                    )}
+                    {isPremium && (
+                      <div className="px-4 py-2 mt-1">
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{ background: 'var(--accent-dim)', color: 'var(--accent-text)' }}
+                        >
+                          ★ Premium ativo
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <MobileNavLink href="/login" onClick={closeMenu} highlight>Entrar</MobileNavLink>
+                )
               )}
             </div>
 

@@ -15,7 +15,6 @@ import { ReferralCopy } from '@/components/referral-copy';
 import { UpgradeButton } from '@/components/upgrade-button';
 import { DiscordConnectButton } from '@/components/discord-connect-button';
 import { TelegramConnectButton } from '@/components/telegram-connect-button';
-import { TelegramModeSelector } from '@/components/telegram-mode-selector';
 
 export default async function MinhaContaPage() {
   const supabase = await createClient();
@@ -109,16 +108,32 @@ export default async function MinhaContaPage() {
 
             {isPremium ? (
               <ul className="space-y-1.5 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
-                {['Acesso em tempo real', 'Alertas por DM', 'Canal exclusivo Discord', 'Filtros avançados'].map((f) => (
+                {[
+                  'Deals 30 min antes dos usuários gratuitos',
+                  'Alertas por DM no Discord e Telegram',
+                  'Canal exclusivo com curadoria premium',
+                  'Filtros por keyword, categoria e tamanho',
+                  'Notificação de restock automática',
+                ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-2)' }}>
                     <span style={{ color: 'var(--accent-text)' }}>✓</span> {f}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs border-t pt-3" style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}>
-                Assine o Premium para receber alertas em tempo real e acesso ao Discord exclusivo.
-              </p>
+              <ul className="space-y-1.5 border-t pt-3" style={{ borderColor: 'var(--border)' }}>
+                {[
+                  'Deals 30 min antes de todo mundo',
+                  'Alertas por DM no Discord e Telegram',
+                  'Canal exclusivo com curadoria premium',
+                  'Filtros por keyword, categoria e tamanho',
+                  'Notificação de restock automática',
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-3)' }}>
+                    <span style={{ color: 'var(--border)' }}>○</span> {f}
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 
@@ -172,21 +187,6 @@ export default async function MinhaContaPage() {
               ) : null}
             </div>
 
-            {/* Seletor de modo Telegram */}
-            {hasTelegram && (
-              <>
-                <div className="h-px" style={{ background: 'var(--border)' }} />
-                <TelegramModeSelector
-                  current={(profile?.telegram_notify_mode as 'alerts_only' | 'all_deals' | 'both' | null) ?? 'alerts_only'}
-                  isPremium={isPremium}
-                />
-              </>
-            )}
-
-            {/* Testar DM */}
-            {hasDiscord && (
-              <DiscordConnectButton connected username={profile?.discord_username} avatar={null} testOnly />
-            )}
           </section>
         </div>
 
