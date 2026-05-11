@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { PortalButton } from '@/components/portal-button';
 import { ReferralCopy } from '@/components/referral-copy';
+import { TelegramConnectButton } from '@/components/telegram-connect-button';
 import { UpgradeButton } from '@/components/upgrade-button';
 import { DiscordConnectButton } from '@/components/discord-connect-button';
 
@@ -22,7 +23,7 @@ export default async function MinhaContaPage() {
 
   const { data: profile } = await supabase
     .from('dealspro_profiles')
-    .select('plan, discord_user_id, discord_username, discord_avatar, stripe_customer_id, created_at, referral_code')
+    .select('plan, discord_user_id, discord_username, discord_avatar, stripe_customer_id, created_at, referral_code, telegram_chat_id, telegram_username')
     .eq('user_id', user.id)
     .single();
 
@@ -125,6 +126,34 @@ export default async function MinhaContaPage() {
             </div>
           )}
         </section>
+
+        {/* Telegram */}
+        {process.env.TELEGRAM_BOT_USERNAME && (
+          <section className="rounded-xl border p-5 space-y-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-3)' }}>Telegram</p>
+            <div className="flex items-center justify-between gap-3">
+              {profile?.telegram_chat_id ? (
+                <TelegramConnectButton
+                  connected
+                  username={profile.telegram_username}
+                  referralCode={profile?.referral_code ?? ''}
+                  botUsername={process.env.TELEGRAM_BOT_USERNAME}
+                />
+              ) : (
+                <>
+                  <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+                    Receba alertas também pelo Telegram.
+                  </p>
+                  <TelegramConnectButton
+                    connected={false}
+                    referralCode={profile?.referral_code ?? ''}
+                    botUsername={process.env.TELEGRAM_BOT_USERNAME}
+                  />
+                </>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Indicação */}
         {profile?.referral_code && (

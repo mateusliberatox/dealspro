@@ -2,6 +2,17 @@ import { supabase } from '../database/supabase.js';
 import { sendDiscordDM } from './discord.js';
 import { logger } from '../utils/logger.js';
 
+const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
+async function sendTelegram(chatId, text) {
+  if (!TELEGRAM_TOKEN) return;
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+  }).catch(() => {});
+}
+
 /**
  * For each newly inserted product, find matching active premium alerts
  * and dispatch Discord DM notifications.
@@ -25,7 +36,7 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
   const userIds = [...new Set(alerts.map((a) => a.user_id))];
   const { data: profiles, error: profilesError } = await supabase
     .from('dealspro_profiles')
-    .select('user_id, plan, discord_user_id')
+    .select('user_id, plan, discord_user_id, telegram_chat_id')
     .in('user_id', userIds)
     .eq('plan', 'premium');
 
@@ -66,33 +77,53 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
       const sizeMatch = !alert.size || (product.sizes ?? []).includes(alert.size);
       if (!sizeMatch) continue;
 
-      const discordId = profileMap.get(alert.user_id)?.discord_user_id;
-      await dispatchDM({ alert, product, discordId, isRestock });
+      const prof       = profileMap.get(alert.user_id);
+      const discordId  = prof?.discord_user_id;
+      const telegramId = prof?.telegram_chat_id;
+      await dispatchDM({ alert, product, discordId, telegramId, isRestock });
     }
   }
 }
 
-async function dispatchDM({ alert, product, discordId, isRestock = false }) {
-  const logEntry = {
-    user_id: alert.user_id,
-    product_id: product.id,
-    alert_id: alert.id,
-    channel: 'discord_dm',
-    status: 'pending',
-  };
+async function dispatchDM({ alert, product, discordId, telegramId, isRestock = false }) {
+  const nome = product.nome_traduzido || product.nome;
 
-  if (!discordId) {
-    await logNotification({ ...logEntry, status: 'failed', error: 'no_discord_id' });
-    return;
+  // Discord DM
+  if (discordId) {
+    try {
+      await sendDiscordDM(discordId, product, isRestock);
+      await logNotification({ user_id: alert.user_id, product_id: product.id, alert_id: alert.id, channel: 'discord_dm', status: 'sent' });
+      logger.success(`Discord DM sent to user ${alert.user_id} for "${nome}"`);
+    } catch (err) {
+      await logNotification({ user_id: alert.user_id, product_id: product.id, alert_id: alert.id, channel: 'discord_dm', status: 'failed', error: err.message });
+      logger.error(`Discord DM failed: ${err.message}`);
+    }
   }
 
-  try {
-    await sendDiscordDM(discordId, product, isRestock);
-    await logNotification({ ...logEntry, status: 'sent' });
-    logger.success(`Alert DM sent to user ${alert.user_id} for "${product.nome_traduzido || product.nome}"`);
-  } catch (err) {
-    await logNotification({ ...logEntry, status: 'failed', error: err.message });
-    logger.error(`Alert DM failed: ${err.message}`);
+  // Telegram DM
+  if (telegramId) {
+    const icon  = isRestock ? '🔄' : '🔔';
+    const label = isRestock ? 'Produto restocado!' : 'Novo produto encontrado!';
+    const cat   = product.categoria ? `📂 <b>${product.categoria}</b>\n` : '';
+    const text  =
+      `${icon} <b>${label}</b>\n\n` +
+      cat +
+      `📦 ${nome}\n` +
+      `💰 <b>${product.preco || 'Ver no site'}</b>\n\n` +
+      `<a href="${product.link}">👉 Abrir no CSSDeals</a>`;
+
+    try {
+      await sendTelegram(telegramId, text);
+      await logNotification({ user_id: alert.user_id, product_id: product.id, alert_id: alert.id, channel: 'telegram_dm', status: 'sent' });
+      logger.success(`Telegram DM sent to user ${alert.user_id} for "${nome}"`);
+    } catch (err) {
+      await logNotification({ user_id: alert.user_id, product_id: product.id, alert_id: alert.id, channel: 'telegram_dm', status: 'failed', error: err.message });
+      logger.error(`Telegram DM failed: ${err.message}`);
+    }
+  }
+
+  if (!discordId && !telegramId) {
+    await logNotification({ user_id: alert.user_id, product_id: product.id, alert_id: alert.id, channel: 'discord_dm', status: 'failed', error: 'no_channel_configured' });
   }
 }
 
