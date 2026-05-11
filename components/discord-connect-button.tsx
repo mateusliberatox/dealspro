@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 interface Props {
-  connected: boolean;
-  username?: string | null;
-  avatar?: string | null;
+  connected:  boolean;
+  username?:  string | null;
+  avatar?:    string | null;
+  testOnly?:  boolean; // só mostra o botão de testar DM, sem info de identidade
 }
 
-export function DiscordConnectButton({ connected, username, avatar }: Props) {
+export function DiscordConnectButton({ connected, username, avatar, testOnly = false }: Props) {
   const [error, setError]       = useState('');
   const [dmStatus, setDmStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
 
@@ -47,6 +48,29 @@ export function DiscordConnectButton({ connected, username, avatar }: Props) {
   };
 
   if (connected) {
+    const testBtn = (
+      <div className="flex items-center gap-3">
+        <button
+          onClick={testDM}
+          disabled={dmStatus === 'sending'}
+          className="text-xs font-medium transition-colors disabled:opacity-50"
+          style={{
+            color: dmStatus === 'ok'    ? '#22c55e'
+                 : dmStatus === 'error' ? '#f87171'
+                 : 'var(--text-3)',
+          }}
+        >
+          {dmStatus === 'sending' ? 'Enviando…'
+           : dmStatus === 'ok'    ? '✓ DM enviada!'
+           : dmStatus === 'error' ? '✗ Falhou'
+           : 'Testar DM'}
+        </button>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+      </div>
+    );
+
+    if (testOnly) return testBtn;
+
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-3">
@@ -58,25 +82,7 @@ export function DiscordConnectButton({ connected, username, avatar }: Props) {
             <p className="text-xs" style={{ color: 'var(--text-3)' }}>{username}</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={testDM}
-            disabled={dmStatus === 'sending'}
-            className="text-xs font-medium transition-colors disabled:opacity-50"
-            style={{
-              color: dmStatus === 'ok'    ? '#22c55e'
-                   : dmStatus === 'error' ? '#f87171'
-                   : 'var(--text-3)',
-            }}
-          >
-            {dmStatus === 'sending' ? 'Enviando…'
-             : dmStatus === 'ok'    ? '✓ DM enviada!'
-             : dmStatus === 'error' ? '✗ Falhou'
-             : 'Testar DM'}
-          </button>
-          {error && <p className="text-xs text-red-400">{error}</p>}
-        </div>
+        {testBtn}
       </div>
     );
   }

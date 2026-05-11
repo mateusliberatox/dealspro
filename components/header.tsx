@@ -9,6 +9,7 @@ export function Header() {
   const [user, setUser]           = useState<User | null>(null);
   const [isAdmin, setIsAdmin]     = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [authReady, setAuthReady] = useState(false); // evita flash do botão Premium
   const [theme, setTheme]         = useState<'dark' | 'light'>('dark');
   const [menuOpen, setMenuOpen]   = useState(false);
 
@@ -41,7 +42,10 @@ export function Header() {
           .then(({ data: p }) => {
             setIsAdmin(!!p?.is_admin);
             setIsPremium(p?.plan === 'premium');
+            setAuthReady(true);
           });
+      } else {
+        setAuthReady(true);
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
@@ -139,7 +143,7 @@ export function Header() {
                   {isPremium && <span style={{ color: 'var(--accent-text)' }}>★</span>}
                   <span>{user.email?.split('@')[0]}</span>
                 </Link>
-                {!isPremium && (
+                {authReady && !isPremium && (
                   <Link
                     href="/upgrade"
                     className="hidden sm:inline-flex gradient-blue-bright ripple shine-effect rounded-lg px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
@@ -222,7 +226,7 @@ export function Header() {
                   <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
                   <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
                   {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}
-                  {!isPremium && (
+                  {authReady && !isPremium && (
                     <MobileNavLink href="/upgrade" onClick={closeMenu} highlight>
                       Assinar Premium
                     </MobileNavLink>

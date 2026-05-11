@@ -20,9 +20,13 @@ export interface DealsproProfile {
   discord_user_id: string | null;
   discord_username: string | null;
   discord_avatar: string | null;
+  telegram_chat_id: number | null;
+  telegram_username: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   plan_expires_at: string | null;
+  referral_code: string | null;
+  referred_by: string | null;
   created_at: string;
 }
 
