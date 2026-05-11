@@ -1,12 +1,28 @@
 /**
  * Registra os slash commands /assinar e /status no servidor Discord.
- * Execute uma vez: node scripts/register-discord-commands.mjs
- * Substitua APP_ID pelo Application ID do seu app no Discord Developer Portal.
+ * Lê credenciais do .env.local — nunca exponha secrets no código.
+ * Uso: node scripts/register-discord-commands.mjs
  */
 
-const BOT_TOKEN = 'COLE_SEU_BOT_TOKEN_AQUI';
-const APP_ID    = '1500985388422926346';
-const GUILD_ID  = '1499402192975560774';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+const envPath = resolve(process.cwd(), '.env.local');
+const envVars = Object.fromEntries(
+  readFileSync(envPath, 'utf8')
+    .split('\n')
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split('=').map((p, i) => (i === 0 ? p.trim() : l.slice(l.indexOf('=') + 1).trim()))),
+);
+
+const BOT_TOKEN = envVars.DISCORD_BOT_TOKEN;
+const APP_ID    = envVars.DISCORD_APPLICATION_ID;
+const GUILD_ID  = envVars.DISCORD_GUILD_ID;
+
+if (!BOT_TOKEN || !APP_ID || !GUILD_ID) {
+  console.error('❌ Variáveis ausentes no .env.local: DISCORD_BOT_TOKEN, DISCORD_APPLICATION_ID, DISCORD_GUILD_ID');
+  process.exit(1);
+}
 
 const commands = [
   {

@@ -1,23 +1,42 @@
 /**
  * Atribui o cargo Premium do Discord a todos os usuários premium com Discord vinculado.
- * Requer no .env.local: DISCORD_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Lê credenciais do .env.local — nunca exponha secrets no código.
+ * Uso: node scripts/sync-discord-roles.mjs
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
-const BOT_TOKEN  = 'COLE_SEU_BOT_TOKEN_AQUI';
-const GUILD_ID   = '1499402192975560774';
-const ROLE_ID    = '1501612900819800145';
-const SUPA_URL   = 'https://ktgypsgwxumdobakyebn.supabase.co';
-const SUPA_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0Z3lwc2d3eHVtZG9iYWt5ZWJuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDU0NzM0NCwiZXhwIjoyMDkwMTIzMzQ0fQ.37LURsu6GjKcxYAlgb0LhPXKlqx3FApgKmLk-EHtSrQ';
+// Carrega .env.local manualmente (sem depender de dotenv instalado globalmente)
+const envPath = resolve(process.cwd(), '.env.local');
+const envVars = Object.fromEntries(
+  readFileSync(envPath, 'utf8')
+    .split('\n')
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split('=').map((p, i) => (i === 0 ? p.trim() : l.slice(l.indexOf('=') + 1).trim()))),
+);
+
+const BOT_TOKEN  = envVars.DISCORD_BOT_TOKEN;
+const GUILD_ID   = envVars.DISCORD_GUILD_ID;
+const ROLE_ID    = envVars.DISCORD_PREMIUM_ROLE_ID;
+const SUPA_URL   = envVars.NEXT_PUBLIC_SUPABASE_URL;
+const SUPA_KEY   = envVars.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!BOT_TOKEN || !GUILD_ID || !ROLE_ID || !SUPA_URL || !SUPA_KEY) {
+  console.error('❌ Variáveis ausentes no .env.local: DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, DISCORD_PREMIUM_ROLE_ID, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
 
 const supabase = createClient(SUPA_URL, SUPA_KEY);
 
-const { data: users } = await supabase
+const { data: users, error } = await supabase
   .from('dealspro_profiles')
   .select('discord_user_id, discord_username')
   .eq('plan', 'premium')
   .not('discord_user_id', 'is', null);
+
+if (error) { console.error('Supabase error:', error.message); process.exit(1); }
 
 console.log(`Encontrados ${users.length} usuários premium com Discord vinculado.\n`);
 
@@ -34,7 +53,7 @@ for (const u of users) {
     console.log(`✗ ${u.discord_username} (${u.discord_user_id}) — ${res.status}: ${body}`);
   }
 
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 600));
 }
 
 console.log('\nConcluído.');
