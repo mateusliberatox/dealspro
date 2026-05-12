@@ -14,6 +14,7 @@ export function PixQRDisplay() {
   const [qrCode,    setQrCode]    = useState<string | null>(null);
   const [copied,    setCopied]    = useState(false);
   const [timeLeft,  setTimeLeft]  = useState(TIMEOUT_MS);
+  const [errorMsg,  setErrorMsg]  = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -48,7 +49,7 @@ export function PixQRDisplay() {
     fetch('/api/mercadopago/pix', { method: 'POST' })
       .then(r => r.json())
       .then((data: { error?: string; payment_id?: string; qr_code_base64?: string; qr_code?: string }) => {
-        if (data.error) { setState('error'); return; }
+        if (data.error) { setErrorMsg(data.error); setState('error'); return; }
         setPaymentId(data.payment_id ?? null);
         setQrBase64(data.qr_code_base64 ?? null);
         setQrCode(data.qr_code ?? null);
@@ -57,7 +58,7 @@ export function PixQRDisplay() {
         startTimer(endAt);
         startPolling(data.payment_id!);
       })
-      .catch(() => setState('error'));
+      .catch((e: unknown) => { setErrorMsg(e instanceof Error ? e.message : 'Erro de rede'); setState('error'); });
     return stopAll;
   }, [startTimer, startPolling, stopAll]);
 
@@ -114,6 +115,11 @@ export function PixQRDisplay() {
       <div className="text-center py-20 space-y-4">
         <p className="text-4xl">❌</p>
         <p className="text-xl font-bold" style={{ color: 'var(--text)' }}>Erro ao gerar QR code</p>
+        {errorMsg && (
+          <p className="text-xs font-mono px-4 py-2 rounded-lg text-left break-all" style={{ background: 'var(--surface-2)', color: '#f87171' }}>
+            {errorMsg}
+          </p>
+        )}
         <p style={{ color: 'var(--text-3)' }}>Tente novamente ou use o pagamento por cartão.</p>
         <button
           onClick={() => window.location.reload()}
