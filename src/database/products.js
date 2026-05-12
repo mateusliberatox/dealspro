@@ -68,10 +68,13 @@ export async function deleteOldProducts() {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - OLD_DAYS);
 
+  // Só apaga produtos que já estão indisponíveis — produtos ainda à venda
+  // permanecem no banco para não serem re-inseridos como "novos" e re-notificados.
   const { data, error } = await supabase
     .from(TABLE)
     .delete()
     .lt('criado_em', cutoff.toISOString())
+    .eq('disponivel', false)
     .select('id');
 
   if (error) throw new Error(`Failed to delete old products: ${error.message}`);
