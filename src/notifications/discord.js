@@ -77,10 +77,12 @@ export async function sendFreeDelayedNotifications() {
   const { createClient } = await import('@supabase/supabase-js');
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const { data: due } = await supabase
     .from('produtos_dealspro')
     .select('*')
     .lte('visible_at', new Date().toISOString())
+    .gte('criado_em', cutoff)
     .eq('free_notified', false)
     .order('criado_em', { ascending: true })
     .limit(20);

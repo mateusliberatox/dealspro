@@ -1,7 +1,28 @@
 import { getPayment } from '@/lib/mercadopago';
 import { addPremiumRole } from '@/lib/discord';
 import { createClient } from '@supabase/supabase-js';
+import { createHmac } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+
+function validateSignature(request: NextRequest, paymentId: string): boolean {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  if (!secret) return true; // sem secret configurado, aceita (avisa nos logs)
+
+  const xSignature = request.headers.get('x-signature');
+  const xRequestId = request.headers.get('x-request-id');
+  if (!xSignature || !xRequestId) return false;
+
+  const parts = Object.fromEntries(
+    xSignature.split(',').map((p) => { const [k, v] = p.split('='); return [k, v]; }),
+  );
+  const ts = parts['ts'];
+  const v1 = parts['v1'];
+  if (!ts || !v1) return false;
+
+  const manifest = `id:${paymentId};request-id:${xRequestId};ts:${ts}`;
+  const hmac     = createHmac('sha256', secret).update(manifest).digest('hex');
+  return hmac === v1;
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -12,6 +33,11 @@ export async function POST(request: NextRequest) {
   if (!paymentId) return NextResponse.json({ ok: true });
   if (body.action !== 'payment.updated' && body.type !== 'payment') {
     return NextResponse.json({ ok: true });
+  }
+
+  if (!validateSignature(request, String(paymentId))) {
+    console.error('[MP Webhook] Assinatura inválida — requisição rejeitada');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const payment = await getPayment(String(paymentId)).catch(() => null);

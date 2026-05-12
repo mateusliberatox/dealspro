@@ -1,7 +1,8 @@
 import { supabase } from './supabase.js';
 
 const TABLE = 'produtos_dealspro';
-const OLD_DAYS = 5;
+const OLD_DAYS           = 5;  // produtos indisponíveis: deletar após 5 dias
+const OLD_DAYS_AVAILABLE = 30; // produtos disponíveis: deletar após 30 dias (nunca re-notifica pois já tem log)
 
 /**
  * Returns a Map<hash, { id, sizes }> for all stored products.
@@ -65,20 +66,31 @@ export async function updateCategoria(id, categoria) {
  * Returns the count of deleted rows.
  */
 export async function deleteOldProducts() {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - OLD_DAYS);
+  const cutoffUnavailable = new Date();
+  cutoffUnavailable.setDate(cutoffUnavailable.getDate() - OLD_DAYS);
 
-  // Só apaga produtos que já estão indisponíveis — produtos ainda à venda
-  // permanecem no banco para não serem re-inseridos como "novos" e re-notificados.
-  const { data, error } = await supabase
+  const cutoffAvailable = new Date();
+  cutoffAvailable.setDate(cutoffAvailable.getDate() - OLD_DAYS_AVAILABLE);
+
+  // Produtos indisponíveis: deletar após 5 dias
+  const { data: d1, error: e1 } = await supabase
     .from(TABLE)
     .delete()
-    .lt('criado_em', cutoff.toISOString())
+    .lt('criado_em', cutoffUnavailable.toISOString())
     .eq('disponivel', false)
     .select('id');
+  if (e1) throw new Error(`Failed to delete unavailable products: ${e1.message}`);
 
-  if (error) throw new Error(`Failed to delete old products: ${error.message}`);
-  return data?.length ?? 0;
+  // Produtos ainda disponíveis: deletar após 30 dias (notification_logs já impede repost)
+  const { data: d2, error: e2 } = await supabase
+    .from(TABLE)
+    .delete()
+    .lt('criado_em', cutoffAvailable.toISOString())
+    .eq('disponivel', true)
+    .select('id');
+  if (e2) throw new Error(`Failed to delete old available products: ${e2.message}`);
+
+  return (d1?.length ?? 0) + (d2?.length ?? 0);
 }
 
 /**

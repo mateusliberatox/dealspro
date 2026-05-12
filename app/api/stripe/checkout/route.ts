@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
     cancel_url: `${origin}/upgrade/cancelado`,
     metadata: { user_id: user.id },
     subscription_data: { metadata: { user_id: user.id } },
-    ...(STRIPE_FIRST_MONTH_COUPON ? { discounts: [{ coupon: STRIPE_FIRST_MONTH_COUPON }] } : {}),
+    // Coupon só para quem nunca assinou antes (stripe_customer_id null = nunca teve checkout)
+    ...(STRIPE_FIRST_MONTH_COUPON && !profile?.stripe_customer_id
+      ? { discounts: [{ coupon: STRIPE_FIRST_MONTH_COUPON }] }
+      : {}),
   });
 
   return NextResponse.json({ url: session.url });

@@ -9,6 +9,7 @@ import { logger } from '../utils/logger.js';
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const MODES = ['all_deals', 'both'];
 const SLEEP = (ms) => new Promise((r) => setTimeout(r, ms));
+const RATE_DELAY = 350; // ~3 msgs/s — seguro dentro do limite do Telegram (30 msgs/s por bot)
 
 function buildMessage(product) {
   const nome = product.nome_traduzido || product.nome;
@@ -82,7 +83,7 @@ export async function notifyTelegramPremiumFeed(products) {
       if (await alreadySent(user.user_id, product.id)) continue;
       const ok = await sendMsg(user.telegram_chat_id, buildMessage(product), product.imagem || null);
       if (ok) { await logSent(user.user_id, product.id); sent++; }
-      await SLEEP(100);
+      await SLEEP(RATE_DELAY);
     }
   }
   if (sent > 0) logger.success(`Telegram premium feed: ${sent} mensagem(ns) enviada(s)`);
@@ -121,7 +122,7 @@ export async function notifyTelegramFreeFeed() {
       if (await alreadySent(user.user_id, product.id)) continue;
       const ok = await sendMsg(user.telegram_chat_id, buildMessage(product), product.imagem || null);
       if (ok) { await logSent(user.user_id, product.id); sent++; }
-      await SLEEP(100);
+      await SLEEP(RATE_DELAY);
     }
   }
   if (sent > 0) logger.success(`Telegram free feed: ${sent} mensagem(ns) enviada(s)`);

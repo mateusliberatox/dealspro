@@ -47,10 +47,14 @@ export async function POST(request: NextRequest) {
           const sub = await stripe.subscriptions.retrieve(session.subscription as string) as any;
           const ts: number | undefined =
             sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
-          if (ts) planExpiresAt = new Date(ts * 1000).toISOString();
+          planExpiresAt = ts
+            ? new Date(ts * 1000).toISOString()
+            : new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString(); // fallback +31 dias
           subscriptionId = session.subscription as string;
         } catch (err) {
-          console.warn('[Stripe] subscription.retrieve falhou — plan_expires_at ficará null:', err);
+          console.warn('[Stripe] subscription.retrieve falhou — usando fallback +31 dias:', err);
+          planExpiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
+          subscriptionId = session.subscription as string;
         }
       }
 
