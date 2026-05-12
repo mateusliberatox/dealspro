@@ -88,6 +88,7 @@ async function handleAssinar(chatId: number) {
   }
 
   const stripe  = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  const coupon  = process.env.STRIPE_FIRST_MONTH_COUPON;
   const session = await stripe.checkout.sessions.create({
     line_items:          [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
     mode:                'subscription',
@@ -95,6 +96,7 @@ async function handleAssinar(chatId: number) {
     customer:            profile.stripe_customer_id ?? undefined,
     success_url:         `${SITE_URL}/minha-conta`,
     cancel_url:          `${SITE_URL}/upgrade`,
+    ...(coupon ? { discounts: [{ coupon }] } : {}),
   });
 
   return reply(chatId,

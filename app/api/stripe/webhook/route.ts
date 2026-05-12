@@ -31,16 +31,24 @@ export async function POST(request: NextRequest) {
       const userId  = session.client_reference_id ?? session.metadata?.user_id;
       if (!userId) break;
 
-      // Busca current_period_end da subscription para salvar plan_expires_at
-      // SDK v22: current_period_end está em items.data[0], não no topo
+      const isPix = session.mode === 'payment' && session.metadata?.payment_type === 'pix';
+
       let planExpiresAt: string | null = null;
-      if (session.subscription) {
+      let subscriptionId: string | null = null;
+
+      if (isPix) {
+        // PIX: pagamento único de 30 dias
+        planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (session.subscription) {
+        // Cartão: busca current_period_end da subscription
+        // SDK v22: current_period_end está em items.data[0], não no topo
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const sub = await stripe.subscriptions.retrieve(session.subscription as string) as any;
           const ts: number | undefined =
             sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
           if (ts) planExpiresAt = new Date(ts * 1000).toISOString();
+          subscriptionId = session.subscription as string;
         } catch (err) {
           console.warn('[Stripe] subscription.retrieve falhou — plan_expires_at ficará null:', err);
         }
@@ -57,7 +65,7 @@ export async function POST(request: NextRequest) {
         .update({
           plan:                   'premium',
           stripe_customer_id:     session.customer as string,
-          stripe_subscription_id: session.subscription as string,
+          stripe_subscription_id: subscriptionId,
           plan_expires_at:        planExpiresAt,
         })
         .eq('user_id', userId);

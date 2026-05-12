@@ -67,6 +67,16 @@ body {
 .btn-accent:hover:not(:disabled) { background: var(--accent-hover); }
 .btn-accent:disabled              { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Botão secundário (PIX / ações alternativas) ───────────────────────────── */
+.btn-secondary {
+  background: var(--surface-2);
+  color:      var(--text);
+  border:     1px solid var(--border-strong);
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-3, var(--surface-2)); filter: brightness(1.1); }
+.btn-secondary:disabled              { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar         { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track   { background: transparent; }

@@ -10,7 +10,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { UpgradeButton } from '@/components/upgrade-button';
-import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 import { createClient as createAdmin } from '@supabase/supabase-js';
 
 const COMPARE = [
@@ -24,17 +23,6 @@ const COMPARE = [
   { feature: 'Histórico completo de deals',  free: false, premium: true  },
 ];
 
-async function getPriceDisplay(): Promise<string | null> {
-  try {
-    const price    = await stripe.prices.retrieve(STRIPE_PRICE_ID);
-    if (!price.unit_amount) return null;
-    const amount   = (price.unit_amount / 100).toFixed(2).replace('.', ',');
-    const currency = price.currency === 'brl' ? 'R$' : price.currency.toUpperCase();
-    const interval = price.recurring?.interval === 'month' ? '/mês'
-                   : price.recurring?.interval === 'year'  ? '/ano' : '';
-    return `${currency} ${amount}${interval}`;
-  } catch { return null; }
-}
 
 async function getPremiumCount(): Promise<number> {
   const admin = createAdmin(
@@ -60,10 +48,7 @@ export default async function UpgradePage() {
     .single();
   if (profile?.plan === 'premium') redirect('/');
 
-  const [priceDisplay, premiumCount] = await Promise.all([
-    getPriceDisplay(),
-    getPremiumCount(),
-  ]);
+  const premiumCount = await getPremiumCount();
 
   return (
     <div className="min-h-screen">
@@ -121,18 +106,40 @@ export default async function UpgradePage() {
 
         {/* CTA */}
         <div className="glass rounded-2xl p-7 text-center space-y-5 animate-fade-in-up" style={{ animationDelay: '0.2s', border: '1px solid rgba(59,130,246,0.3)' }}>
-          {priceDisplay && (
-            <div>
-              <p className="text-4xl font-extrabold tracking-tight gradient-blue-text">{priceDisplay}</p>
-              <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>Cancele quando quiser. Sem contrato.</p>
-            </div>
-          )}
 
-          <UpgradeButton className="w-full py-4 text-base" />
+          {/* Opção cartão */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-3)' }}>Assinatura com cartão</p>
+            <div className="flex items-end justify-center gap-2">
+              <p className="text-4xl font-extrabold tracking-tight gradient-blue-text">R$ 7,99</p>
+              <p className="text-sm mb-1" style={{ color: 'var(--text-3)' }}>no 1º mês</p>
+            </div>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)' }}>depois R$ 9,99/mês · cancele quando quiser</p>
+          </div>
+
+          <UpgradeButton className="w-full py-4 text-base" variant="card" />
+
+          {/* Divisor */}
+          <div className="relative flex items-center">
+            <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
+            <span className="mx-3 text-xs" style={{ color: 'var(--text-4)' }}>ou</span>
+            <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
+          </div>
+
+          {/* Opção PIX */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-3)' }}>PIX (renovação manual)</p>
+            <p className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>
+              R$ 9,99 <span className="text-sm font-normal" style={{ color: 'var(--text-3)' }}>/mês</span>
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-4)' }}>30 dias de acesso premium por pagamento</p>
+          </div>
+
+          <UpgradeButton className="w-full py-3 text-sm" variant="pix" />
 
           <div className="flex items-center justify-center gap-6 text-xs" style={{ color: 'var(--text-3)' }}>
             <span>🔒 Pagamento seguro via Stripe</span>
-            <span>↩️ Cancele a qualquer momento</span>
+            <span>↩️ Sem fidelidade</span>
           </div>
 
           <p className="text-xs" style={{ color: 'var(--text-4)' }}>

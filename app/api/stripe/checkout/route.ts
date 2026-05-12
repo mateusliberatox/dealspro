@@ -1,4 +1,4 @@
-import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
+import { stripe, STRIPE_PRICE_ID, STRIPE_FIRST_MONTH_COUPON } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -33,9 +33,8 @@ export async function POST(request: NextRequest) {
     success_url: `${origin}/upgrade/sucesso?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/upgrade/cancelado`,
     metadata: { user_id: user.id },
-    subscription_data: {
-      metadata: { user_id: user.id },
-    },
+    subscription_data: { metadata: { user_id: user.id } },
+    ...(STRIPE_FIRST_MONTH_COUPON ? { discounts: [{ coupon: STRIPE_FIRST_MONTH_COUPON }] } : {}),
   });
 
   return NextResponse.json({ url: session.url });
