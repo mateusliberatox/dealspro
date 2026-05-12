@@ -20,14 +20,20 @@ export async function POST() {
     return NextResponse.json({ error: 'Você já é premium' }, { status: 400 });
   }
 
-  const payment = await createPixPayment({ amount: PIX_AMOUNT, email: user.email!, userId: user.id });
-  const qr      = payment.point_of_interaction?.transaction_data;
+  try {
+    const payment = await createPixPayment({ amount: PIX_AMOUNT, email: user.email!, userId: user.id });
+    const qr      = payment.point_of_interaction?.transaction_data;
 
-  return NextResponse.json({
-    payment_id:     String(payment.id),
-    qr_code_base64: qr?.qr_code_base64 ?? null,
-    qr_code:        qr?.qr_code ?? null,
-  });
+    return NextResponse.json({
+      payment_id:     String(payment.id),
+      qr_code_base64: qr?.qr_code_base64 ?? null,
+      qr_code:        qr?.qr_code ?? null,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[MP PIX] Falha ao criar pagamento:', msg);
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
 }
 
 // GET ?id=<payment_id> — verifica status (polling do cliente)
