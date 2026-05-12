@@ -16,7 +16,6 @@ export async function createPixPayment(opts: { amount: number; email: string; us
       payment_method_id:  'pix',
       payer:              { email: opts.email },
       metadata:           { user_id: opts.userId },
-      expires:            true,
       date_of_expiration: expiresAt,
     }),
   });
