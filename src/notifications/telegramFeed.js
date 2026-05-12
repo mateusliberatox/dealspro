@@ -42,12 +42,13 @@ async function sendMsg(chatId, text, imageUrl = null) {
 }
 
 async function logSent(userId, productId) {
-  await supabase.from('notification_logs').insert({
+  const { error } = await supabase.from('notification_logs').insert({
     user_id:    userId,
     product_id: productId,
     channel:    'telegram_feed',
     status:     'sent',
   });
+  if (error) logger.error(`logSent falhou user=${userId} product=${productId}: ${error.message}`);
 }
 
 async function alreadySent(userId, productId) {
@@ -57,8 +58,8 @@ async function alreadySent(userId, productId) {
     .eq('user_id', userId)
     .eq('product_id', productId)
     .eq('channel', 'telegram_feed')
-    .single();
-  return !!data;
+    .limit(1);
+  return (data?.length ?? 0) > 0;
 }
 
 // ── Premium: envia imediatamente para usuários com all_deals/both ─────────────
