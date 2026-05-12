@@ -46,7 +46,9 @@ export function PixQRDisplay() {
   }, [stopAll]);
 
   useEffect(() => {
-    fetch('/api/mercadopago/pix', { method: 'POST' })
+    const controller = new AbortController();
+
+    fetch('/api/mercadopago/pix', { method: 'POST', signal: controller.signal })
       .then(r => r.json())
       .then((data: { error?: string; payment_id?: string; qr_code_base64?: string; qr_code?: string }) => {
         if (data.error) { setErrorMsg(data.error); setState('error'); return; }
@@ -58,8 +60,13 @@ export function PixQRDisplay() {
         startTimer(endAt);
         startPolling(data.payment_id!);
       })
-      .catch((e: unknown) => { setErrorMsg(e instanceof Error ? e.message : 'Erro de rede'); setState('error'); });
-    return stopAll;
+      .catch((e: unknown) => {
+        if (e instanceof Error && e.name === 'AbortError') return;
+        setErrorMsg(e instanceof Error ? e.message : 'Erro de rede');
+        setState('error');
+      });
+
+    return () => { controller.abort(); stopAll(); };
   }, [startTimer, startPolling, stopAll]);
 
   async function handleCopy() {

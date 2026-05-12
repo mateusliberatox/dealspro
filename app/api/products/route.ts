@@ -1,9 +1,26 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Rate limit simples por IP usando Map in-memory
+// (funciona por instância serverless — suficiente para conter bots simples)
+const ipHits = new Map<string, { count: number; resetAt: number }>();
+const WINDOW_MS  = 60_000; // 1 minuto
+const MAX_REQ    = 30;     // 30 req/min por IP para não-autenticados
+
+function isRateLimited(ip: string): boolean {
+  const now  = Date.now();
+  const entry = ipHits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipHits.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  return entry.count > MAX_REQ;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200);
+  const limit    = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200);
   const categoria = searchParams.get('categoria');
 
   const supabase = await createClient();
@@ -21,6 +38,17 @@ export async function GET(request: NextRequest) {
     isPremium = profile?.plan === 'premium';
   }
 
+  // Rate limit só para não-autenticados
+  if (!user) {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': '60' } },
+      );
+    }
+  }
+
   let query = supabase
     .from('produtos_dealspro')
     .select('*')
@@ -33,5 +61,14 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ total: data.length, produtos: data });
+  const response = NextResponse.json({ total: data.length, produtos: data });
+
+  // Cache CDN de 30s para respostas públicas (reduz chamadas repetidas de bots)
+  if (!isPremium) {
+    response.headers.set('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+  } else {
+    response.headers.set('Cache-Control', 'no-store');
+  }
+
+  return response;
 }

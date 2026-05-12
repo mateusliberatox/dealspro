@@ -1,11 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 import { addPremiumRole, removePremiumRole } from '@/lib/discord';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   const secret = request.headers.get('x-admin-secret');
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const cronOk = secret === process.env.CRON_SECRET;
+
+  // Aceita: CRON_SECRET válido OU sessão de usuário admin
+  if (!cronOk) {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: profile } = await supabase
+      .from('dealspro_profiles')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile?.is_admin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   const supabase = createClient(
