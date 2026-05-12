@@ -4,8 +4,17 @@ import { logger } from '../utils/logger.js';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-async function sendTelegram(chatId, text) {
+async function sendTelegram(chatId, text, imageUrl = null) {
   if (!TELEGRAM_TOKEN) return;
+  if (imageUrl) {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML' }),
+    }).catch(() => ({ ok: false }));
+    if (res.ok) return;
+    // fallback para texto se a imagem falhar
+  }
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -113,7 +122,7 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
       `<a href="${product.link}">👉 Abrir no CSSDeals</a>`;
 
     try {
-      await sendTelegram(telegramId, text);
+      await sendTelegram(telegramId, text, product.imagem || null);
       await logNotification({ user_id: alert.user_id, product_id: product.id, alert_id: alert.id, channel: 'telegram_dm', status: 'sent' });
       logger.success(`Telegram DM sent to user ${alert.user_id} for "${nome}"`);
     } catch (err) {

@@ -22,8 +22,17 @@ function buildMessage(product) {
   );
 }
 
-async function sendMsg(chatId, text) {
+async function sendMsg(chatId, text, imageUrl = null) {
   if (!TOKEN) return false;
+  if (imageUrl) {
+    const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML' }),
+    });
+    if (res.ok) return true;
+    // fallback para texto se a imagem falhar
+  }
   const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,7 +79,7 @@ export async function notifyTelegramPremiumFeed(products) {
   for (const user of users) {
     for (const product of products) {
       if (await alreadySent(user.user_id, product.id)) continue;
-      const ok = await sendMsg(user.telegram_chat_id, buildMessage(product));
+      const ok = await sendMsg(user.telegram_chat_id, buildMessage(product), product.imagem || null);
       if (ok) { await logSent(user.user_id, product.id); sent++; }
       await SLEEP(100);
     }
@@ -107,7 +116,7 @@ export async function notifyTelegramFreeFeed() {
   for (const user of users) {
     for (const product of products) {
       if (await alreadySent(user.user_id, product.id)) continue;
-      const ok = await sendMsg(user.telegram_chat_id, buildMessage(product));
+      const ok = await sendMsg(user.telegram_chat_id, buildMessage(product), product.imagem || null);
       if (ok) { await logSent(user.user_id, product.id); sent++; }
       await SLEEP(100);
     }
