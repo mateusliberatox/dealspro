@@ -101,11 +101,13 @@ export async function notifyTelegramFreeFeed() {
 
   if (!users?.length) return;
 
-  const now = new Date().toISOString();
+  const now    = new Date().toISOString();
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const { data: products } = await supabase
     .from('produtos_dealspro')
     .select('*')
     .lte('visible_at', now)
+    .gte('criado_em', cutoff)
     .eq('disponivel', true)
     .order('criado_em', { ascending: true })
     .limit(20);
