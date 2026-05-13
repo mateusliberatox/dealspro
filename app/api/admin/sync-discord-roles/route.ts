@@ -51,5 +51,12 @@ export async function POST(request: Request) {
     await sleep(600); // evita rate limit da Discord API (5 req/s por guild)
   }
 
+  console.log(JSON.stringify({
+    audit:  'sync_discord_roles',
+    synced: results.length,
+    via:    cronOk ? 'cron_secret' : 'admin_session',
+    at:     new Date().toISOString(),
+  }));
+
   return NextResponse.json({ synced: results.length, results });
 }

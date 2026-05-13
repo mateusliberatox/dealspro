@@ -19,8 +19,4 @@ export async function dispatchNotifications(products) {
   } catch (err) {
     logger.error(`Discord dispatch failed: ${err.message}`);
   }
-
-  // Future channels:
-  // await sendToWhatsApp(products);
-  // await sendEmail(products);
 }

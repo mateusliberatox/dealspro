@@ -43,5 +43,15 @@ export async function POST(request: NextRequest) {
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
 
+  console.log(JSON.stringify({
+    audit: 'grant_trial',
+    by:    user.id,
+    target: target.id,
+    email,
+    hours,
+    trial_ends_at: trialEndsAt,
+    at: new Date().toISOString(),
+  }));
+
   return NextResponse.json({ ok: true, email, trial_ends_at: trialEndsAt, hours });
 }
