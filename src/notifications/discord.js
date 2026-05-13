@@ -90,6 +90,21 @@ export async function sendFreeDelayedNotifications() {
   if (!due?.length) return;
 
   for (const product of due) {
+    // Verifica por cssdeals_item_id — sobrevive a deleção e reinserção do produto
+    const itemId = product.cssdeals_item_id;
+    if (itemId) {
+      const { data: existing } = await supabase
+        .from('notification_logs')
+        .select('id')
+        .eq('cssdeals_item_id', itemId)
+        .eq('channel', 'discord_free')
+        .limit(1);
+      if ((existing?.length ?? 0) > 0) {
+        await supabase.from('produtos_dealspro').update({ free_notified: true }).eq('id', product.id);
+        continue;
+      }
+    }
+
     let sent = false;
     try {
       await postWebhook(FREE_WEBHOOK_URL, {
@@ -101,12 +116,17 @@ export async function sendFreeDelayedNotifications() {
       logger.error(`Free webhook failed for ${product.id}: ${err.message}`);
     }
 
-    // Só marca como notificado se o envio realmente ocorreu — falhas serão reprocessadas no próximo ciclo
     if (sent) {
       await supabase
         .from('produtos_dealspro')
         .update({ free_notified: true })
         .eq('id', product.id);
+      await supabase.from('notification_logs').insert({
+        product_id:       product.id,
+        cssdeals_item_id: itemId ?? null,
+        channel:          'discord_free',
+        status:           'sent',
+      });
     }
 
     await sleep(1000);

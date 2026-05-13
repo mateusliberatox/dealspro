@@ -55,7 +55,10 @@ async function extractProducts(page, sourceLabel) {
       const skuEl = card.querySelector('.mn-sku');
       const skuText = skuEl?.textContent?.trim() ?? '';
 
-      if (nome && link) results.push({ nome, preco, link, imagem, skuText });
+      const itemMatch = rawHref.match(/[?&]itemid=(\d+)/);
+      const cssdeals_item_id = itemMatch ? parseInt(itemMatch[1], 10) : null;
+
+      if (nome && link) results.push({ nome, preco, link, imagem, skuText, cssdeals_item_id });
     }
 
     return results;
@@ -64,6 +67,7 @@ async function extractProducts(page, sourceLabel) {
   const products = rawProducts.map(({ skuText, ...p }) => ({
     ...p,
     sizes: parseSizes(skuText),
+    cssdeals_item_id: p.cssdeals_item_id ?? null,
   }));
 
   logger.info(`  ${sourceLabel}: ${products.length} products`);

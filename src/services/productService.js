@@ -109,16 +109,17 @@ export async function detectAndSaveNewProducts() {
   // 6. Persist with visible_at = now + 30min (free delay)
   const visibleAt = new Date(Date.now() + FREE_DELAY_MS).toISOString();
   const rows = enriched.map((p) => ({
-    nome:           p.nome,
-    nome_traduzido: p.nome_traduzido,
-    preco:          p.preco,
-    link:           p.link,
-    imagem:         p.imagem,
-    hash:           p.hash,
-    categoria:      p.categoria,
-    sizes:          p.sizes ?? [],
-    visible_at:     visibleAt,
-    free_notified:  false,
+    nome:              p.nome,
+    nome_traduzido:    p.nome_traduzido,
+    preco:             p.preco,
+    link:              p.link,
+    imagem:            p.imagem,
+    hash:              p.hash,
+    categoria:         p.categoria,
+    sizes:             p.sizes ?? [],
+    cssdeals_item_id:  p.cssdeals_item_id ?? null,
+    visible_at:        visibleAt,
+    free_notified:     false,
   }));
 
   const inserted = await insertProducts(rows);

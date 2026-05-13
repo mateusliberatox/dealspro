@@ -42,17 +42,30 @@ async function sendMsg(chatId, text, imageUrl = null) {
   return res.ok;
 }
 
-async function logSent(userId, productId) {
+async function logSent(userId, productId, itemId) {
   const { error } = await supabase.from('notification_logs').insert({
-    user_id:    userId,
-    product_id: productId,
-    channel:    'telegram_feed',
-    status:     'sent',
+    user_id:          userId,
+    product_id:       productId,
+    cssdeals_item_id: itemId ?? null,
+    channel:          'telegram_feed',
+    status:           'sent',
   });
   if (error) logger.error(`logSent falhou user=${userId} product=${productId}: ${error.message}`);
 }
 
-async function alreadySent(userId, productId) {
+async function alreadySent(userId, productId, itemId) {
+  // Verifica por cssdeals_item_id primeiro — sobrevive a deleção e reinserção do produto
+  if (itemId) {
+    const { data } = await supabase
+      .from('notification_logs')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('cssdeals_item_id', itemId)
+      .eq('channel', 'telegram_feed')
+      .limit(1);
+    if ((data?.length ?? 0) > 0) return true;
+  }
+  // Fallback por product_id
   const { data } = await supabase
     .from('notification_logs')
     .select('id')
@@ -80,9 +93,9 @@ export async function notifyTelegramPremiumFeed(products) {
   let sent = 0;
   for (const user of users) {
     for (const product of products) {
-      if (await alreadySent(user.user_id, product.id)) continue;
+      if (await alreadySent(user.user_id, product.id, product.cssdeals_item_id)) continue;
       const ok = await sendMsg(user.telegram_chat_id, buildMessage(product), product.imagem || null);
-      if (ok) { await logSent(user.user_id, product.id); sent++; }
+      if (ok) { await logSent(user.user_id, product.id, product.cssdeals_item_id); sent++; }
       await SLEEP(RATE_DELAY);
     }
   }
@@ -119,9 +132,9 @@ export async function notifyTelegramFreeFeed() {
   let sent = 0;
   for (const user of users) {
     for (const product of products) {
-      if (await alreadySent(user.user_id, product.id)) continue;
+      if (await alreadySent(user.user_id, product.id, product.cssdeals_item_id)) continue;
       const ok = await sendMsg(user.telegram_chat_id, buildMessage(product), product.imagem || null);
-      if (ok) { await logSent(user.user_id, product.id); sent++; }
+      if (ok) { await logSent(user.user_id, product.id, product.cssdeals_item_id); sent++; }
       await SLEEP(RATE_DELAY);
     }
   }
