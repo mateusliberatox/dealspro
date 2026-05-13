@@ -1,23 +1,72 @@
+import { createClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger.js';
 
 const WEBHOOK_URL      = process.env.DISCORD_WEBHOOK_URL;
 const FREE_WEBHOOK_URL = process.env.DISCORD_FREE_WEBHOOK_URL;
 const BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_API = 'https://discord.com/api/v10';
-
-const COLOR = 0xf97316;
+const DISCORD_API      = 'https://discord.com/api/v10';
+const COLOR            = 0xf97316;
 
 const CATEGORY_EMOJI = {
-  'Roupas': '👕',
-  'Calçados': '👟',
+  'Roupas':        '👕',
+  'Calçados':      '👟',
   'Bolsa / Mochila': '👜',
-  'Acessórios': '🕶️',
-  'Smartwatch': '⌚',
-  'Eletrônicos': '🔊',
-  'Outros': '📦',
+  'Acessórios':    '🕶️',
+  'Smartwatch':    '⌚',
+  'Eletrônicos':   '🔊',
+  'Outros':        '📦',
 };
 
-const BATCH_ANNOUNCE_THRESHOLD = 8; // anuncia no canal free quando lote >= N produtos novos
+const BATCH_ANNOUNCE_THRESHOLD = 8;
+
+// Cliente Supabase compartilhado (lazy init)
+let _db;
+function getDb() {
+  if (!_db) _db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return _db;
+}
+
+// ── Helpers de deduplicação ───────────────────────────────────────────────────
+
+/**
+ * Verifica se um produto já foi enviado num canal específico.
+ * Checa por cssdeals_item_id (sobrevive deleção/reinserção) e, como fallback, por product_id.
+ */
+async function alreadySentToChannel(channel, productId, itemId) {
+  const db = getDb();
+
+  if (itemId) {
+    const { data } = await db
+      .from('notification_logs')
+      .select('id')
+      .eq('cssdeals_item_id', itemId)
+      .eq('channel', channel)
+      .limit(1);
+    if ((data?.length ?? 0) > 0) return true;
+  }
+
+  if (productId) {
+    const { data } = await db
+      .from('notification_logs')
+      .select('id')
+      .eq('product_id', productId)
+      .eq('channel', channel)
+      .limit(1);
+    if ((data?.length ?? 0) > 0) return true;
+  }
+
+  return false;
+}
+
+async function logSent(channel, productId, itemId) {
+  const { error } = await getDb().from('notification_logs').insert({
+    product_id:       productId ?? null,
+    cssdeals_item_id: itemId    ?? null,
+    channel,
+    status: 'sent',
+  });
+  if (error) logger.error(`logSent [${channel}] falhou product=${productId}: ${error.message}`);
+}
 
 // ── Anúncio de lote grande ────────────────────────────────────────────────────
 
@@ -38,47 +87,51 @@ export async function announceNewBatch(count, categories) {
       footer: { text: 'DealsPro • cssdeals.com' },
       timestamp: new Date().toISOString(),
     }],
-  }).catch(() => {}); // silencioso se falhar
+  }).catch(() => {});
   logger.success(`Announced batch of ${count} new products to free channel`);
 }
 
-// ── Webhook (channel feed) ────────────────────────────────────────────────────
+// ── Webhook canal premium (imediato) ─────────────────────────────────────────
 
 export async function sendToDiscord(products) {
-  if (!WEBHOOK_URL) { logger.warn('DISCORD_WEBHOOK_URL not set'); return; }
-  if (!products.length) return;
+  if (!WEBHOOK_URL || !products.length) return;
 
   let sent = 0;
   for (const product of products) {
+    const itemId = product.cssdeals_item_id ?? null;
+
+    // Deduplicação: nunca reenvia produto já postado no canal premium
+    if (await alreadySentToChannel('discord_premium', product.id, itemId)) {
+      logger.info(`Discord premium: produto ${itemId ?? product.id} já enviado — ignorado`);
+      continue;
+    }
+
     try {
       await postWebhook(WEBHOOK_URL, {
         content: '🔥 **Novo produto detectado!**',
-        embeds: [buildEmbed(product)],
+        embeds:  [buildEmbed(product)],
       });
+      await logSent('discord_premium', product.id, itemId);
       sent++;
     } catch (err) {
       logger.warn(`Premium webhook failed for ${product.id}: ${err.message}`);
     }
+
     if (products.length > 1) await sleep(1000);
   }
 
-  if (sent > 0) logger.success(`Discord webhook: sent ${sent}/${products.length} product(s)`);
+  if (sent > 0) logger.success(`Discord webhook premium: ${sent}/${products.length} produto(s)`);
 }
 
-// ── Free channel (delayed 30 min) ────────────────────────────────────────────
+// ── Webhook canal free (retardado 30 min) ────────────────────────────────────
 
-/**
- * Called every scraper cycle. Sends to the free webhook any products
- * that have now passed their visible_at and haven't been notified yet.
- */
 export async function sendFreeDelayedNotifications() {
   if (!FREE_WEBHOOK_URL) return;
 
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const db      = getDb();
+  const cutoff  = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-  const { data: due } = await supabase
+  const { data: due } = await db
     .from('produtos_dealspro')
     .select('*')
     .lte('visible_at', new Date().toISOString())
@@ -89,62 +142,48 @@ export async function sendFreeDelayedNotifications() {
 
   if (!due?.length) return;
 
+  let sent = 0;
   for (const product of due) {
-    // Verifica por cssdeals_item_id — sobrevive a deleção e reinserção do produto
-    const itemId = product.cssdeals_item_id;
-    if (itemId) {
-      const { data: existing } = await supabase
-        .from('notification_logs')
-        .select('id')
-        .eq('cssdeals_item_id', itemId)
-        .eq('channel', 'discord_free')
-        .limit(1);
-      if ((existing?.length ?? 0) > 0) {
-        await supabase.from('produtos_dealspro').update({ free_notified: true }).eq('id', product.id);
-        continue;
-      }
+    const itemId = product.cssdeals_item_id ?? null;
+
+    // Deduplicação: cssdeals_item_id sobrevive a deleção/reinserção
+    if (await alreadySentToChannel('discord_free', product.id, itemId)) {
+      await db.from('produtos_dealspro').update({ free_notified: true }).eq('id', product.id);
+      continue;
     }
 
-    let sent = false;
+    let ok = false;
     try {
       await postWebhook(FREE_WEBHOOK_URL, {
         content: '⏰ **Novo produto disponível!**',
-        embeds: [buildEmbed(product)],
+        embeds:  [buildEmbed(product)],
       });
-      sent = true;
+      ok = true;
     } catch (err) {
       logger.error(`Free webhook failed for ${product.id}: ${err.message}`);
     }
 
-    if (sent) {
-      await supabase
-        .from('produtos_dealspro')
-        .update({ free_notified: true })
-        .eq('id', product.id);
-      await supabase.from('notification_logs').insert({
-        product_id:       product.id,
-        cssdeals_item_id: itemId ?? null,
-        channel:          'discord_free',
-        status:           'sent',
-      });
+    if (ok) {
+      await db.from('produtos_dealspro').update({ free_notified: true }).eq('id', product.id);
+      await logSent('discord_free', product.id, itemId);
+      sent++;
     }
 
     await sleep(1000);
   }
 
-  logger.success(`Free Discord: sent ${due.length} delayed notification(s)`);
+  if (sent > 0) logger.success(`Discord free: ${sent} notificação(ões) enviada(s)`);
 }
 
-// ── Direct Message (premium alerts) ──────────────────────────────────────────
+// ── DM de alerta (premium) ───────────────────────────────────────────────────
 
 export async function sendDiscordDM(discordUserId, product, isRestock = false) {
   if (!BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN not configured');
 
-  // 1. Open DM channel
   const channelRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
-    method: 'POST',
+    method:  'POST',
     headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ recipient_id: discordUserId }),
+    body:    JSON.stringify({ recipient_id: discordUserId }),
   });
 
   if (!channelRes.ok) {
@@ -154,11 +193,10 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
 
   const { id: channelId } = await channelRes.json();
 
-  // 2. Send message
   const msgRes = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
-    method: 'POST',
+    method:  'POST',
     headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    body:    JSON.stringify({
       content: isRestock
         ? '🔄 **Alerta DealsPro — produto restocado!**'
         : '🔔 **Alerta DealsPro — produto encontrado!**',
@@ -172,30 +210,29 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
   }
 }
 
-// ── Shared embed builder ──────────────────────────────────────────────────────
+// ── Embed builder ─────────────────────────────────────────────────────────────
 
 function buildEmbed(p) {
-  const nome = p.nome_traduzido || p.nome;
+  const nome     = p.nome_traduzido || p.nome;
   const original = p.nome_traduzido && p.nome_traduzido !== p.nome ? p.nome : null;
-  const emoji = CATEGORY_EMOJI[p.categoria] ?? '📦';
+  const emoji    = CATEGORY_EMOJI[p.categoria] ?? '📦';
   const categoria = p.categoria ?? 'Outros';
 
   const embed = {
-    color: COLOR,
+    color:  COLOR,
     author: { name: `${emoji}  ${categoria.toUpperCase()}  •  cssdeals.com` },
-    title: truncate(nome, 200),
-    url: p.link,
+    title:  truncate(nome, 200),
+    url:    p.link,
     fields: [
-      { name: '💰 Preço', value: `**${p.preco || 'Ver no site'}**`, inline: true },
-      { name: '🛒 Comprar', value: `[Abrir produto](${p.link})`, inline: true },
+      { name: '💰 Preço',   value: `**${p.preco || 'Ver no site'}**`, inline: true },
+      { name: '🛒 Comprar', value: `[Abrir produto](${p.link})`,      inline: true },
     ],
-    footer: { text: 'DealsPro • cssdeals.com' },
+    footer:    { text: 'DealsPro • cssdeals.com' },
     timestamp: new Date().toISOString(),
   };
 
   if (original) embed.description = `*Nome original: ${truncate(original, 150)}*`;
 
-  // Rejeita placeholders e URLs inválidas
   const imagemValida = p.imagem &&
     /^https?:\/\/.+/.test(p.imagem) &&
     !/placeholder|800.?x.?900|via\.placeholder|picsum/i.test(p.imagem);
@@ -210,9 +247,9 @@ function buildEmbed(p) {
 
 async function postWebhook(url, body) {
   const res = await fetch(url, {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body:    JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text();
