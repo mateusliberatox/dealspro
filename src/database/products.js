@@ -94,14 +94,16 @@ export async function deleteOldProducts() {
 }
 
 /**
- * Marks products as unavailable only after they've been absent from the scrape
- * for at least UNAVAIL_THRESHOLD_MS (30 min = ~15 scrape cycles).
- * A single missed scrape cycle (page 3+, timeout, etc.) does not trigger the mark.
- * Also restores products that reappeared (restocked).
+ * Marks products as unavailable using dois sinais:
+ *  1. soldOutLinks: produto apareceu na listagem com imagem 800×900 (placeholder)
+ *     → esgotado confirmado, marcado imediatamente.
+ *  2. Ausência do scrape por UNAVAIL_THRESHOLD_MS
+ *     → pode ser página 3+, timeout de categoria ou realmente esgotado.
+ *     Threshold alto (3h) para reduzir falsos positivos.
  */
-const UNAVAIL_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+const UNAVAIL_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 horas (~90 ciclos)
 
-export async function syncAvailability(scrapedLinks) {
+export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
   if (!scrapedLinks.size) return { markedUnavailable: 0, restored: 0, restoredIds: [] };
 
   const now = new Date();
@@ -112,19 +114,23 @@ export async function syncAvailability(scrapedLinks) {
 
   if (error) throw new Error(`syncAvailability fetch failed: ${error.message}`);
 
-  const seen       = [];
+  const seen              = [];
   const toMarkUnavailable = [];
-  const toRestore  = [];
+  const toRestore         = [];
 
   for (const p of data ?? []) {
-    const inScrape = scrapedLinks.has(p.link);
+    const isSoldOut = soldOutLinks.has(p.link);
+    const inScrape  = scrapedLinks.has(p.link) && !isSoldOut;
 
-    if (inScrape) {
-      // Update last_seen_at for all products found in this scrape
+    if (isSoldOut) {
+      // Imagem placeholder 800×900 = esgotado confirmado pelo CSSDeals
+      if (p.disponivel) toMarkUnavailable.push(p.id);
+    } else if (inScrape) {
       seen.push(p.id);
       if (!p.disponivel) toRestore.push(p.id);
     } else if (p.disponivel) {
-      // Only mark unavailable if absent for longer than threshold
+      // Ausente do scrape: só marca esgotado após threshold para evitar falsos positivos
+      // de produtos em página 3+ ou categorias com timeout
       const lastSeen = p.last_seen_at ? new Date(p.last_seen_at) : new Date(0);
       if (now - lastSeen >= UNAVAIL_THRESHOLD_MS) {
         toMarkUnavailable.push(p.id);

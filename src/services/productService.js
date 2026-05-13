@@ -45,7 +45,11 @@ export async function detectAndSaveNewProducts() {
   const existingMap = await getExistingHashMap();
   logger.info(`DB has ${existingMap.size} existing hashes`);
 
-  const scrapedLinks = new Set(withHashes.map((p) => p.link));
+  // Links com imagem placeholder 800×900 = esgotado confirmado pelo CSSDeals
+  const soldOutLinks  = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
+  const scrapedLinks  = new Set(withHashes.map((p) => p.link));
+
+  if (soldOutLinks.size > 0) logger.info(`${soldOutLinks.size} produto(s) com placeholder 800×900 detectados como esgotados`);
 
   // Guarda de qualidade: scrapes muito pequenos indicam falha parcial — não marcar esgotados
   const scrapeOk = scraped.length >= MIN_SCRAPE_QUALITY;
@@ -53,7 +57,7 @@ export async function detectAndSaveNewProducts() {
     logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping availability sync to avoid false sold-out marks`);
   }
   const { markedUnavailable, restored, restoredIds } = scrapeOk
-    ? await syncAvailability(scrapedLinks)
+    ? await syncAvailability(scrapedLinks, soldOutLinks)
     : { markedUnavailable: 0, restored: 0, restoredIds: [] };
   if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
   if (restored > 0) {
@@ -68,7 +72,8 @@ export async function detectAndSaveNewProducts() {
     }
   }
 
-  const newItems      = withHashes.filter((p) => !existingMap.has(p.hash));
+  // Exclui produtos esgotados (placeholder 800×900) de "novos" — não notificar sobre item sem estoque
+  const newItems      = withHashes.filter((p) => !existingMap.has(p.hash) && !p.isSoldOut);
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));
   logger.info(`Found ${newItems.length} new, ${existingItems.length} existing`);
 

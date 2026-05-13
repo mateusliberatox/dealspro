@@ -52,13 +52,16 @@ async function extractProducts(page, sourceLabel) {
       const imgEl = card.querySelector('.mn-product-img img.main-img, .mn-product-img img');
       const imagem = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '';
 
+      // Produtos com imagem placeholder 800×900 estão esgotados no CSSDeals
+      const isSoldOut = /800.?x.?900|placeholder/i.test(imagem);
+
       const skuEl = card.querySelector('.mn-sku');
       const skuText = skuEl?.textContent?.trim() ?? '';
 
       const itemMatch = rawHref.match(/[?&]itemid=(\d+)/);
       const cssdeals_item_id = itemMatch ? parseInt(itemMatch[1], 10) : null;
 
-      if (nome && link) results.push({ nome, preco, link, imagem, skuText, cssdeals_item_id });
+      if (nome && link) results.push({ nome, preco, link, imagem, skuText, cssdeals_item_id, isSoldOut });
     }
 
     return results;
@@ -66,8 +69,9 @@ async function extractProducts(page, sourceLabel) {
 
   const products = rawProducts.map(({ skuText, ...p }) => ({
     ...p,
-    sizes: parseSizes(skuText),
+    sizes:            parseSizes(skuText),
     cssdeals_item_id: p.cssdeals_item_id ?? null,
+    isSoldOut:        p.isSoldOut ?? false,
   }));
 
   logger.info(`  ${sourceLabel}: ${products.length} products`);
