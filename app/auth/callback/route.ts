@@ -41,7 +41,7 @@ async function syncDiscordByUserId(userId: string) {
       .eq('user_id', userId)
       .single();
     if (profile?.plan === 'premium') {
-      await addPremiumRole(profileUpdate.discord_user_id).catch(() => {});
+      await addPremiumRole(profileUpdate.discord_user_id);
     }
   }
 }

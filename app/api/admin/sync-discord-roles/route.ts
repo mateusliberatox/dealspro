@@ -36,27 +36,31 @@ export async function POST(request: Request) {
 
   if (!users?.length) return NextResponse.json({ synced: 0 });
 
-  const results: { username: string; action: string; ok: boolean }[] = [];
+  const results: { username: string; action: string; outcome: 'ok' | 'queued' | 'env-missing' }[] = [];
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   for (const u of users) {
-    const isPremium = u.plan === 'premium';
-    try {
-      if (isPremium) await addPremiumRole(u.discord_user_id);
-      else           await removePremiumRole(u.discord_user_id);
-      results.push({ username: u.discord_username, action: isPremium ? 'add' : 'remove', ok: true });
-    } catch {
-      results.push({ username: u.discord_username, action: isPremium ? 'add' : 'remove', ok: false });
-    }
+    const action  = u.plan === 'premium' ? 'add' : 'remove';
+    const outcome = action === 'add'
+      ? await addPremiumRole(u.discord_user_id)
+      : await removePremiumRole(u.discord_user_id);
+    results.push({ username: u.discord_username, action, outcome });
     await sleep(600); // evita rate limit da Discord API (5 req/s por guild)
   }
+
+  const summary = {
+    ok:           results.filter((r) => r.outcome === 'ok').length,
+    queued:       results.filter((r) => r.outcome === 'queued').length,
+    env_missing:  results.filter((r) => r.outcome === 'env-missing').length,
+  };
 
   console.log(JSON.stringify({
     audit:  'sync_discord_roles',
     synced: results.length,
     via:    cronOk ? 'cron_secret' : 'admin_session',
+    summary,
     at:     new Date().toISOString(),
   }));
 
-  return NextResponse.json({ synced: results.length, results });
+  return NextResponse.json({ synced: results.length, summary, results });
 }
