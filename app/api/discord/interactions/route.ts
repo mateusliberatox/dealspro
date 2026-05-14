@@ -1,8 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+import { SITE_URL } from '@/lib/site';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-
-const SITE_URL = 'https://dealspro-chi.vercel.app';
 
 // ── Utilitários ────────────────────────────────────────────────────────────────
 

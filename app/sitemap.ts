@@ -1,7 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
-
-const SITE_URL = 'https://dealspro-chi.vercel.app';
+import { SITE_URL } from '@/lib/site';
 
 export const revalidate = 3600;
 

@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { sendTelegramMessage } from '@/lib/telegram';
+import { SITE_URL } from '@/lib/site';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-
-const SITE_URL = 'https://dealspro-chi.vercel.app';
 
 type NotifyMode = 'alerts_only' | 'all_deals' | 'both';
 

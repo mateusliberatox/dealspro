@@ -1,5 +1,6 @@
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
+import { SITE_URL } from '@/lib/site';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Nenhuma assinatura encontrada' }, { status: 400 });
   }
 
-  const origin = request.headers.get('origin') ?? 'https://dealspro-chi.vercel.app';
+  const origin = request.headers.get('origin') ?? SITE_URL;
 
   const session = await stripe.billingPortal.sessions.create({
     customer: profile.stripe_customer_id,

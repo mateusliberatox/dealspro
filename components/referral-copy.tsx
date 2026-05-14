@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-const SITE_URL = 'https://dealspro-chi.vercel.app';
+import { SITE_URL } from '@/lib/site';
 
 export function ReferralCopy({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
