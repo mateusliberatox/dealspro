@@ -12,6 +12,10 @@ export interface Produto {
   disponivel: boolean;
 }
 
+// Colunas que o Feed/Hero realmente usam. Importar nesta constante em queries
+// pra evitar select('*') — economiza IO budget significativo no Supabase.
+export const PRODUTO_COLS = 'id, nome, nome_traduzido, preco, link, imagem, categoria, sizes, visible_at, criado_em, disponivel';
+
 export interface DealsproProfile {
   id: string;
   user_id: string;

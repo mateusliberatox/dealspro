@@ -103,6 +103,13 @@ export async function deleteOldProducts() {
  */
 const UNAVAIL_THRESHOLD_MS = 3 * 60 * 60 * 1000; // 3 horas (~90 ciclos)
 
+// Só atualiza last_seen_at quando passa desse tempo desde o último update.
+// O scraper roda a cada ~3min, mas atualizar a cada ciclo gerava ~12k UPDATEs/h
+// em produtos_dealspro (1.200 produtos × 20 ciclos/hora) e queimava o IO budget
+// do Supabase. Como UNAVAIL_THRESHOLD_MS é 3h, manter granularidade de 30min
+// não afeta a precisão de "produto sumiu".
+const LAST_SEEN_STALE_MS = 30 * 60 * 1000; // 30 min
+
 export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
   if (!scrapedLinks.size) return { markedUnavailable: 0, restored: 0, restoredIds: [] };
 
@@ -114,7 +121,7 @@ export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
 
   if (error) throw new Error(`syncAvailability fetch failed: ${error.message}`);
 
-  const seen              = [];
+  const seenStale         = [];
   const toMarkUnavailable = [];
   const toRestore         = [];
 
@@ -126,8 +133,10 @@ export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
       // Imagem placeholder 800×900 = esgotado confirmado pelo CSSDeals
       if (p.disponivel) toMarkUnavailable.push(p.id);
     } else if (inScrape) {
-      seen.push(p.id);
       if (!p.disponivel) toRestore.push(p.id);
+      // Só atualiza last_seen_at se está stale — economiza ~95% dos UPDATEs
+      const lastSeenAge = p.last_seen_at ? now - new Date(p.last_seen_at) : Infinity;
+      if (lastSeenAge >= LAST_SEEN_STALE_MS) seenStale.push(p.id);
     } else if (p.disponivel) {
       // Ausente do scrape: só marca esgotado após threshold para evitar falsos positivos
       // de produtos em página 3+ ou categorias com timeout
@@ -138,8 +147,8 @@ export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
     }
   }
 
-  if (seen.length) {
-    await supabase.from(TABLE).update({ last_seen_at: now.toISOString() }).in('id', seen);
+  if (seenStale.length) {
+    await supabase.from(TABLE).update({ last_seen_at: now.toISOString() }).in('id', seenStale);
   }
   if (toMarkUnavailable.length) {
     await supabase.from(TABLE).update({ disponivel: false }).in('id', toMarkUnavailable);
@@ -152,6 +161,7 @@ export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
     markedUnavailable: toMarkUnavailable.length,
     restored:          toRestore.length,
     restoredIds:       toRestore,
+    lastSeenUpdated:   seenStale.length,
   };
 }
 

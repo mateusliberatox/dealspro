@@ -3,7 +3,8 @@ import { Header } from '@/components/header';
 import { Hero } from '@/components/hero';
 import { Feed } from '@/components/feed';
 import { AdUnit } from '@/components/ad-unit';
-import type { Produto } from '@/lib/types';
+import { PRODUTO_COLS, type Produto } from '@/lib/types';
+import { effectivePlan } from '@/lib/plan';
 
 export const revalidate = 30;
 
@@ -22,41 +23,39 @@ async function getPageData() {
         .eq('user_id', user.id)
         .single();
 
-      // Auto-expira trial: premium sem Stripe e plan_expires_at vencido
-      if (
-        profile?.plan === 'premium' &&
-        !profile.stripe_subscription_id &&
-        profile.plan_expires_at &&
-        new Date(profile.plan_expires_at) < new Date()
-      ) {
-        plan = 'free';
-        // Reverte no banco de forma assíncrona (não bloqueia o render)
+      plan = effectivePlan(profile);
+
+      // Se a regra disse que expirou, reverte no banco em background — não bloqueia o render.
+      // Lógica fica em lib/plan.ts pra ficar em sincronia com o cron.
+      if (plan === 'free' && profile?.plan === 'premium') {
         supabase
           .from('dealspro_profiles')
           .update({ plan: 'free' })
           .eq('user_id', user.id)
           .then(() => {});
-      } else {
-        plan = profile?.plan ?? 'free';
       }
     }
 
     const isPremium = plan === 'premium';
 
+    // PRODUTO_COLS (de lib/types.ts) economiza IO ao não ler hash, last_seen_at,
+    // free_notified etc. Em revalidate=30s isso reduz transferência em ~3x.
     const [productsRes, totalRes, upcomingRes, premiumRes] = await Promise.all([
       (() => {
         let q = supabase
           .from('produtos_dealspro')
-          .select('*')
+          .select(PRODUTO_COLS)
           .eq('disponivel', true)
           .order('criado_em', { ascending: false })
           .limit(200);
         if (!isPremium) q = q.lte('visible_at', now);
         return q;
       })(),
+      // count: 'estimated' usa pg_class.reltuples (estatísticas) — instantâneo.
+      // Total de deals é número de marketing no hero, não precisa ser exato.
       supabase
         .from('produtos_dealspro')
-        .select('*', { count: 'exact', head: true }),
+        .select('*', { count: 'estimated', head: true }),
       !isPremium
         ? supabase
             .from('produtos_dealspro')

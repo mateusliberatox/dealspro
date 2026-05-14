@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { Feed } from '@/components/feed';
-import type { Produto } from '@/lib/types';
+import { PRODUTO_COLS, type Produto } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +31,7 @@ export default async function HistoricoPage() {
 
   let q = supabase
     .from('produtos_dealspro')
-    .select('*')
+    .select(PRODUTO_COLS)
     .order('criado_em', { ascending: false })
     .limit(500);
 
