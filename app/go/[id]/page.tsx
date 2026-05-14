@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { RedirectCountdown } from '@/components/redirect-countdown';
 import { AdUnit } from '@/components/ad-unit';
 import { ShareButton } from '@/components/share-button';
+import { SITE_URL } from '@/lib/site';
 import type { Produto } from '@/lib/types';
 
 async function trackClick(productId: number, userId: string | null) {
@@ -30,6 +31,24 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
 
   const p    = product as Produto;
   const nome = p.nome_traduzido || p.nome;
+
+  // Schema.org Product — habilita rich results no Google
+  const productSchema = {
+    '@context':    'https://schema.org',
+    '@type':       'Product',
+    name:          nome,
+    image:         p.imagem || undefined,
+    description:   p.categoria ? `${p.categoria} no CSSDeals` : 'Produto no CSSDeals',
+    category:      p.categoria || undefined,
+    url:           `${SITE_URL}/go/${p.id}`,
+    offers: {
+      '@type':         'Offer',
+      url:             p.link,
+      priceCurrency:   'BRL',
+      price:           (p.preco || '').replace(/[^\d,.]/g, '').replace(',', '.') || undefined,
+      availability:    'https://schema.org/InStock',
+    },
+  };
 
   // Usuário e plano
   const { data: { user } } = await supabase.auth.getUser();
@@ -67,6 +86,10 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+      />
       <div className="mx-auto max-w-md px-4 pt-8 pb-16 space-y-6">
 
         {/* Produto — linha compacta */}
@@ -103,7 +126,7 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
         {/* Share */}
         <div className="flex justify-end">
           <ShareButton
-            url={`https://dealspro-chi.vercel.app/go/${p.id}`}
+            url={`${SITE_URL}/go/${p.id}`}
             title={`${nome} — R$ ${p.preco} no CSSDeals`}
           />
         </div>

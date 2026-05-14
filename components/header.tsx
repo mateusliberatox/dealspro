@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -88,8 +89,7 @@ export function Header() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 animate-slide-in-right" onClick={closeMenu}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" aria-hidden className="h-8 w-8 rounded-full" />
+            <Image src="/logo.png" alt="" width={32} height={32} priority className="h-8 w-8 rounded-full" />
             <span className="text-[1.05rem] font-black uppercase tracking-[0.03em] leading-none">
               <span style={{ color: 'var(--text)' }}>DEALS</span>
               <span className="gradient-blue-text">PRO</span>
@@ -189,10 +189,13 @@ export function Header() {
 
             {/* Hamburger */}
             <button
+              type="button"
               onClick={() => setMenuOpen((o) => !o)}
               className="sm:hidden rounded-lg p-1.5 transition-colors"
               style={{ color: 'var(--text-2)' }}
               aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+              aria-expanded={menuOpen}
+              aria-controls="mobile-menu"
             >
               {menuOpen ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -217,6 +220,10 @@ export function Header() {
             onClick={closeMenu}
           />
           <div
+            id="mobile-menu"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu de navegação"
             className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col animate-slide-in-right sm:hidden"
             style={{
               background:            'rgba(15, 23, 42, 0.97)',
@@ -230,8 +237,7 @@ export function Header() {
               style={{ borderBottom: '1px solid rgba(59, 130, 246, 0.14)' }}
             >
               <div className="flex items-center gap-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="" aria-hidden className="h-6 w-6 rounded-full" />
+                <Image src="/logo.png" alt="" width={24} height={24} className="h-6 w-6 rounded-full" />
                 <span className="text-sm font-black uppercase tracking-[0.03em]">
                   <span style={{ color: 'var(--text)' }}>DEALS</span>
                   <span className="gradient-blue-text">PRO</span>
