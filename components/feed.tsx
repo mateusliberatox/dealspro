@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ProductCard } from './product-card';
 import { AdUnit } from './ad-unit';
 import type { Produto } from '@/lib/types';
 import { CATEGORIES } from '@/lib/types';
+
+const LIVE_POLL_MS = 60_000; // 1 min — só para premium
 
 const CATEGORY_SHORT: Record<string, string> = {
   'Todos':           'Todos',
@@ -60,9 +62,46 @@ function groupByDay(produtos: Produto[]): DayGroup[] {
   return groups;
 }
 
-export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean }) {
+export function Feed({ produtos: initial, isPremium = false }: { produtos: Produto[]; isPremium?: boolean }) {
+  const [produtos, setProdutos]     = useState<Produto[]>(initial);
+  const [incoming, setIncoming]     = useState<Produto[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
   const [tamanhos, setTamanhos]     = useState<string[]>([]);
+  const sinceRef = useRef<string>(initial[0]?.criado_em ?? new Date().toISOString());
+
+  // Live feed para premium: a cada 60s busca produtos criados após o último visto.
+  // Não substitui automaticamente — empurra para `incoming` e o usuário clica pra prepender.
+  useEffect(() => {
+    if (!isPremium) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/products?since=${encodeURIComponent(sinceRef.current)}&limit=50`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json() as { produtos: Produto[] };
+        const novos = data.produtos ?? [];
+        if (cancelled || novos.length === 0) return;
+        sinceRef.current = novos[0].criado_em;
+        setIncoming((prev) => {
+          const seen = new Set([...prev, ...produtos].map((p) => p.id));
+          return [...novos.filter((p) => !seen.has(p.id)), ...prev];
+        });
+      } catch { /* silencia falhas de rede transientes */ }
+    };
+
+    const interval = setInterval(poll, LIVE_POLL_MS);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isPremium, produtos]);
+
+  const revealIncoming = () => {
+    setProdutos((prev) => {
+      const seen = new Set(prev.map((p) => p.id));
+      const novos = incoming.filter((p) => !seen.has(p.id));
+      return [...novos, ...prev];
+    });
+    setIncoming([]);
+  };
 
   const allSizes = useMemo(() => {
     const set = new Set<string>();
@@ -98,6 +137,31 @@ export function Feed({ produtos }: { produtos: Produto[]; isPremium?: boolean })
 
   return (
     <div className="space-y-5">
+
+      {/* Live indicator + novos deals (só premium) */}
+      {isPremium && (
+        <div className="flex items-center justify-between gap-3">
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest"
+            style={{ color: 'var(--accent-text)' }}
+          >
+            <span className="relative inline-flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: '#22c55e' }} />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: '#22c55e' }} />
+            </span>
+            Ao vivo
+          </span>
+          {incoming.length > 0 && (
+            <button
+              type="button"
+              onClick={revealIncoming}
+              className="gradient-blue-bright ripple shine-effect rounded-full px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90 animate-fade-in-up"
+            >
+              ↑ {incoming.length} {incoming.length === 1 ? 'novo deal' : 'novos deals'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Category filters */}
       <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 animate-fade-in-up" style={{ animationDelay: '0.08s' }}>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
+import { SITE_URL } from '@/lib/site';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -9,8 +10,6 @@ const inter = Inter({
   display: 'swap',
   weight: ['400', '500', '600', '700', '800'],
 });
-
-const SITE_URL = 'https://dealspro-chi.vercel.app';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -40,9 +39,31 @@ export const metadata: Metadata = {
     icon: [{ url: '/logo.png', type: 'image/png', sizes: '512x512' }],
     apple: '/logo.png',
   },
+  appleWebApp: {
+    capable:     true,
+    title:       'DealsPro',
+    statusBarStyle: 'black-translucent',
+  },
   other: {
     'google-adsense-account': 'ca-pub-5158893095104645',
   },
+};
+
+export const viewport = {
+  themeColor:     '#0a0f1c',
+  colorScheme:    'dark light',
+  width:          'device-width',
+  initialScale:   1,
+};
+
+const ORGANIZATION_SCHEMA = {
+  '@context':   'https://schema.org',
+  '@type':      'Organization',
+  name:         'DealsPro',
+  url:          SITE_URL,
+  logo:         `${SITE_URL}/logo.png`,
+  description:  'Monitoramento em tempo real de deals do CSSDeals com alertas via Discord e Telegram.',
+  sameAs:       ['https://discord.gg/dBXRdqM2Z'],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -53,6 +74,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('dp-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}})();`,
           }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_SCHEMA) }}
         />
         <Script
           async

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { PRODUTO_COLS } from '@/lib/types';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Rate limit simples por IP usando Map in-memory
@@ -20,8 +21,9 @@ function isRateLimited(ip: string): boolean {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const limit    = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200);
+  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200);
   const categoria = searchParams.get('categoria');
+  const since     = searchParams.get('since'); // ISO timestamp — usado pelo live feed
 
   const supabase = await createClient();
   const now = new Date().toISOString();
@@ -51,12 +53,14 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('produtos_dealspro')
-    .select('*')
+    .select(PRODUTO_COLS)
+    .eq('disponivel', true)
     .order('criado_em', { ascending: false })
     .limit(limit);
 
-  if (!isPremium) query = query.lte('visible_at', now);
-  if (categoria) query = query.eq('categoria', categoria);
+  if (!isPremium)  query = query.lte('visible_at', now);
+  if (categoria)   query = query.eq('categoria', categoria);
+  if (since)       query = query.gt('criado_em', since);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
