@@ -1,5 +1,6 @@
 import { stripe, STRIPE_WEBHOOK_SECRET } from '@/lib/stripe';
 import { addPremiumRole, removePremiumRole } from '@/lib/discord';
+import { log } from '@/lib/log';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
             : new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString(); // fallback +31 dias
           subscriptionId = session.subscription as string;
         } catch (err) {
-          console.warn('[Stripe] subscription.retrieve falhou — usando fallback +31 dias:', err);
+          log.warn('stripe_subscription_retrieve_fallback', { error: err instanceof Error ? err.message : String(err) });
           planExpiresAt = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
           subscriptionId = session.subscription as string;
         }
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
         .eq('user_id', userId);
 
       if (existing?.discord_user_id) {
-        await addPremiumRole(existing.discord_user_id).catch(() => {});
+        await addPremiumRole(existing.discord_user_id);
       }
 
       // Recompensa de indicação: 1 mês grátis para quem indicou
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
             .from('dealspro_profiles')
             .update({ plan: 'premium', plan_expires_at: base.toISOString() })
             .eq('user_id', referrer.user_id);
-          console.log(`[Referral] +30 days for ${referrer.user_id} (referred ${userId})`);
+          log.info('stripe_referral_bonus', { referrer: referrer.user_id, referred: userId });
         }
       }
       break;
@@ -128,8 +129,8 @@ export async function POST(request: NextRequest) {
         .eq('stripe_customer_id', customerId);
 
       if (profile?.discord_user_id) {
-        if (active) await addPremiumRole(profile.discord_user_id).catch(() => {});
-        else        await removePremiumRole(profile.discord_user_id).catch(() => {});
+        if (active) await addPremiumRole(profile.discord_user_id);
+        else        await removePremiumRole(profile.discord_user_id);
       }
       break;
     }
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
         .eq('stripe_customer_id', customerId);
 
       if (profile?.discord_user_id) {
-        await removePremiumRole(profile.discord_user_id).catch(() => {});
+        await removePremiumRole(profile.discord_user_id);
       }
       if (profile?.user_id) {
         await supabaseAdmin
@@ -161,6 +162,50 @@ export async function POST(request: NextRequest) {
           .update({ is_active: false })
           .eq('user_id', profile.user_id);
       }
+      log.info('stripe_subscription_deleted', { customerId, userId: profile?.user_id });
+      break;
+    }
+
+    // Reembolso: usuário recebeu o dinheiro de volta → revoga premium imediato.
+    case 'charge.refunded': {
+      const charge     = event.data.object as Stripe.Charge;
+      const customerId = (charge.customer as string | null) ?? undefined;
+      if (!customerId) {
+        log.warn('stripe_refund_no_customer', { chargeId: charge.id });
+        break;
+      }
+
+      const { data: profile } = await supabaseAdmin
+        .from('dealspro_profiles')
+        .select('user_id, discord_user_id')
+        .eq('stripe_customer_id', customerId)
+        .single();
+
+      if (!profile) {
+        log.warn('stripe_refund_no_profile', { customerId });
+        break;
+      }
+
+      const now = new Date().toISOString();
+      await supabaseAdmin
+        .from('dealspro_profiles')
+        .update({ plan: 'free', plan_expires_at: now })
+        .eq('user_id', profile.user_id);
+
+      await supabaseAdmin
+        .from('user_alerts_dealspro')
+        .update({ is_active: false })
+        .eq('user_id', profile.user_id);
+
+      if (profile.discord_user_id) {
+        await removePremiumRole(profile.discord_user_id);
+      }
+
+      log.info('stripe_refund_processed', {
+        chargeId: charge.id,
+        userId: profile.user_id,
+        amount: charge.amount_refunded,
+      });
       break;
     }
   }

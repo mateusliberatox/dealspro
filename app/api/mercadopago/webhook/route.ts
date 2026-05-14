@@ -1,12 +1,14 @@
-import { getPayment } from '@/lib/mercadopago';
-import { addPremiumRole } from '@/lib/discord';
-import { createClient } from '@supabase/supabase-js';
+import { grantPremiumFromMPPayment, revokePremiumFromMPPayment, getPayment } from '@/lib/mercadopago';
+import { log } from '@/lib/log';
 import { createHmac } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-function validateSignature(request: NextRequest, paymentId: string): boolean {
+function validateSignature(request: NextRequest): boolean {
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
-  if (!secret) return true; // sem secret configurado, aceita (avisa nos logs)
+  if (!secret) {
+    log.warn('mp_webhook_no_secret', {});
+    return true;
+  }
 
   const xSignature = request.headers.get('x-signature');
   const xRequestId = request.headers.get('x-request-id');
@@ -19,82 +21,46 @@ function validateSignature(request: NextRequest, paymentId: string): boolean {
   const v1 = parts['v1'];
   if (!ts || !v1) return false;
 
-  const manifest = `id:${paymentId};request-id:${xRequestId};ts:${ts}`;
+  // MP usa o data.id da QUERY STRING (não do body) e exige `;` no final do manifesto
+  const dataId = request.nextUrl.searchParams.get('data.id');
+  if (!dataId) return false;
+
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
   const hmac     = createHmac('sha256', secret).update(manifest).digest('hex');
   return hmac === v1;
 }
 
 export async function POST(request: NextRequest) {
+  if (!validateSignature(request)) {
+    log.error('mp_webhook_invalid_signature', {});
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: true });
 
-  // MP envia action='payment.updated' ou type='payment'
-  const paymentId = body.data?.id;
+  // paymentId vem da QUERY STRING — mesma fonte que a assinatura cobre.
+  // Body como fallback só quando não há secret (modo de dev/preview).
+  const queryId  = request.nextUrl.searchParams.get('data.id');
+  const hasSecret = !!process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  const paymentId = queryId ?? (hasSecret ? null : body.data?.id);
+
   if (!paymentId) return NextResponse.json({ ok: true });
   if (body.action !== 'payment.updated' && body.type !== 'payment') {
     return NextResponse.json({ ok: true });
   }
 
-  if (!validateSignature(request, String(paymentId))) {
-    console.error('[MP Webhook] Assinatura inválida — requisição rejeitada');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  // Consulta o status uma vez para rotear: aprovado → grant, refunded/cancelled → revoke.
   const payment = await getPayment(String(paymentId)).catch(() => null);
-  if (!payment || payment.status !== 'approved') return NextResponse.json({ ok: true });
+  const status  = payment?.status as string | undefined;
 
-  const userId = payment.metadata?.user_id as string | undefined;
-  if (!userId) return NextResponse.json({ ok: true });
-
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-
-  const planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-  const { data: existing } = await supabaseAdmin
-    .from('dealspro_profiles')
-    .select('discord_user_id, referred_by, is_admin, plan')
-    .eq('user_id', userId)
-    .single();
-
-  // Idempotência: ignora se já é premium com expiração futura via MP
-  if (existing?.plan === 'premium') {
-    console.log(`[MP] Pagamento duplicado ignorado para ${userId}`);
-    return NextResponse.json({ ok: true });
+  if (status === 'approved') {
+    const r = await grantPremiumFromMPPayment(String(paymentId));
+    if (!r.ok) log.warn('mp_webhook_grant_skip', { paymentId, reason: r.reason });
+  } else if (status === 'refunded' || status === 'cancelled') {
+    const r = await revokePremiumFromMPPayment(String(paymentId), status);
+    if (!r.ok) log.warn('mp_webhook_revoke_skip', { paymentId, reason: r.reason });
   }
 
-  await supabaseAdmin
-    .from('dealspro_profiles')
-    .update({ plan: 'premium', plan_expires_at: planExpiresAt })
-    .eq('user_id', userId);
-
-  if (existing?.discord_user_id) {
-    await addPremiumRole(existing.discord_user_id).catch(() => {});
-  }
-
-  // Bônus de indicação
-  if (existing?.referred_by && !existing?.is_admin) {
-    const { data: referrer } = await supabaseAdmin
-      .from('dealspro_profiles')
-      .select('user_id, plan, plan_expires_at, is_admin')
-      .eq('referral_code', existing.referred_by)
-      .single();
-
-    if (referrer && !referrer.is_admin) {
-      const base = referrer.plan_expires_at && new Date(referrer.plan_expires_at) > new Date()
-        ? new Date(referrer.plan_expires_at)
-        : new Date();
-      base.setDate(base.getDate() + 30);
-      await supabaseAdmin
-        .from('dealspro_profiles')
-        .update({ plan: 'premium', plan_expires_at: base.toISOString() })
-        .eq('user_id', referrer.user_id);
-      console.log(`[MP Referral] +30 dias para ${referrer.user_id} (indicou ${userId})`);
-    }
-  }
-
-  console.log(`[MP] Premium concedido para ${userId} — expira ${planExpiresAt}`);
   return NextResponse.json({ ok: true });
 }

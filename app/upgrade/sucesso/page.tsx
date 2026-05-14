@@ -12,11 +12,40 @@ export default async function SucessoPage() {
 
   const { data: profile } = await supabase
     .from('dealspro_profiles')
-    .select('discord_user_id, discord_username')
+    .select('plan, discord_user_id, discord_username')
     .eq('user_id', user.id)
     .single();
 
   const hasDiscord = !!profile?.discord_user_id;
+  const isPremium  = profile?.plan === 'premium';
+
+  // Se ainda não constou como premium (webhook + polling ainda processando),
+  // mostra estado de processamento ao invés de mensagem falsa de sucesso.
+  if (!isPremium) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <main className="mx-auto max-w-md px-4 py-16 space-y-6 text-center">
+          <div className="mx-auto w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Processando pagamento…</h1>
+            <p className="text-sm" style={{ color: 'var(--text-2)' }}>
+              Seu pagamento foi recebido. Estamos liberando o acesso Premium — costuma demorar até 1 minuto.
+            </p>
+          </div>
+          <a
+            href="/upgrade/sucesso"
+            className="inline-block rounded-xl px-6 py-3 text-sm font-bold btn-accent"
+          >
+            Verificar agora
+          </a>
+          <p className="text-xs" style={{ color: 'var(--text-4)' }}>
+            Se passar de 5 minutos sem confirmar, fale com a gente em <Link href="/faq" className="underline">suporte</Link>.
+          </p>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
