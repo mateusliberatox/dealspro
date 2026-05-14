@@ -1,11 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
-export const metadata: Metadata = {
-  title: 'Minha Conta',
-  description: 'Gerencie sua conta, plano e conexões no DealsPro.',
-};
-
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -15,6 +10,24 @@ import { ReferralCopy } from '@/components/referral-copy';
 import { UpgradeButton } from '@/components/upgrade-button';
 import { DiscordConnectButton } from '@/components/discord-connect-button';
 import { TelegramConnectButton } from '@/components/telegram-connect-button';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { title: 'Minha Conta', description: 'Gerencie sua conta, plano e conexões.' };
+
+  const { data: profile } = await supabase
+    .from('dealspro_profiles')
+    .select('plan')
+    .eq('user_id', user.id)
+    .single();
+
+  const isPremium = profile?.plan === 'premium';
+  return {
+    title:       isPremium ? '★ Premium · Minha Conta' : 'Minha Conta',
+    description: 'Gerencie sua conta, plano e conexões no DealsPro.',
+  };
+}
 
 export default async function MinhaContaPage() {
   const supabase = await createClient();

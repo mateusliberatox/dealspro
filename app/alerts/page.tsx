@@ -1,11 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import type { Metadata } from 'next';
-export const metadata: Metadata = {
-  title: 'Meus Alertas',
-  description: 'Gerencie seus alertas de deals. Receba notificações por Discord e Telegram.',
-};
-
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -14,6 +9,24 @@ import { AlertsUI } from '@/components/alerts-ui';
 import { AlertMatches, matchProductsToAlerts } from '@/components/alert-matches';
 import { TestDmButton } from '@/components/test-dm-button';
 import type { UserAlert, DealsproProfile, Produto } from '@/lib/types';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { title: 'Meus Alertas', description: 'Gerencie seus alertas de deals.' };
+
+  const { count } = await supabase
+    .from('user_alerts_dealspro')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('is_active', true);
+
+  const n = count ?? 0;
+  return {
+    title:       n > 0 ? `${n} alerta${n > 1 ? 's' : ''} ativo${n > 1 ? 's' : ''}` : 'Meus Alertas',
+    description: 'Gerencie seus alertas de deals. Receba notificações por Discord e Telegram.',
+  };
+}
 
 export default async function AlertsPage() {
   const supabase = await createClient();

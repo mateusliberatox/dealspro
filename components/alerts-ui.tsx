@@ -85,6 +85,9 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   };
 
   const deleteAlert = (id: string) => {
+    const alert = alerts.find((a) => a.id === id);
+    const label = alert?.keyword || alert?.categoria || 'este alerta';
+    if (!window.confirm(`Remover "${label}"? Esta ação não pode ser desfeita.`)) return;
     startTrans(async () => {
       const supabase = createClient();
       await supabase.from('user_alerts_dealspro').delete().eq('id', id);

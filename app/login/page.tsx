@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 import Link from 'next/link';
 
 type Mode = 'login' | 'signup' | 'forgot';
@@ -85,8 +86,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" aria-hidden className="h-10 w-10 rounded-full" />
+            <Image src="/logo.png" alt="" width={40} height={40} priority className="h-10 w-10 rounded-full" />
             <span className="text-xl font-black uppercase tracking-[0.03em]">
               <span style={{ color: 'var(--text)' }}>DEALS</span>
               <span className="gradient-blue-text">PRO</span>

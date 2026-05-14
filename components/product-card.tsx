@@ -78,7 +78,13 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
             onError={() => setImgError(true)}
           />
         ) : (
-          <div className="shimmer-placeholder h-full w-full" />
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5" style={{ background: 'var(--surface-3)' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-4)' }}>
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+            <span className="text-[10px] font-medium" style={{ color: 'var(--text-4)' }}>Sem imagem</span>
+          </div>
         )}
 
         {esgotado && (
