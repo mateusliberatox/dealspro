@@ -5,6 +5,10 @@ on:
     - cron: '*/2 * * * *'   # fallback — primary trigger is cron-job.org
   workflow_dispatch:
 
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
 jobs:
   scrape:
     runs-on: ubuntu-latest

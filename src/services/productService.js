@@ -15,7 +15,7 @@ const QC_BATCH_SIZE    = 3;   // parallel QC fetches
 const FREE_DELAY_MS    = 30 * 60 * 1000; // 30 minutes
 // Scrapes com menos produtos que este mínimo são tratados como falha parcial
 // e não disparam syncAvailability para evitar falsos positivos de "esgotado"
-const MIN_SCRAPE_QUALITY = 40;
+const MIN_SCRAPE_QUALITY = 200;
 
 export async function detectAndSaveNewProducts() {
   logger.info('Starting detection cycle');

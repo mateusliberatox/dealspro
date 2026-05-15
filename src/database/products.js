@@ -11,7 +11,8 @@ const OLD_DAYS_AVAILABLE = 30; // produtos disponíveis: deletar após 30 dias (
 export async function getExistingHashMap() {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, hash, sizes');
+    .select('id, hash, sizes')
+    .limit(5000);
 
   if (error) throw new Error(`Failed to fetch hashes: ${error.message}`);
   return new Map(data.map((r) => [r.hash, { id: r.id, sizes: r.sizes ?? [] }]));
