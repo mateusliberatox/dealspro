@@ -20,13 +20,21 @@ const MIN_SCRAPE_QUALITY = 40;
 export async function detectAndSaveNewProducts() {
   logger.info('Starting detection cycle');
 
-  // 0. Housekeeping
-  const deleted = await deleteOldProducts();
-  if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
+  // 0. Housekeeping — não-fatal: falha de rede aqui não deve abortar o ciclo de scrape
+  try {
+    const deleted = await deleteOldProducts();
+    if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
+  } catch (e) {
+    logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${e.message}`);
+  }
 
   // 0b. Send delayed free Discord notifications for products now past visible_at
-  await sendFreeDelayedNotifications();
-  await notifyTelegramFreeFeed();
+  try {
+    await sendFreeDelayedNotifications();
+    await notifyTelegramFreeFeed();
+  } catch (e) {
+    logger.warn(`Delayed notifications skipped: ${e.message}`);
+  }
 
   // 1. Scrape all pages
   const scraped = await scrapeCssDeals();
