@@ -26,11 +26,24 @@ export async function getExistingHashes() {
 
 export async function insertProducts(products) {
   if (!products.length) return [];
-  const { data, error } = await supabase
+
+  // Marca o instante antes do upsert — usado para buscar o que foi de fato inserido.
+  // upsert com ignoreDuplicates:true no Supabase JS v2 retorna data:null mesmo quando
+  // há inserções reais; o select separado por criado_em é o workaround correto.
+  const insertedAfter = new Date().toISOString();
+
+  const { error } = await supabase
     .from(TABLE)
-    .upsert(products, { onConflict: 'hash', ignoreDuplicates: true })
-    .select();
+    .upsert(products, { onConflict: 'hash', ignoreDuplicates: true });
+
   if (error) throw new Error(`Failed to insert products: ${error.message}`);
+
+  const { data, error: fetchError } = await supabase
+    .from(TABLE)
+    .select('*')
+    .gte('criado_em', insertedAfter);
+
+  if (fetchError) throw new Error(`Failed to fetch inserted products: ${fetchError.message}`);
   return data ?? [];
 }
 
