@@ -10,12 +10,40 @@ import { sendFreeDelayedNotifications, announceNewBatch } from '../notifications
 import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 
-const MAX_QC_FETCHES   = 100; // tenta QC para todos os produtos novos
-const QC_BATCH_SIZE    = 3;   // parallel QC fetches
-const FREE_DELAY_MS    = 30 * 60 * 1000; // 30 minutes
-// Scrapes com menos produtos que este mínimo são tratados como falha parcial
-// e não disparam syncAvailability para evitar falsos positivos de "esgotado"
-const MIN_SCRAPE_QUALITY = 200;
+const MAX_QC_FETCHES        = 100;
+const QC_BATCH_SIZE         = 5;   // was 3 — fewer sequential batches
+const FREE_DELAY_MS         = 30 * 60 * 1000;
+const MIN_SCRAPE_QUALITY    = 200;
+const TRANSLATE_CONCURRENCY = 8;   // parallel translation requests per batch
+
+/**
+ * Fetches QC photos and silently updates the DB after notifications are already sent.
+ * Non-blocking — caller should not await this.
+ */
+async function enrichWithQcImages(products) {
+  const toFetch = products.slice(0, MAX_QC_FETCHES);
+  const updates = [];
+
+  for (let i = 0; i < toFetch.length; i += QC_BATCH_SIZE) {
+    const batch   = toFetch.slice(i, i + QC_BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map((p) => fetchQcImage(p.link)));
+    results.forEach((r, j) => {
+      if (r.status === 'fulfilled' && r.value) {
+        updates.push({ ...toFetch[i + j], imagem: r.value });
+      }
+    });
+  }
+
+  if (!updates.length) return;
+
+  // Single upsert for all QC updates — same IO footprint as the original insert
+  await supabase
+    .from('produtos_dealspro')
+    .upsert(updates, { onConflict: 'id' })
+    .catch((e) => logger.warn(`QC bulk update failed: ${e.message}`));
+
+  logger.info(`QC: updated ${updates.length} image(s) in one batch`);
+}
 
 export async function detectAndSaveNewProducts() {
   logger.info('Starting detection cycle');
@@ -54,8 +82,8 @@ export async function detectAndSaveNewProducts() {
   logger.info(`DB has ${existingMap.size} existing hashes`);
 
   // Links com imagem placeholder 800×900 = esgotado confirmado pelo CSSDeals
-  const soldOutLinks  = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
-  const scrapedLinks  = new Set(withHashes.map((p) => p.link));
+  const soldOutLinks = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
+  const scrapedLinks = new Set(withHashes.map((p) => p.link));
 
   if (soldOutLinks.size > 0) logger.info(`${soldOutLinks.size} produto(s) com placeholder 800×900 detectados como esgotados`);
 
@@ -70,7 +98,6 @@ export async function detectAndSaveNewProducts() {
   if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
   if (restored > 0) {
     logger.info(`Restored ${restored} product(s) to available (restocado)`);
-    // Notifica usuários premium com alertas que correspondem aos produtos restocados
     if (restoredIds.length) {
       const { data: restocked } = await supabase
         .from('produtos_dealspro')
@@ -85,64 +112,63 @@ export async function detectAndSaveNewProducts() {
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));
   logger.info(`Found ${newItems.length} new, ${existingItems.length} existing`);
 
-  // 4. Merge sizes on existing products
-  for (const p of existingItems) {
-    if (!p.sizes?.length) continue;
-    const existing = existingMap.get(p.hash);
-    await mergeSizes(existing.id, existing.sizes, p.sizes).catch((e) =>
-      logger.warn(`Size merge skipped: ${e.message}`),
-    );
-  }
+  // 4. Merge sizes on existing products — in parallel
+  await Promise.allSettled(
+    existingItems
+      .filter((p) => p.sizes?.length)
+      .map((p) => {
+        const existing = existingMap.get(p.hash);
+        return mergeSizes(existing.id, existing.sizes, p.sizes).catch(
+          (e) => logger.warn(`Size merge skipped: ${e.message}`),
+        );
+      }),
+  );
 
   if (!newItems.length) return [];
 
-  // 5. Enrich: translate + categorize (sequential) + QC image (parallel batches)
-  if (newItems.length > MAX_QC_FETCHES) {
-    logger.info(`${newItems.length} new products — QC fetching first ${MAX_QC_FETCHES}`);
-  }
-
-  // 5a. Translate + categorize sequentially (rate-limit safe)
+  // 5. Enrich: translate + categorize in parallel batches (rate-limit safe per batch)
   const enriched = [];
-  for (const p of newItems) {
-    const nome_traduzido = await translateName(p.nome);
-    const categoria      = categorize(p.nome, nome_traduzido);
-    enriched.push({ ...p, nome_traduzido, categoria });
-  }
-
-  // 5b. QC images in parallel batches — replaces listing image with buyer QC photo
-  const toFetchQC = enriched.slice(0, MAX_QC_FETCHES);
-  for (let i = 0; i < toFetchQC.length; i += QC_BATCH_SIZE) {
-    const batch   = toFetchQC.slice(i, i + QC_BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map((p) => fetchQcImage(p.link)));
-    results.forEach((r, j) => {
-      if (r.status === 'fulfilled' && r.value) toFetchQC[i + j].imagem = r.value;
-    });
+  for (let i = 0; i < newItems.length; i += TRANSLATE_CONCURRENCY) {
+    const batch   = newItems.slice(i, i + TRANSLATE_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map(async (p) => {
+        const nome_traduzido = await translateName(p.nome);
+        const categoria      = categorize(p.nome, nome_traduzido);
+        return { ...p, nome_traduzido, categoria };
+      }),
+    );
+    enriched.push(...results);
   }
 
   // 6. Persist with visible_at = now + 30min (free delay)
   const visibleAt = new Date(Date.now() + FREE_DELAY_MS).toISOString();
   const rows = enriched.map((p) => ({
-    nome:              p.nome,
-    nome_traduzido:    p.nome_traduzido,
-    preco:             p.preco,
-    link:              p.link,
-    imagem:            p.imagem,
-    hash:              p.hash,
-    categoria:         p.categoria,
-    sizes:             p.sizes ?? [],
-    cssdeals_item_id:  p.cssdeals_item_id ?? null,
-    visible_at:        visibleAt,
-    free_notified:     false,
+    nome:             p.nome,
+    nome_traduzido:   p.nome_traduzido,
+    preco:            p.preco,
+    link:             p.link,
+    imagem:           p.imagem,
+    hash:             p.hash,
+    categoria:        p.categoria,
+    sizes:            p.sizes ?? [],
+    cssdeals_item_id: p.cssdeals_item_id ?? null,
+    visible_at:       visibleAt,
+    free_notified:    false,
   }));
 
   const inserted = await insertProducts(rows);
   logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
 
-  // 7. Premium webhook fires immediately; free webhook fires after visible_at (handled in next cycles)
+  // 7. Premium webhook fires immediately — QC images update silently in background
   await dispatchNotifications(inserted);
   await matchAndNotify(inserted);
   await notifyTelegramPremiumFeed(inserted);
   await announceNewBatch(inserted.length, inserted.map((p) => p.categoria));
+
+  // 8. Fetch QC images after notifications are already sent — non-blocking
+  if (inserted.length > 0) {
+    enrichWithQcImages(inserted).catch((e) => logger.warn(`QC enrichment failed: ${e.message}`));
+  }
 
   return inserted;
 }
