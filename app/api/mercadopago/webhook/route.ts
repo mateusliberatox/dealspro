@@ -6,8 +6,8 @@ import { NextRequest, NextResponse } from 'next/server';
 function validateSignature(request: NextRequest): boolean {
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
   if (!secret) {
-    log.warn('mp_webhook_no_secret', {});
-    return true;
+    log.error('mp_webhook_no_secret', {});
+    return false;
   }
 
   const xSignature = request.headers.get('x-signature');

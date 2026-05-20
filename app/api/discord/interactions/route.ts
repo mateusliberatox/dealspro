@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { SITE_URL } from '@/lib/site';
+import { effectivePlan } from '@/lib/plan';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
@@ -133,7 +134,7 @@ async function handleCancelar(discordUserId: string, keyword: string) {
     .from('user_alerts_dealspro')
     .select('id, keyword')
     .eq('user_id', profile.user_id)
-    .ilike('keyword', keyword)
+    .eq('keyword', keyword)
     .eq('is_active', true)
     .single();
 
@@ -152,17 +153,17 @@ async function handleStatus(discordUserId: string) {
 
   const { data: profile } = await db
     .from('dealspro_profiles')
-    .select('plan, plan_expires_at')
+    .select('plan, plan_expires_at, stripe_subscription_id')
     .eq('discord_user_id', discordUserId)
     .single();
 
   if (!profile) {
-    return ephemeral(
-      `❌ Conta não encontrada. Crie a sua em ${SITE_URL}`,
-    );
+    return ephemeral(`❌ Conta não encontrada. Crie a sua em ${SITE_URL}`);
   }
 
-  if (profile.plan === 'premium') {
+  const plan = effectivePlan(profile);
+
+  if (plan === 'premium') {
     const expires = profile.plan_expires_at
       ? new Date(profile.plan_expires_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
       : null;

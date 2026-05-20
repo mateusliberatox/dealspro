@@ -32,7 +32,12 @@ async function getPageData() {
           .from('dealspro_profiles')
           .update({ plan: 'free' })
           .eq('user_id', user.id)
-          .then(() => {});
+          .then(() =>
+            supabase
+              .from('user_alerts_dealspro')
+              .update({ is_active: false })
+              .eq('user_id', user.id),
+          );
       }
     }
 
