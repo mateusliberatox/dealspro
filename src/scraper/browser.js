@@ -8,8 +8,10 @@ let browserInstance = null;
  * Playwright launches Chromium with stealth-friendly settings to avoid 403s.
  */
 export async function getBrowser() {
-  if (browserInstance) return browserInstance;
+  if (browserInstance?.isConnected()) return browserInstance;
 
+  // Instance missing or crashed — launch fresh
+  browserInstance = null;
   browserInstance = await chromium.launch({
     headless: process.env.HEADLESS !== 'false',
     args: [

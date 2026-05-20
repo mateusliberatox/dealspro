@@ -17,7 +17,7 @@ const FALLBACK_CATEGORIES = [
   { name: 'Watches',     id: 20 },
 ];
 
-const BATCH_SIZE      = 5;  // max concurrent Playwright contexts
+const BATCH_SIZE      = 10; // max concurrent Playwright contexts
 const MAX_PAGES       = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
 const MAX_CATEGORIES  = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
 

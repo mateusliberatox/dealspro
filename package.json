@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "scrape:once": "node src/jobs/run-once.js",
+    "monitor": "node src/entry/start-monitor.js",
     "test:scraper": "node src/scraper/test.js"
   },
   "dependencies": {
