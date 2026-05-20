@@ -59,7 +59,7 @@ async function extractProducts(page, sourceLabel) {
       const skuText = skuEl?.textContent?.trim() ?? '';
 
       const itemMatch = rawHref.match(/[?&]itemid=(\d+)/);
-      const cssdeals_item_id = itemMatch ? parseInt(itemMatch[1], 10) : null;
+      const cssdeals_item_id = itemMatch ? itemMatch[1] : null; // string evita perda de precisão em IDs > 2^53
 
       if (nome && link) results.push({ nome, preco, link, imagem, skuText, cssdeals_item_id, isSoldOut });
     }

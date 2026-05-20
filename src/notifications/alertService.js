@@ -6,11 +6,13 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegram(chatId, text, imageUrl = null) {
   if (!TELEGRAM_TOKEN) return;
+  const opts = { signal: AbortSignal.timeout(10_000) };
   if (imageUrl) {
     const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML' }),
+      ...opts,
     }).catch(() => ({ ok: false }));
     if (res.ok) return;
   }
@@ -18,35 +20,8 @@ async function sendTelegram(chatId, text, imageUrl = null) {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+    ...opts,
   }).catch(() => {});
-}
-
-/**
- * Verifica se este usuário já recebeu DM sobre este produto (por cssdeals_item_id ou product_id).
- * Restocks ignoram esta verificação — são sempre enviados.
- */
-async function alreadyNotifiedUser(userId, productId, itemId, channels) {
-  if (itemId) {
-    const { data } = await supabase
-      .from('notification_logs')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('cssdeals_item_id', itemId)
-      .in('channel', channels)
-      .limit(1);
-    if ((data?.length ?? 0) > 0) return true;
-  }
-  if (productId) {
-    const { data } = await supabase
-      .from('notification_logs')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-      .in('channel', channels)
-      .limit(1);
-    if ((data?.length ?? 0) > 0) return true;
-  }
-  return false;
 }
 
 /**
@@ -78,6 +53,32 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
   const premiumAlerts = alerts.filter((a) => profileMap.has(a.user_id));
   if (!premiumAlerts.length) return;
 
+  // Pré-busca todos os logs relevantes em UMA query para evitar N+1
+  const notifiedSet = new Set();
+  if (!isRestock) {
+    const itemIds        = products.map((p) => p.cssdeals_item_id).filter(Boolean);
+    const productIds     = products.map((p) => p.id).filter(Boolean);
+    const premiumUserIds = [...new Set(premiumAlerts.map((a) => a.user_id))];
+
+    const conditions = [];
+    if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
+    if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
+
+    if (conditions.length && premiumUserIds.length) {
+      const { data: logs } = await supabase
+        .from('notification_logs')
+        .select('user_id, product_id, cssdeals_item_id')
+        .in('user_id', premiumUserIds)
+        .in('channel', ['discord_dm', 'telegram_dm'])
+        .or(conditions.join(','));
+
+      for (const l of logs ?? []) {
+        if (l.cssdeals_item_id) notifiedSet.add(`${l.user_id}:${l.cssdeals_item_id}`);
+        if (l.product_id)       notifiedSet.add(`${l.user_id}:pid${l.product_id}`);
+      }
+    }
+  }
+
   for (const product of products) {
     const searchText = `${product.nome} ${product.nome_traduzido ?? ''}`.toLowerCase();
 
@@ -105,23 +106,26 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
       const discordId  = prof?.discord_user_id;
       const telegramId = prof?.telegram_chat_id;
 
-      await dispatchDM({ alert, product, discordId, telegramId, isRestock });
+      await dispatchDM({ alert, product, discordId, telegramId, isRestock, notifiedSet });
     }
   }
 }
 
-async function dispatchDM({ alert, product, discordId, telegramId, isRestock = false }) {
+async function dispatchDM({ alert, product, discordId, telegramId, isRestock = false, notifiedSet = new Set() }) {
   const nome   = product.nome_traduzido || product.nome;
   const itemId = product.cssdeals_item_id ?? null;
 
-  // Deduplicação: restocks sempre enviam (são nova informação),
-  // mas novos produtos só enviam se o usuário ainda não recebeu DM sobre este item.
+  // Deduplicação via Set pré-carregado (evita query por par produto×usuário)
   if (!isRestock) {
-    const channels = ['discord_dm', 'telegram_dm'];
-    if (await alreadyNotifiedUser(alert.user_id, product.id, itemId, channels)) {
+    const seenByItem = itemId      && notifiedSet.has(`${alert.user_id}:${itemId}`);
+    const seenByPid  = !itemId     && product.id && notifiedSet.has(`${alert.user_id}:pid${product.id}`);
+    if (seenByItem || seenByPid) {
       logger.info(`DM já enviado para ${alert.user_id} sobre produto ${itemId ?? product.id} — ignorado`);
       return;
     }
+    // Marca como visto agora para evitar duplicata no mesmo ciclo
+    if (itemId)     notifiedSet.add(`${alert.user_id}:${itemId}`);
+    if (product.id) notifiedSet.add(`${alert.user_id}:pid${product.id}`);
   }
 
   // Discord DM

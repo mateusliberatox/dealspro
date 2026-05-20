@@ -50,5 +50,16 @@ export async function expireOverduePlans(db: SupabaseClient): Promise<number> {
     log.warn('expire_plans_error', { error: error.message });
     return 0;
   }
-  return data?.length ?? 0;
+
+  const expired = data ?? [];
+  if (expired.length > 0) {
+    const expiredIds = expired.map((p) => p.user_id);
+    const { error: alertError } = await db
+      .from('user_alerts_dealspro')
+      .update({ is_active: false })
+      .in('user_id', expiredIds);
+    if (alertError) log.warn('expire_alerts_error', { error: alertError.message });
+  }
+
+  return expired.length;
 }

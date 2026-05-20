@@ -137,6 +137,7 @@ export async function sendFreeDelayedNotifications() {
     .lte('visible_at', new Date().toISOString())
     .gte('criado_em', cutoff)
     .eq('free_notified', false)
+    .eq('disponivel', true)
     .order('criado_em', { ascending: true })
     .limit(20);
 
@@ -184,6 +185,7 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
     method:  'POST',
     headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
     body:    JSON.stringify({ recipient_id: discordUserId }),
+    signal:  AbortSignal.timeout(10_000),
   });
 
   if (!channelRes.ok) {
@@ -250,6 +252,7 @@ async function postWebhook(url, body) {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
+    signal:  AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
     const text = await res.text();
