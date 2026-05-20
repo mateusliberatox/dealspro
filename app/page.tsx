@@ -62,10 +62,7 @@ async function getPageData() {
             .select('*', { count: 'exact', head: true })
             .gt('visible_at', now)
         : Promise.resolve({ count: 0 }),
-      supabase
-        .from('dealspro_profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('plan', 'premium'),
+      supabase.rpc('get_premium_count'),
     ]);
 
     return {
@@ -74,7 +71,7 @@ async function getPageData() {
       upcomingCount: upcomingRes.count ?? 0,
       isLoggedIn:    !!user,
       totalDeals:    totalRes.count ?? 0,
-      premiumCount:  premiumRes.count ?? 0,
+      premiumCount:  (premiumRes.data as number) ?? 0,
     };
   } catch {
     return { produtos: [], isPremium: false, upcomingCount: 0, isLoggedIn: false, totalDeals: 0, premiumCount: 0 };

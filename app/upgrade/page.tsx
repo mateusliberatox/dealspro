@@ -10,8 +10,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { UpgradeButton } from '@/components/upgrade-button';
-import { createClient as createAdmin } from '@supabase/supabase-js';
-
 const COMPARE = [
   { feature: 'Feed de deals',                free: true,  premium: true  },
   { feature: 'Filtros por categoria',        free: true,  premium: true  },
@@ -25,15 +23,9 @@ const COMPARE = [
 
 
 async function getPremiumCount(): Promise<number> {
-  const admin = createAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-  const { count } = await admin
-    .from('dealspro_profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('plan', 'premium');
-  return count ?? 0;
+  const supabase = await createClient();
+  const { data } = await supabase.rpc('get_premium_count');
+  return (data as number) ?? 0;
 }
 
 export default async function UpgradePage() {
