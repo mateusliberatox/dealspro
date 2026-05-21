@@ -96,12 +96,35 @@ export async function announceNewBatch(count, categories) {
 export async function sendToDiscord(products) {
   if (!WEBHOOK_URL || !products.length) return;
 
+  const db = getDb();
+
+  // Pré-busca logs de deduplicação em batch — evita 2N queries no loop
+  const itemIds    = products.map((p) => p.cssdeals_item_id).filter(Boolean);
+  const productIds = products.map((p) => p.id).filter(Boolean);
+  const conditions = [];
+  if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
+  if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
+
+  const sentSet = new Set();
+  if (conditions.length) {
+    const { data: logs } = await db
+      .from('notification_logs')
+      .select('product_id, cssdeals_item_id')
+      .eq('channel', 'discord_premium')
+      .or(conditions.join(','));
+    for (const l of logs ?? []) {
+      if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
+      if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
+    }
+  }
+
   let sent = 0;
   for (const product of products) {
-    const itemId = product.cssdeals_item_id ?? null;
+    const itemId     = product.cssdeals_item_id ?? null;
+    const alreadySent = (itemId && sentSet.has(`item:${itemId}`)) ||
+                        (!itemId && sentSet.has(`pid:${product.id}`));
 
-    // Deduplicação: nunca reenvia produto já postado no canal premium
-    if (await alreadySentToChannel('discord_premium', product.id, itemId)) {
+    if (alreadySent) {
       logger.info(`Discord premium: produto ${itemId ?? product.id} já enviado — ignorado`);
       continue;
     }
@@ -112,6 +135,7 @@ export async function sendToDiscord(products) {
         embeds:  [buildEmbed(product)],
       });
       await logSent('discord_premium', product.id, itemId);
+      sentSet.add(itemId ? `item:${itemId}` : `pid:${product.id}`);
       sent++;
     } catch (err) {
       logger.warn(`Premium webhook failed for ${product.id}: ${err.message}`);

@@ -123,8 +123,8 @@ async function discoverCategories(page) {
 async function scrapeHomepage() {
   const page = await newPage();
   try {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForSelector('a[href*="itemid="]', { timeout: 35_000 });
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForSelector('a[href*="itemid="]', { timeout: 20_000 });
     const products   = await extractProducts(page, 'Homepage');
     const categories = await discoverCategories(page);
     return { products, categories };
