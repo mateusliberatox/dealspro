@@ -36,9 +36,16 @@ export async function startMonitor() {
   });
 }
 
+const CYCLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo travado por Supabase/rede
+
 async function runCycle() {
   try {
-    const newProducts = await detectAndSaveNewProducts();
+    const newProducts = await Promise.race([
+      detectAndSaveNewProducts(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Cycle timeout (10min)')), CYCLE_TIMEOUT_MS),
+      ),
+    ]);
     if (newProducts.length) {
       logger.success(`Cycle complete — ${newProducts.length} new product(s) found`, {
         names: newProducts.map((p) => p.nome),

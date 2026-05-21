@@ -163,16 +163,16 @@ async function scrapeCategoryPage(categoryId, categoryName, pageNum) {
 }
 
 /**
- * Scrapes up to MAX_PAGES pages of a category, stopping early if a page is empty.
+ * Scrapes up to MAX_PAGES pages of a category in parallel.
+ * Parallel pages reduzem o tempo por categoria de (p1+p2) para max(p1,p2).
  */
 async function scrapeCategory(categoryId, categoryName) {
-  const all = [];
-  for (let p = 1; p <= MAX_PAGES; p++) {
-    const products = await scrapeCategoryPage(categoryId, categoryName, p);
-    all.push(...products);
-    if (products.length === 0) break; // no more pages
-  }
-  return all;
+  const results = await Promise.allSettled(
+    Array.from({ length: MAX_PAGES }, (_, i) =>
+      scrapeCategoryPage(categoryId, categoryName, i + 1),
+    ),
+  );
+  return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 }
 
 /**
@@ -229,8 +229,7 @@ export async function scrapeCssDeals() {
 export async function fetchQcImage(detailUrl) {
   const page = await newPage();
   try {
-    await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    await page.waitForTimeout(1500);
+    await page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 });
 
     const src = await page.evaluate(() => {
       const img =
