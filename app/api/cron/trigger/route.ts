@@ -79,9 +79,11 @@ export async function POST(request: NextRequest) {
 
     if (lastProd) {
       const gapMin = (Date.now() - new Date(lastProd.criado_em).getTime()) / 60_000;
-      const alert  = [30, 60, 120].some((t) => gapMin >= t && gapMin < t + 2);
-      if (alert && process.env.DISCORD_WEBHOOK_URL) {
-        await fetch(process.env.DISCORD_WEBHOOK_URL, {
+      const shouldAlert = [30, 60, 120].some((t) => gapMin >= t && gapMin < t + 2);
+      // Usa DISCORD_ADMIN_WEBHOOK_URL (canal privado do admin) — nunca o canal público
+      const adminWebhook = process.env.DISCORD_ADMIN_WEBHOOK_URL;
+      if (shouldAlert && adminWebhook) {
+        await fetch(adminWebhook, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
