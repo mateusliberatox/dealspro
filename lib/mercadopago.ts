@@ -65,31 +65,28 @@ export async function grantPremiumFromMPPayment(paymentId: string): Promise<Gran
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  // Idempotência rígida: tenta inserir o pagamento. Se já existe e já foi granted, sai.
+  // Idempotência rígida: INSERT puro — falha com 23505 se já processado.
+  // upsert ignoreDuplicates retorna null nos dois casos (insert e conflito),
+  // impossibilitando distinguir. INSERT lança erro distinto em cada caso.
   const grantedAt = new Date().toISOString();
-  const { data: inserted, error: insertErr } = await db
+  const { error: insertErr } = await db
     .from('pix_payments')
-    .upsert(
-      {
-        payment_id: String(paymentId),
-        user_id:    userId,
-        amount:     payment.transaction_amount,
-        status:     'approved',
-        granted_at: grantedAt,
-        raw:        payment,
-      },
-      { onConflict: 'payment_id', ignoreDuplicates: true },
-    )
-    .select('payment_id');
+    .insert({
+      payment_id: String(paymentId),
+      user_id:    userId,
+      amount:     payment.transaction_amount,
+      status:     'approved',
+      granted_at: grantedAt,
+      raw:        payment,
+    });
 
   if (insertErr) {
-    log.error('mp_upsert_pix_failed', { paymentId, error: insertErr.message });
+    if (insertErr.code === '23505') {
+      // Violação de unique constraint: já foi processado por outro webhook simultâneo
+      return { ok: true, userId, reason: 'already-granted' };
+    }
+    log.error('mp_insert_pix_failed', { paymentId, error: insertErr.message });
     return { ok: false, reason: 'db-error' };
-  }
-
-  // Já existia (outro caminho processou) → não promove de novo
-  if (!inserted || inserted.length === 0) {
-    return { ok: true, userId, reason: 'already-granted' };
   }
 
   const { data: existing } = await db

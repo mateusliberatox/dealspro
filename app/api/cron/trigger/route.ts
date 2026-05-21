@@ -66,6 +66,31 @@ export async function POST(request: NextRequest) {
     if (roleSync.done + roleSync.failed + roleSync.retried > 0) {
       log.info('cron_discord_role_sync', roleSync);
     }
+
+    // Health check: alerta no Discord se scraper parou de detectar produtos
+    // Usa janelas fixas (30-32, 60-62, 120-122 min) para alertar uma vez por período
+    // sem precisar de estado externo.
+    const { data: lastProd } = await db
+      .from('produtos_dealspro')
+      .select('criado_em')
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (lastProd) {
+      const gapMin = (Date.now() - new Date(lastProd.criado_em).getTime()) / 60_000;
+      const alert  = [30, 60, 120].some((t) => gapMin >= t && gapMin < t + 2);
+      if (alert && process.env.DISCORD_WEBHOOK_URL) {
+        await fetch(process.env.DISCORD_WEBHOOK_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            content: `⚠️ **DealsPro — Scraper parado há ${Math.round(gapMin)} minutos!** Verificar GitHub Actions.`,
+          }),
+        }).catch(() => {});
+        log.warn('scraper_health_alert', { gapMin: Math.round(gapMin) });
+      }
+    }
   } catch (e) {
     log.warn('cron_expire_error', { error: e instanceof Error ? e.message : String(e) });
   }

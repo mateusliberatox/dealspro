@@ -2,6 +2,8 @@ import { supabase } from '../database/supabase.js';
 import { sendDiscordDM } from './discord.js';
 import { logger } from '../utils/logger.js';
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegram(chatId, text, imageUrl = null) {
@@ -153,6 +155,7 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
       });
       logger.error(`Discord DM falhou: ${err.message}`);
     }
+    await sleep(500); // evita 429 ao enviar DMs em sequência rápida
   }
 
   // Telegram DM

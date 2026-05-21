@@ -38,7 +38,14 @@ export async function startMonitor() {
 
 const CYCLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo travado por Supabase/rede
 
+let cycleInProgress = false;
+
 async function runCycle() {
+  if (cycleInProgress) {
+    logger.warn('Ciclo anterior ainda em andamento — pulando');
+    return;
+  }
+  cycleInProgress = true;
   try {
     const newProducts = await Promise.race([
       detectAndSaveNewProducts(),
@@ -55,5 +62,7 @@ async function runCycle() {
     }
   } catch (err) {
     logger.error(`Cycle failed: ${err.message}`);
+  } finally {
+    cycleInProgress = false;
   }
 }

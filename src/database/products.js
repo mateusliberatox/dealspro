@@ -9,13 +9,25 @@ const OLD_DAYS_AVAILABLE = 30; // produtos disponíveis: deletar após 30 dias (
  * Used to detect new items and merge sizes on existing ones.
  */
 export async function getExistingHashMap() {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('id, hash, sizes')
-    .limit(5000);
+  const map      = new Map();
+  const PAGE     = 1000;
+  let   from     = 0;
 
-  if (error) throw new Error(`Failed to fetch hashes: ${error.message}`);
-  return new Map(data.map((r) => [r.hash, { id: r.id, sizes: r.sizes ?? [] }]));
+  while (true) {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('id, hash, sizes')
+      .range(from, from + PAGE - 1);
+
+    if (error) throw new Error(`Failed to fetch hashes: ${error.message}`);
+    if (!data?.length) break;
+
+    for (const r of data) map.set(r.hash, { id: r.id, sizes: r.sizes ?? [] });
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return map;
 }
 
 /** Kept for backward-compatibility with test scripts */

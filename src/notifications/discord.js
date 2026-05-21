@@ -219,18 +219,31 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
 
   const { id: channelId } = await channelRes.json();
 
-  const msgRes = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
-    method:  'POST',
-    headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({
-      content: isRestock
-        ? '🔄 **Alerta DealsPro — produto restocado!**'
-        : '🔔 **Alerta DealsPro — produto encontrado!**',
-      embeds: [buildEmbed(product)],
-    }),
+  const payload = JSON.stringify({
+    content: isRestock
+      ? '🔄 **Alerta DealsPro — produto restocado!**'
+      : '🔔 **Alerta DealsPro — produto encontrado!**',
+    embeds: [buildEmbed(product)],
   });
 
-  if (!msgRes.ok) {
+  // Retry uma vez em caso de rate limit (429) — retry_after vem na resposta
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const msgRes = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+      method:  'POST',
+      headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+      body:    payload,
+      signal:  AbortSignal.timeout(10_000),
+    });
+
+    if (msgRes.ok) return;
+
+    if (msgRes.status === 429 && attempt < 2) {
+      const body  = await msgRes.json().catch(() => ({}));
+      const waitMs = Math.ceil((body.retry_after ?? 1) * 1000) + 100;
+      await sleep(waitMs);
+      continue;
+    }
+
     const err = await msgRes.text();
     throw new Error(`DM send failed (${msgRes.status}): ${err}`);
   }
@@ -259,9 +272,7 @@ function buildEmbed(p) {
 
   if (original) embed.description = `*Nome original: ${truncate(original, 150)}*`;
 
-  const imagemValida = p.imagem &&
-    /^https?:\/\/.+/.test(p.imagem) &&
-    !/placeholder|800.?x.?900|via\.placeholder|picsum/i.test(p.imagem);
+  const imagemValida = isValidImageUrl(p.imagem);
   if (imagemValida) embed.image = { url: p.imagem };
 
   if (p.sizes?.length) {
@@ -286,3 +297,12 @@ async function postWebhook(url, body) {
 
 const truncate = (str, max) => str.length > max ? str.slice(0, max - 1) + '…' : str;
 const sleep    = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isValidImageUrl(url) {
+  if (!url) return false;
+  try {
+    const { protocol } = new URL(url);
+    return (protocol === 'http:' || protocol === 'https:') &&
+      !/placeholder|800.?x.?900|via\.placeholder|picsum/i.test(url);
+  } catch { return false; }
+}
