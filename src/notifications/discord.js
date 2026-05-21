@@ -117,7 +117,7 @@ export async function sendToDiscord(products) {
       logger.warn(`Premium webhook failed for ${product.id}: ${err.message}`);
     }
 
-    if (products.length > 1) await sleep(1000);
+    if (products.length > 1) await sleep(500);
   }
 
   if (sent > 0) logger.success(`Discord webhook premium: ${sent}/${products.length} produto(s)`);
@@ -170,7 +170,7 @@ export async function sendFreeDelayedNotifications() {
       sent++;
     }
 
-    await sleep(1000);
+    await sleep(500);
   }
 
   if (sent > 0) logger.success(`Discord free: ${sent} notificação(ões) enviada(s)`);

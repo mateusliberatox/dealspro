@@ -11,10 +11,10 @@ import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notificati
 import { supabase } from '../database/supabase.js';
 
 const MAX_QC_FETCHES        = 100;
-const QC_BATCH_SIZE         = 5;   // was 3 — fewer sequential batches
+const QC_BATCH_SIZE         = 12;
 const FREE_DELAY_MS         = 30 * 60 * 1000;
 const MIN_SCRAPE_QUALITY    = 200;
-const TRANSLATE_CONCURRENCY = 8;   // parallel translation requests per batch
+const TRANSLATE_CONCURRENCY = 16;
 
 /**
  * Fetches QC photos and silently updates the DB after notifications are already sent.

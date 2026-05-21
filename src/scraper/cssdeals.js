@@ -175,18 +175,38 @@ async function scrapeCategory(categoryId, categoryName) {
   return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 }
 
+// Cache de categorias em memória — beneficia o Railway (processo persistente).
+// No GitHub Actions cada run é um processo novo, então o cache nunca aquece.
+let _categoryCache = { data: null, ts: 0 };
+const CATEGORY_CACHE_TTL = 20 * 60 * 1000; // 20 min
+
 /**
  * Main scraper: homepage + all category pages (discovered dynamically) in batches.
  * Returns deduplicated list by link.
+ *
+ * No Railway (processo persistente), pula a homepage depois do primeiro ciclo e usa
+ * categorias em cache — economiza ~15s por ciclo durante os 20min de TTL.
  */
 export async function scrapeCssDeals() {
   logger.info('Starting multi-page scrape...');
 
-  // Homepage loads first — products + category discovery happen in the same page load
-  const { products: homepageProducts, categories: discovered } = await scrapeHomepage();
-  const categories = discovered.slice(0, MAX_CATEGORIES);
-  if (discovered.length > MAX_CATEGORIES) {
-    logger.info(`Discovered ${discovered.length} categories — limiting to ${MAX_CATEGORIES}`);
+  const now      = Date.now();
+  const cacheHit = _categoryCache.data && (now - _categoryCache.ts) < CATEGORY_CACHE_TTL;
+
+  let homepageProducts = [];
+  let categories;
+
+  if (cacheHit) {
+    categories = _categoryCache.data;
+    logger.info(`Categories from cache (${categories.length}) — homepage skipped`);
+  } else {
+    const result = await scrapeHomepage();
+    homepageProducts = result.products;
+    categories       = result.categories.slice(0, MAX_CATEGORIES);
+    _categoryCache   = { data: categories, ts: now };
+    if (result.categories.length > MAX_CATEGORIES) {
+      logger.info(`Discovered ${result.categories.length} categories — limiting to ${MAX_CATEGORIES}`);
+    }
   }
 
   const categoryResults = [];
@@ -199,7 +219,7 @@ export async function scrapeCssDeals() {
   }
 
   // Merge and deduplicate by link
-  const seen = new Set();
+  const seen   = new Set();
   const merged = [];
 
   for (const product of homepageProducts) {
@@ -219,7 +239,7 @@ export async function scrapeCssDeals() {
     }
   }
 
-  logger.success(`Total unique products scraped: ${merged.length} (homepage + ${categories.length} categories × até ${MAX_PAGES} páginas)`);
+  logger.success(`Total unique products scraped: ${merged.length} (${cacheHit ? 'cache' : 'homepage'} + ${categories.length} categories × até ${MAX_PAGES} páginas)`);
   return merged;
 }
 
