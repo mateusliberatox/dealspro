@@ -23,7 +23,7 @@ jobs:
       TELEGRAM_BOT_TOKEN:        ${{ secrets.TELEGRAM_BOT_TOKEN }}
       HEADLESS:                  'true'
       SCRAPE_MAX_CATEGORIES:     '26'
-      SCRAPE_PAGES:              '1'
+      SCRAPE_PAGES:              '2'
 
     steps:
       - uses: actions/checkout@v4
