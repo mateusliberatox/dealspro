@@ -78,8 +78,14 @@ export async function detectAndSaveNewProducts() {
   }));
 
   // 3. Diff against DB + sync availability (marca esgotados / restaura restocados)
-  const existingMap = await getExistingHashMap();
-  logger.info(`DB has ${existingMap.size} existing hashes`);
+  let existingMap;
+  try {
+    existingMap = await getExistingHashMap();
+    logger.info(`DB has ${existingMap.size} existing hashes`);
+  } catch (e) {
+    logger.error(`getExistingHashMap failed — abortando ciclo: ${e.message}`);
+    return [];
+  }
 
   // Links com imagem placeholder 800×900 = esgotado confirmado pelo CSSDeals
   const soldOutLinks = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
@@ -93,7 +99,10 @@ export async function detectAndSaveNewProducts() {
     logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping availability sync to avoid false sold-out marks`);
   }
   const { markedUnavailable, restored, restoredIds } = scrapeOk
-    ? await syncAvailability(scrapedLinks, soldOutLinks)
+    ? await syncAvailability(scrapedLinks, soldOutLinks).catch((e) => {
+        logger.warn(`syncAvailability falhou (não-fatal): ${e.message}`);
+        return { markedUnavailable: 0, restored: 0, restoredIds: [] };
+      })
     : { markedUnavailable: 0, restored: 0, restoredIds: [] };
   if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
   if (restored > 0) {
@@ -156,13 +165,19 @@ export async function detectAndSaveNewProducts() {
     free_notified:    false,
   }));
 
-  const inserted = await insertProducts(rows);
-  logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
+  let inserted;
+  try {
+    inserted = await insertProducts(rows);
+    logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
+  } catch (e) {
+    logger.error(`insertProducts failed — abortando notificações: ${e.message}`);
+    return [];
+  }
 
   // 7. Premium webhook fires immediately — QC images update silently in background
-  await dispatchNotifications(inserted);
-  await matchAndNotify(inserted);
-  await notifyTelegramPremiumFeed(inserted);
+  await dispatchNotifications(inserted).catch((e) => logger.warn(`dispatchNotifications falhou: ${e.message}`));
+  await matchAndNotify(inserted).catch((e) => logger.warn(`matchAndNotify falhou: ${e.message}`));
+  await notifyTelegramPremiumFeed(inserted).catch((e) => logger.warn(`telegramPremiumFeed falhou: ${e.message}`));
   await announceNewBatch(inserted.length, inserted.map((p) => p.categoria));
 
   // 8. Fetch QC images after notifications are already sent — non-blocking
