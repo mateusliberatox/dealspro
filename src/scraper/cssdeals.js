@@ -212,13 +212,19 @@ export async function scrapeCssDeals() {
     }
   }
 
+  // Embaralha a ordem a cada ciclo: evita que o Cloudflare aprenda quais
+  // categorias chegam juntas e bloqueie sempre os mesmos batches.
+  const shuffled = [...categories].sort(() => Math.random() - 0.5);
+
   const categoryResults = [];
-  for (let i = 0; i < categories.length; i += BATCH_SIZE) {
-    const batch = categories.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < shuffled.length; i += BATCH_SIZE) {
+    const batch = shuffled.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.allSettled(
       batch.map((c) => scrapeCategory(c.id, c.name)),
     );
     categoryResults.push(...batchResults);
+    // Pausa entre batches para o rate limiter do Cloudflare resetar
+    if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, 1500));
   }
 
   // Merge and deduplicate by link
