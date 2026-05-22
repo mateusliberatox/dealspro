@@ -17,7 +17,7 @@ const FALLBACK_CATEGORIES = [
   { name: 'Watches',     id: 20 },
 ];
 
-const BATCH_SIZE      = 7;  // max concurrent Playwright contexts
+const BATCH_SIZE      = 5;  // max concurrent Playwright contexts
 const MAX_PAGES       = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
 const MAX_CATEGORIES  = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
 
@@ -147,8 +147,8 @@ async function scrapeCategoryPage(categoryId, categoryName, pageNum) {
   const label = pageNum > 1 ? `${categoryName} p${pageNum}` : categoryName;
   const page  = await newPage();
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForSelector('a[href*="itemid="]', { timeout: pageNum > 1 ? 15_000 : 30_000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForSelector('a[href*="itemid="]', { timeout: pageNum > 1 ? 10_000 : 20_000 });
     return await extractProducts(page, label);
   } catch (err) {
     if (pageNum > 1) {
