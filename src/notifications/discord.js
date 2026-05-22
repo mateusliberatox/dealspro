@@ -299,7 +299,7 @@ const truncate = (str, max) => str.length > max ? str.slice(0, max - 1) + '…' 
 const sleep    = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function isValidImageUrl(url) {
-  if (!url) return false;
+  if (!url || url.includes(' ')) return false;
   try {
     const { protocol } = new URL(url);
     return (protocol === 'http:' || protocol === 'https:') &&

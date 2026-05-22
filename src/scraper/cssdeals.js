@@ -50,7 +50,7 @@ async function extractProducts(page, sourceLabel) {
         : `${baseUrl}/${rawHref.replace(/^\//, '')}`;
 
       const imgEl = card.querySelector('.mn-product-img img.main-img, .mn-product-img img');
-      const imagem = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '';
+      const imagem = (imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '').replace(/\s+/g, '');
 
       // Produtos com imagem placeholder 800×900 estão esgotados no CSSDeals
       const isSoldOut = /800.?x.?900|placeholder/i.test(imagem);
