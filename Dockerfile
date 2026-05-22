@@ -1,5 +1,5 @@
 # Playwright pré-instalado com Chromium e todas as dependências do sistema
-FROM mcr.microsoft.com/playwright:v1.52.0-noble
+FROM mcr.microsoft.com/playwright:v1.59.1-noble
 
 WORKDIR /app
 
