@@ -1,1 +1,1 @@
-export { scrapeCssDeals, scrapeSelectors, fetchQcImage } from './cssdeals.js';
+export { scrapeCssDeals, fetchQcImage } from './cssdeals.js';
