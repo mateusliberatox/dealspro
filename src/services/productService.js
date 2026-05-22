@@ -37,10 +37,10 @@ async function enrichWithQcImages(products) {
   if (!updates.length) return;
 
   // Single upsert for all QC updates — same IO footprint as the original insert
-  await supabase
+  const { error: qcErr } = await supabase
     .from('produtos_dealspro')
-    .upsert(updates, { onConflict: 'id' })
-    .catch((e) => logger.warn(`QC bulk update failed: ${e.message}`));
+    .upsert(updates, { onConflict: 'id' });
+  if (qcErr) logger.warn(`QC bulk update failed: ${qcErr.message}`);
 
   logger.info(`QC: updated ${updates.length} image(s) in one batch`);
 }

@@ -123,10 +123,8 @@ async function dispatchFeed(users, products, channel) {
   }
 
   if (logsToInsert.length) {
-    await supabase
-      .from('notification_logs')
-      .insert(logsToInsert)
-      .catch((e) => logger.error(`logSent batch [${channel}] falhou: ${e.message}`));
+    const { error: logErr } = await supabase.from('notification_logs').insert(logsToInsert);
+    if (logErr) logger.error(`logSent batch [${channel}] falhou: ${logErr.message}`);
   }
 
   return sent;
