@@ -1,9 +1,7 @@
 name: Scraper
 
 on:
-  schedule:
-    - cron: '*/2 * * * *'   # fallback — primary trigger is cron-job.org
-  workflow_dispatch:
+  workflow_dispatch:  # manual fallback — scraping agora é feito pelo Railway
 
 concurrency:
   group: scraper
