@@ -196,14 +196,17 @@ export async function scrapeCssDeals() {
   let homepageProducts = [];
   let categories;
 
+  // Homepage sempre scrapeada para não perder os 20 produtos do carrossel.
+  // Só a lista de categorias é cacheada (evita re-descoberta a cada ciclo).
+  const result = await scrapeHomepage();
+  homepageProducts = result.products;
+
   if (cacheHit) {
     categories = _categoryCache.data;
-    logger.info(`Categories from cache (${categories.length}) — homepage skipped`);
+    logger.info(`Categories from cache (${categories.length})`);
   } else {
-    const result = await scrapeHomepage();
-    homepageProducts = result.products;
-    categories       = result.categories.slice(0, MAX_CATEGORIES);
-    _categoryCache   = { data: categories, ts: now };
+    categories     = result.categories.slice(0, MAX_CATEGORIES);
+    _categoryCache = { data: categories, ts: now };
     if (result.categories.length > MAX_CATEGORIES) {
       logger.info(`Discovered ${result.categories.length} categories — limiting to ${MAX_CATEGORIES}`);
     }
