@@ -11,11 +11,13 @@ export async function startMonitor() {
   await runCycle();
   setInterval(runCycle, INTERVAL * 1000);
 
-  process.on('SIGINT', async () => {
+  const shutdown = async () => {
     logger.info('Shutting down...');
     await closeBrowser();
     process.exit(0);
-  });
+  };
+  process.on('SIGINT',  shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 const CYCLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo travado por Supabase/rede

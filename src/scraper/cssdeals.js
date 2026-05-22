@@ -282,22 +282,3 @@ export async function fetchQcImage(detailUrl) {
   }
 }
 
-export async function scrapeSelectors() {
-  const page = await newPage();
-  try {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForTimeout(3000);
-    const info = await page.evaluate(() => {
-      const allClasses = new Set();
-      document.querySelectorAll('*').forEach((el) => el.classList.forEach((c) => allClasses.add(c)));
-      const bodies = [...document.querySelectorAll('.mn-product-card')]
-        .slice(0, 3).map((el) => el.outerHTML.slice(0, 1200));
-      return { classes: [...allClasses], bodies };
-    });
-    console.log('\n=== CLASS LIST ===');
-    console.log(info.classes.filter((c) => /product|deal|card|item|price|title|sku|size/i.test(c)).join('\n'));
-    info.bodies.forEach((b, i) => console.log(`\n--- Element ${i + 1} ---\n${b}`));
-  } finally {
-    await page.context().close();
-  }
-}

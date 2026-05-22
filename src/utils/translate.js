@@ -3,7 +3,9 @@ const MYMEMORY_URL = 'https://api.mymemory.translated.net/get';
 
 // Cache em memória: evita retraduzir o mesmo nome em ciclos consecutivos
 // e protege a quota do MyMemory (~1000 palavras/dia por IP).
+// Limite de 2000 entradas — evita memory leak em processos Railway de longa duração.
 const translationCache = new Map();
+const CACHE_MAX = 2000;
 
 /**
  * Translates a product name to Portuguese if it contains Chinese characters.
@@ -14,6 +16,7 @@ export async function translateName(nome) {
   if (!HAS_CHINESE.test(nome)) return nome;
 
   if (translationCache.has(nome)) return translationCache.get(nome);
+  if (translationCache.size >= CACHE_MAX) translationCache.clear();
 
   try {
     const url = `${MYMEMORY_URL}?q=${encodeURIComponent(nome)}&langpair=zh-CN|pt-BR`;

@@ -122,7 +122,7 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
     const seenByItem = itemId      && notifiedSet.has(`${alert.user_id}:${itemId}`);
     const seenByPid  = !itemId     && product.id && notifiedSet.has(`${alert.user_id}:pid${product.id}`);
     if (seenByItem || seenByPid) {
-      logger.info(`DM já enviado para ${alert.user_id} sobre produto ${itemId ?? product.id} — ignorado`);
+      logger.info(`DM dedup: ${alert.user_id} × ${itemId ?? product.id}`);
       return;
     }
     // Marca como visto agora para evitar duplicata no mesmo ciclo
@@ -193,6 +193,7 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
       });
       logger.error(`Telegram DM falhou: ${err.message}`);
     }
+    await sleep(500);
   }
 
   if (!discordId && !telegramId) {

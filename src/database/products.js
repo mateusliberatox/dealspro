@@ -2,7 +2,8 @@ import { supabase } from './supabase.js';
 
 const TABLE = 'produtos_dealspro';
 const OLD_DAYS           = 5;  // produtos indisponíveis: deletar após 5 dias
-const OLD_DAYS_AVAILABLE = 30; // produtos disponíveis: deletar após 30 dias (nunca re-notifica pois já tem log)
+const OLD_DAYS_AVAILABLE = 30; // produtos disponíveis: deletar após 30 dias
+const NOTIF_LOG_DAYS     = 60; // logs de canal (premium/free): deletar após 60 dias
 
 /**
  * Returns a Map<hash, { id, sizes }> for all stored products.
@@ -115,6 +116,17 @@ export async function deleteOldProducts() {
     .eq('disponivel', true)
     .select('id');
   if (e2) throw new Error(`Failed to delete old available products: ${e2.message}`);
+
+  // Logs de canal (discord_premium, discord_free, telegram_feed): deletar após 60 dias.
+  // Logs de DM (discord_dm, telegram_dm) são mantidos — servem como histórico de alertas.
+  const cutoffLogs = new Date();
+  cutoffLogs.setDate(cutoffLogs.getDate() - NOTIF_LOG_DAYS);
+  const { error: e3 } = await supabase
+    .from('notification_logs')
+    .delete()
+    .lt('created_at', cutoffLogs.toISOString())
+    .in('channel', ['discord_premium', 'discord_free', 'telegram_feed']);
+  if (e3) throw new Error(`Failed to delete old notification logs: ${e3.message}`);
 
   return (d1?.length ?? 0) + (d2?.length ?? 0);
 }
