@@ -20,8 +20,11 @@ export async function getBrowser() {
     headless: process.env.HEADLESS !== 'false',
     args: [
       '--no-sandbox',
-      '--disable-dev-shm-usage',            // evita crash em Docker com /dev/shm limitado
+      '--disable-dev-shm-usage',
       '--disable-blink-features=AutomationControlled',
+      '--no-zygote',           // Railway bloqueia as syscalls de namespace que o zygote usa (SIGTRAP)
+      '--disable-gpu',
+      '--disable-software-rasterizer',
     ],
   });
   browserLaunchedAt = now;
