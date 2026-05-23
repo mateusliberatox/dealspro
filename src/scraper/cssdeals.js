@@ -21,6 +21,15 @@ const BATCH_SIZE      = 5;  // max concurrent Playwright contexts
 const MAX_PAGES       = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
 const MAX_CATEGORIES  = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
 
+// Categorias que frequentemente fazem timeout — rodadas só 1×/hora para não atrasar o ciclo normal
+const SLOW_CATEGORY_NAMES = new Set([
+  'Cell phone', 'Audio & Video', 'sports goods',
+  'Belt&Glasses', 'Computer accessories', 'perfume', 'suitcase',
+]);
+
+let _slowCategoryLastRun    = 0;
+const SLOW_CATEGORY_INTERVAL = 60 * 60 * 1000; // 1 hora
+
 /**
  * Extracts product cards from whatever cssdeals listing page is already loaded.
  * Works for both the homepage carousel and category pages.
@@ -212,9 +221,21 @@ export async function scrapeCssDeals() {
     }
   }
 
+  // Separa categorias lentas (timeout frequente) — só incluídas 1×/hora
+  const runSlowNow = (now - _slowCategoryLastRun) >= SLOW_CATEGORY_INTERVAL;
+  const fastCats   = categories.filter((c) => !SLOW_CATEGORY_NAMES.has(c.name));
+  const slowCats   = runSlowNow ? categories.filter((c) => SLOW_CATEGORY_NAMES.has(c.name)) : [];
+  if (runSlowNow && slowCats.length) {
+    _slowCategoryLastRun = now;
+    logger.info(`Slow categories incluídas neste ciclo (${slowCats.length}): ${slowCats.map((c) => c.name).join(', ')}`);
+  } else if (!runSlowNow) {
+    logger.info(`Slow categories puladas — próxima em ${Math.ceil((SLOW_CATEGORY_INTERVAL - (now - _slowCategoryLastRun)) / 60_000)}min`);
+  }
+  const toScrape = [...fastCats, ...slowCats];
+
   // Embaralha a ordem a cada ciclo: evita que o Cloudflare aprenda quais
   // categorias chegam juntas e bloqueie sempre os mesmos batches.
-  const shuffled = [...categories].sort(() => Math.random() - 0.5);
+  const shuffled = [...toScrape].sort(() => Math.random() - 0.5);
 
   const categoryResults = [];
   for (let i = 0; i < shuffled.length; i += BATCH_SIZE) {
@@ -248,7 +269,7 @@ export async function scrapeCssDeals() {
     }
   }
 
-  logger.success(`Total unique products scraped: ${merged.length} (${cacheHit ? 'cache' : 'homepage'} + ${categories.length} categories × até ${MAX_PAGES} páginas)`);
+  logger.success(`Total unique products scraped: ${merged.length} (homepage + ${toScrape.length} categories × até ${MAX_PAGES} páginas — ${slowCats.length} slow)`);
   return merged;
 }
 
