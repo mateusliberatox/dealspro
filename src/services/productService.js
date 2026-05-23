@@ -36,13 +36,15 @@ async function enrichWithQcImages(products) {
 
   if (!updates.length) return;
 
-  // Single upsert for all QC updates — same IO footprint as the original insert
-  const { error: qcErr } = await supabase
-    .from('produtos_dealspro')
-    .upsert(updates, { onConflict: 'id' });
-  if (qcErr) logger.warn(`QC bulk update failed: ${qcErr.message}`);
-
-  logger.info(`QC: updated ${updates.length} image(s) in one batch`);
+  // Produtos já existem — apenas atualiza o campo imagem
+  const results = await Promise.allSettled(
+    updates.map(({ id, imagem }) =>
+      supabase.from('produtos_dealspro').update({ imagem }).eq('id', id),
+    ),
+  );
+  const failed = results.filter((r) => r.status === 'rejected' || r.value?.error).length;
+  if (failed) logger.warn(`QC bulk update: ${failed}/${updates.length} falharam`);
+  else logger.info(`QC: updated ${updates.length} image(s)`);
 }
 
 export async function detectAndSaveNewProducts() {
