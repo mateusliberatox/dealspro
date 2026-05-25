@@ -25,24 +25,41 @@ export async function startMonitor() {
 
 const CYCLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo travado por Supabase/rede
 
-let cycleInProgress  = false;
-let lastFullCycleAt  = 0;
-let cyclesCompleted  = 0;
-let lastCycleAt      = null;
-let lastCycleType    = null;
-let lastCycleStatus  = null; // 'ok' | 'error'
+let cycleInProgress       = false;
+let lastFullCycleAt       = 0;
+let cyclesCompleted       = 0;
+let lastCycleAt           = null;
+let lastCycleType         = null;
+let lastCycleStatus       = null; // 'ok' | 'error'
+let consecutiveFullErrors = 0;
+const ALERT_AFTER_ERRORS  = 3; // notifica após 3 ciclos completos consecutivos com erro
 
 export function getHealthStatus() {
   return {
-    status:         lastCycleStatus === 'error' ? 'degraded' : 'ok',
-    uptime:         Math.floor(process.uptime()),
+    status:               lastCycleStatus === 'error' ? 'degraded' : 'ok',
+    uptime:               Math.floor(process.uptime()),
     cyclesCompleted,
     lastCycleAt,
     lastCycleType,
     lastCycleStatus,
-    fastInterval:   FAST_INTERVAL,
-    fullInterval:   FULL_INTERVAL,
+    consecutiveFullErrors,
+    fastInterval:         FAST_INTERVAL,
+    fullInterval:         FULL_INTERVAL,
   };
+}
+
+async function sendDegradationAlert(message) {
+  const url = process.env.DISCORD_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ content: `🚨 **DealsPro Monitor** — ${message}` }),
+    });
+  } catch {
+    // Best-effort — não bloqueia o ciclo se o alerta falhar
+  }
 }
 
 async function runCycle() {
@@ -64,6 +81,7 @@ async function runCycle() {
       ),
     ]);
     lastCycleStatus = 'ok';
+    if (!homepageOnly) consecutiveFullErrors = 0;
     if (newProducts.length) {
       logger.success(`Cycle complete (${homepageOnly ? 'fast' : 'full'}) — ${newProducts.length} new product(s) found`, {
         names: newProducts.map((p) => p.nome),
@@ -74,6 +92,13 @@ async function runCycle() {
   } catch (err) {
     lastCycleStatus = 'error';
     logger.error(`Cycle failed: ${err.message}`);
+    if (!homepageOnly) {
+      consecutiveFullErrors++;
+      if (consecutiveFullErrors >= ALERT_AFTER_ERRORS) {
+        sendDegradationAlert(`${consecutiveFullErrors} ciclos completos consecutivos falharam. Último erro: ${err.message}`);
+        consecutiveFullErrors = 0; // reset para não spammar
+      }
+    }
   } finally {
     cyclesCompleted++;
     lastCycleAt   = new Date().toISOString();

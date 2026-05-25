@@ -245,15 +245,41 @@ export async function scrapeCssDeals({ homepageOnly = false } = {}) {
   // categorias chegam juntas e bloqueie sempre os mesmos batches.
   const shuffled = [...toScrape].sort(() => Math.random() - 0.5);
 
-  const categoryResults = [];
+  const allCategoryProducts = [];
+  const failedCats          = [];
+
   for (let i = 0; i < shuffled.length; i += BATCH_SIZE) {
     const batch = shuffled.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.allSettled(
       batch.map((c) => scrapeCategory(c.id, c.name)),
     );
-    categoryResults.push(...batchResults);
+    for (let j = 0; j < batch.length; j++) {
+      const products = batchResults[j].status === 'fulfilled' ? batchResults[j].value : [];
+      allCategoryProducts.push(...products);
+      if (products.length === 0) failedCats.push(batch[j]);
+    }
     // Pausa entre batches para o rate limiter do Cloudflare resetar
     if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, 2000));
+  }
+
+  // Segunda passagem: tenta recuperar categorias que retornaram 0 produtos (p1 timeout)
+  if (failedCats.length > 0) {
+    logger.info(`Retry: ${failedCats.length} categoria(s) com timeout — aguardando 5s...`);
+    await new Promise((r) => setTimeout(r, 5000));
+    for (let i = 0; i < failedCats.length; i += BATCH_SIZE) {
+      const batch = failedCats.slice(i, i + BATCH_SIZE);
+      const retryResults = await Promise.allSettled(
+        batch.map((c) => scrapeCategory(c.id, c.name)),
+      );
+      let recovered = 0;
+      for (const r of retryResults) {
+        const products = r.status === 'fulfilled' ? r.value : [];
+        allCategoryProducts.push(...products);
+        if (products.length > 0) recovered++;
+      }
+      if (recovered > 0) logger.info(`Retry: ${recovered}/${batch.length} categoria(s) recuperada(s)`);
+      if (i + BATCH_SIZE < failedCats.length) await new Promise((r) => setTimeout(r, 2000));
+    }
   }
 
   // Merge and deduplicate by link
@@ -267,13 +293,10 @@ export async function scrapeCssDeals({ homepageOnly = false } = {}) {
     }
   }
 
-  for (const result of categoryResults) {
-    if (result.status !== 'fulfilled') continue;
-    for (const product of result.value) {
-      if (!seen.has(product.link)) {
-        seen.add(product.link);
-        merged.push(product);
-      }
+  for (const product of allCategoryProducts) {
+    if (!seen.has(product.link)) {
+      seen.add(product.link);
+      merged.push(product);
     }
   }
 

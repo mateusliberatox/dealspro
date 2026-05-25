@@ -34,7 +34,10 @@ async function enrichWithQcImages(products) {
     });
   }
 
-  if (!updates.length) return;
+  if (!updates.length) {
+    logger.warn(`QC: nenhuma imagem obtida para ${toFetch.length} produto(s) — possível bloqueio`);
+    return;
+  }
 
   // Produtos já existem — apenas atualiza o campo imagem
   const results = await Promise.allSettled(
