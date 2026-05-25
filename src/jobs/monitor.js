@@ -25,8 +25,25 @@ export async function startMonitor() {
 
 const CYCLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo travado por Supabase/rede
 
-let cycleInProgress = false;
-let lastFullCycleAt = 0;
+let cycleInProgress  = false;
+let lastFullCycleAt  = 0;
+let cyclesCompleted  = 0;
+let lastCycleAt      = null;
+let lastCycleType    = null;
+let lastCycleStatus  = null; // 'ok' | 'error'
+
+export function getHealthStatus() {
+  return {
+    status:         lastCycleStatus === 'error' ? 'degraded' : 'ok',
+    uptime:         Math.floor(process.uptime()),
+    cyclesCompleted,
+    lastCycleAt,
+    lastCycleType,
+    lastCycleStatus,
+    fastInterval:   FAST_INTERVAL,
+    fullInterval:   FULL_INTERVAL,
+  };
+}
 
 async function runCycle() {
   if (cycleInProgress) {
@@ -46,6 +63,7 @@ async function runCycle() {
         setTimeout(() => reject(new Error('Cycle timeout (10min)')), CYCLE_TIMEOUT_MS),
       ),
     ]);
+    lastCycleStatus = 'ok';
     if (newProducts.length) {
       logger.success(`Cycle complete (${homepageOnly ? 'fast' : 'full'}) — ${newProducts.length} new product(s) found`, {
         names: newProducts.map((p) => p.nome),
@@ -54,8 +72,12 @@ async function runCycle() {
       logger.info(`Cycle complete (${homepageOnly ? 'fast' : 'full'}) — no new products`);
     }
   } catch (err) {
+    lastCycleStatus = 'error';
     logger.error(`Cycle failed: ${err.message}`);
   } finally {
+    cyclesCompleted++;
+    lastCycleAt   = new Date().toISOString();
+    lastCycleType = homepageOnly ? 'fast' : 'full';
     cycleInProgress = false;
   }
 }

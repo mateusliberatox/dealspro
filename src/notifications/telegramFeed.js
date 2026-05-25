@@ -10,10 +10,11 @@
 import { supabase } from '../database/supabase.js';
 import { logger } from '../utils/logger.js';
 
-const TOKEN      = process.env.TELEGRAM_BOT_TOKEN;
-const MODES      = ['all_deals', 'both'];
-const SLEEP      = (ms) => new Promise((r) => setTimeout(r, ms));
-const RATE_DELAY = 350; // delay entre PRODUTOS (não entre usuários)
+const TOKEN                  = process.env.TELEGRAM_BOT_TOKEN;
+const MODES                  = ['all_deals', 'both'];
+const SLEEP                  = (ms) => new Promise((r) => setTimeout(r, ms));
+const RATE_DELAY             = 350; // delay entre PRODUTOS (não entre usuários)
+const FREE_NOTIFY_BATCH_SIZE = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
 
 function isValidImageUrl(url) {
   if (!url || url.includes(' ')) return false;
@@ -180,7 +181,7 @@ export async function notifyTelegramFreeFeed() {
     .gte('criado_em', cutoff)
     .eq('disponivel', true)
     .order('criado_em', { ascending: true })
-    .limit(20);
+    .limit(FREE_NOTIFY_BATCH_SIZE);
 
   if (!products?.length) return;
 

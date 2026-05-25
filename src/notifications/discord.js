@@ -17,7 +17,8 @@ const CATEGORY_EMOJI = {
   'Outros':        '📦',
 };
 
-const BATCH_ANNOUNCE_THRESHOLD = 8;
+const BATCH_ANNOUNCE_THRESHOLD  = 8;
+const FREE_NOTIFY_BATCH_SIZE    = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
 
 // Cliente Supabase compartilhado (lazy init)
 let _db;
@@ -163,7 +164,7 @@ export async function sendFreeDelayedNotifications() {
     .eq('free_notified', false)
     .eq('disponivel', true)
     .order('criado_em', { ascending: true })
-    .limit(20);
+    .limit(FREE_NOTIFY_BATCH_SIZE);
 
   if (!due?.length) return;
 
