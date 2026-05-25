@@ -1,5 +1,5 @@
 import { scrapeCssDeals, fetchQcImage } from '../scraper/index.js';
-import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability } from '../database/products.js';
+import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, updateProductPrice } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
 import { categorize } from '../utils/categorize.js';
@@ -120,9 +120,38 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
   }
 
   // Exclui produtos esgotados (placeholder 800×900) de "novos" — não notificar sobre item sem estoque
-  const newItems      = withHashes.filter((p) => !existingMap.has(p.hash) && !p.isSoldOut);
+  const candidateNew  = withHashes.filter((p) => !existingMap.has(p.hash) && !p.isSoldOut);
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));
-  logger.info(`Found ${newItems.length} new, ${existingItems.length} existing`);
+
+  // Detecta mudança de preço: mesmo cssdeals_item_id já existe no DB com hash diferente.
+  // Nesses casos atualiza o preço silenciosamente — sem nova notificação (não é produto novo).
+  const existingItemIdMap = new Map();
+  for (const [, val] of existingMap) {
+    if (val.cssdeals_item_id) existingItemIdMap.set(val.cssdeals_item_id, val);
+  }
+
+  const newItems     = [];
+  const priceChanged = [];
+  for (const item of candidateNew) {
+    if (item.cssdeals_item_id && existingItemIdMap.has(item.cssdeals_item_id)) {
+      priceChanged.push({ item, existingId: existingItemIdMap.get(item.cssdeals_item_id).id });
+    } else {
+      newItems.push(item);
+    }
+  }
+
+  if (priceChanged.length) {
+    await Promise.allSettled(
+      priceChanged.map(({ item, existingId }) =>
+        updateProductPrice(existingId, item.preco).catch((e) =>
+          logger.warn(`Price update failed for id ${existingId}: ${e.message}`),
+        ),
+      ),
+    );
+    logger.info(`Updated price for ${priceChanged.length} product(s) (not new — same item_id)`);
+  }
+
+  logger.info(`Found ${newItems.length} new, ${existingItems.length} existing, ${priceChanged.length} price-changed`);
 
   // 4. Merge sizes on existing products — in parallel
   await Promise.allSettled(

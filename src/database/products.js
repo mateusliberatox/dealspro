@@ -6,24 +6,31 @@ const OLD_DAYS_AVAILABLE = 30; // produtos disponíveis: deletar após 30 dias
 const NOTIF_LOG_DAYS     = 60; // logs de canal (premium/free): deletar após 60 dias
 
 /**
- * Returns a Map<hash, { id, sizes }> for all stored products.
- * Used to detect new items and merge sizes on existing ones.
+ * Returns a Map<hash, { id, sizes, cssdeals_item_id }> for recent products.
+ * Produtos mais velhos que 35 dias são deletados pelo housekeeping — excluí-los
+ * aqui reduz o full table scan a apenas os produtos relevantes.
  */
 export async function getExistingHashMap() {
-  const map      = new Map();
-  const PAGE     = 1000;
-  let   from     = 0;
+  const map  = new Map();
+  const PAGE = 1000;
+  let   from = 0;
+
+  // Janela de 35 dias (margem sobre os 30d de OLD_DAYS_AVAILABLE)
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
 
   while (true) {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('id, hash, sizes')
+      .select('id, hash, sizes, cssdeals_item_id')
+      .gte('criado_em', cutoff)
       .range(from, from + PAGE - 1);
 
     if (error) throw new Error(`Failed to fetch hashes: ${error.message}`);
     if (!data?.length) break;
 
-    for (const r of data) map.set(r.hash, { id: r.id, sizes: r.sizes ?? [] });
+    for (const r of data) {
+      map.set(r.hash, { id: r.id, sizes: r.sizes ?? [], cssdeals_item_id: r.cssdeals_item_id ?? null });
+    }
     if (data.length < PAGE) break;
     from += PAGE;
   }
@@ -58,6 +65,15 @@ export async function insertProducts(products) {
 
   if (fetchError) throw new Error(`Failed to fetch inserted products: ${fetchError.message}`);
   return data ?? [];
+}
+
+/** Atualiza o preço de um produto existente (mudança de preço sem reinserção). */
+export async function updateProductPrice(id, preco) {
+  const { error } = await supabase
+    .from(TABLE)
+    .update({ preco })
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update price for id ${id}: ${error.message}`);
 }
 
 /**
@@ -118,7 +134,6 @@ export async function deleteOldProducts() {
   if (e2) throw new Error(`Failed to delete old available products: ${e2.message}`);
 
   // Logs de canal (discord_premium, discord_free, telegram_feed): deletar após 60 dias.
-  // Logs de DM (discord_dm, telegram_dm) são mantidos — servem como histórico de alertas.
   const cutoffLogs = new Date();
   cutoffLogs.setDate(cutoffLogs.getDate() - NOTIF_LOG_DAYS);
   const { error: e3 } = await supabase
@@ -127,6 +142,16 @@ export async function deleteOldProducts() {
     .lt('created_at', cutoffLogs.toISOString())
     .in('channel', ['discord_premium', 'discord_free', 'telegram_feed']);
   if (e3) throw new Error(`Failed to delete old notification logs: ${e3.message}`);
+
+  // Logs de DM (discord_dm, telegram_dm): deletar após 6 meses (histórico de alertas).
+  const cutoffDmLogs = new Date();
+  cutoffDmLogs.setMonth(cutoffDmLogs.getMonth() - 6);
+  const { error: e4 } = await supabase
+    .from('notification_logs')
+    .delete()
+    .lt('created_at', cutoffDmLogs.toISOString())
+    .in('channel', ['discord_dm', 'telegram_dm']);
+  if (e4) throw new Error(`Failed to delete old DM logs: ${e4.message}`);
 
   return (d1?.length ?? 0) + (d2?.length ?? 0);
 }

@@ -101,7 +101,8 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
         continue;
       }
 
-      const sizeMatch = !alert.size || (product.sizes ?? []).includes(alert.size);
+      const sizeMatch = !alert.size ||
+        (product.sizes ?? []).some((s) => s.toUpperCase() === alert.size.toUpperCase());
       if (!sizeMatch) continue;
 
       const prof       = profileMap.get(alert.user_id);
