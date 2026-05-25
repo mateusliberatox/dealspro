@@ -197,19 +197,20 @@ const CATEGORY_CACHE_TTL = 20 * 60 * 1000; // 20 min
  * No Railway (processo persistente), pula a homepage depois do primeiro ciclo e usa
  * categorias em cache — economiza ~15s por ciclo durante os 20min de TTL.
  */
-export async function scrapeCssDeals() {
-  logger.info('Starting multi-page scrape...');
+export async function scrapeCssDeals({ homepageOnly = false } = {}) {
+  logger.info(homepageOnly ? 'Starting fast homepage scrape...' : 'Starting multi-page scrape...');
+
+  const result         = await scrapeHomepage();
+  const homepageProducts = result.products;
+
+  if (homepageOnly) {
+    logger.success(`Homepage-only: ${homepageProducts.length} products`);
+    return homepageProducts;
+  }
 
   const now      = Date.now();
   const cacheHit = _categoryCache.data && (now - _categoryCache.ts) < CATEGORY_CACHE_TTL;
-
-  let homepageProducts = [];
   let categories;
-
-  // Homepage sempre scrapeada para não perder os 20 produtos do carrossel.
-  // Só a lista de categorias é cacheada (evita re-descoberta a cada ciclo).
-  const result = await scrapeHomepage();
-  homepageProducts = result.products;
 
   if (cacheHit) {
     categories = _categoryCache.data;

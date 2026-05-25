@@ -47,8 +47,8 @@ async function enrichWithQcImages(products) {
   else logger.info(`QC: updated ${updates.length} image(s)`);
 }
 
-export async function detectAndSaveNewProducts() {
-  logger.info('Starting detection cycle');
+export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
+  logger.info(homepageOnly ? 'Starting fast cycle (homepage only)' : 'Starting full detection cycle');
 
   // 0. Housekeeping — não-fatal: falha de rede aqui não deve abortar o ciclo de scrape
   try {
@@ -66,8 +66,8 @@ export async function detectAndSaveNewProducts() {
     logger.warn(`Delayed notifications skipped: ${e.message}`);
   }
 
-  // 1. Scrape all pages
-  const scraped = await scrapeCssDeals();
+  // 1. Scrape
+  const scraped = await scrapeCssDeals({ homepageOnly });
   if (!scraped.length) {
     logger.warn('No products scraped — site may have blocked or changed layout');
     return [];
@@ -95,9 +95,10 @@ export async function detectAndSaveNewProducts() {
 
   if (soldOutLinks.size > 0) logger.info(`${soldOutLinks.size} produto(s) com placeholder 800×900 detectados como esgotados`);
 
-  // Guarda de qualidade: scrapes muito pequenos indicam falha parcial — não marcar esgotados
-  const scrapeOk = scraped.length >= MIN_SCRAPE_QUALITY;
-  if (!scrapeOk) {
+  // Ciclo homepage-only tem visão parcial do site — syncAvailability causaria falsos esgotados
+  // Guarda de qualidade: scrapes muito pequenos também indicam falha parcial
+  const scrapeOk = !homepageOnly && scraped.length >= MIN_SCRAPE_QUALITY;
+  if (!scrapeOk && !homepageOnly) {
     logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping availability sync to avoid false sold-out marks`);
   }
   const { markedUnavailable, restored, restoredIds } = scrapeOk
