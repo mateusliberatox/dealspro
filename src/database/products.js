@@ -153,6 +153,15 @@ export async function deleteOldProducts() {
     .in('channel', ['discord_dm', 'telegram_dm']);
   if (e4) throw new Error(`Failed to delete old DM logs: ${e4.message}`);
 
+  // Cache de traduções: deletar entradas com mais de 90 dias (nomes de produtos mudam pouco)
+  const cutoffTranslations = new Date();
+  cutoffTranslations.setDate(cutoffTranslations.getDate() - 90);
+  const { error: e5 } = await supabase
+    .from('translation_cache')
+    .delete()
+    .lt('criado_em', cutoffTranslations.toISOString());
+  if (e5) throw new Error(`Failed to delete old translation cache: ${e5.message}`);
+
   return (d1?.length ?? 0) + (d2?.length ?? 0);
 }
 
@@ -178,9 +187,13 @@ export async function syncAvailability(scrapedLinks, soldOutLinks = new Set()) {
 
   const now = new Date();
 
+  // Mesma janela de 35 dias do getExistingHashMap — produtos mais velhos são deletados pelo housekeeping
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, link, disponivel, last_seen_at');
+    .select('id, link, disponivel, last_seen_at')
+    .gte('criado_em', cutoff);
 
   if (error) throw new Error(`syncAvailability fetch failed: ${error.message}`);
 
