@@ -12,7 +12,7 @@ import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notificati
 import { supabase } from '../database/supabase.js';
 
 const MAX_QC_FETCHES        = 100;
-const QC_BATCH_SIZE         = 12;
+const QC_BATCH_SIZE         = 3; // mantém no mesmo nível do BATCH_SIZE do scraper para não saturar memória
 const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
 const MIN_SCRAPE_QUALITY    = 400;
 const TRANSLATE_CONCURRENCY = 16;
@@ -33,6 +33,7 @@ async function enrichWithQcImages(products) {
         updates.push({ ...toFetch[i + j], imagem: r.value });
       }
     });
+    if (i + QC_BATCH_SIZE < toFetch.length) await new Promise((r) => setTimeout(r, 2000));
   }
 
   if (!updates.length) {

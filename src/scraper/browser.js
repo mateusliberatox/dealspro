@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 let browserInstance  = null;
 let browserLaunchedAt = 0;
+let launchPromise    = null; // mutex: impede múltiplos chromium.launch() simultâneos
 const BROWSER_MAX_AGE_MS = 3 * 60 * 60 * 1000; // reinicia a cada 3h para evitar leaks
 
 export async function getBrowser() {
@@ -11,25 +12,30 @@ export async function getBrowser() {
 
   if (browserInstance?.isConnected() && !tooOld) return browserInstance;
 
-  if (browserInstance) {
-    await browserInstance.close().catch(() => {});
-    browserInstance = null;
+  // Se já há um launch em andamento, espera o mesmo resultado em vez de lançar outro Chromium
+  if (!launchPromise) {
+    launchPromise = (async () => {
+      if (browserInstance) {
+        await browserInstance.close().catch(() => {});
+        browserInstance = null;
+      }
+      browserInstance = await chromium.launch({
+        headless: process.env.HEADLESS !== 'false',
+        args: [
+          '--no-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-blink-features=AutomationControlled',
+          '--no-zygote',           // Railway bloqueia as syscalls de namespace que o zygote usa (SIGTRAP)
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+        ],
+      });
+      browserLaunchedAt = Date.now();
+      return browserInstance;
+    })().finally(() => { launchPromise = null; });
   }
 
-  browserInstance = await chromium.launch({
-    headless: process.env.HEADLESS !== 'false',
-    args: [
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-blink-features=AutomationControlled',
-      '--no-zygote',           // Railway bloqueia as syscalls de namespace que o zygote usa (SIGTRAP)
-      '--disable-gpu',
-      '--disable-software-rasterizer',
-    ],
-  });
-  browserLaunchedAt = now;
-
-  return browserInstance;
+  return launchPromise;
 }
 
 export async function closeBrowser() {

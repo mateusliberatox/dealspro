@@ -11,8 +11,12 @@ const FULL_INTERVAL = parseInt(process.env.SCRAPE_INTERVAL_SECONDS      ?? '180'
 export async function startMonitor() {
   logger.info(`Monitor starting — fast: ${FAST_INTERVAL}s, full: ${FULL_INTERVAL}s`);
 
-  // Recupera produtos recentes que ficaram com imagem placeholder após restart
-  enrichMissingQcImages().catch((e) => logger.warn(`QC rehydrate falhou: ${e.message}`));
+  // Recupera produtos recentes que ficaram com imagem placeholder após restart.
+  // Delay de 120s para não concorrer com o primeiro ciclo completo (~45s) de inicialização.
+  setTimeout(
+    () => enrichMissingQcImages().catch((e) => logger.warn(`QC rehydrate falhou: ${e.message}`)),
+    120_000,
+  );
 
   await runCycle();
   setInterval(runCycle, FAST_INTERVAL * 1000);
