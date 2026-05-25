@@ -38,11 +38,6 @@ export async function getExistingHashMap() {
   return map;
 }
 
-/** Kept for backward-compatibility with test scripts */
-export async function getExistingHashes() {
-  const map = await getExistingHashMap();
-  return new Set(map.keys());
-}
 
 export async function insertProducts(products) {
   if (!products.length) return [];

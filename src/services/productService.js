@@ -12,7 +12,7 @@ import { supabase } from '../database/supabase.js';
 
 const MAX_QC_FETCHES        = 100;
 const QC_BATCH_SIZE         = 12;
-const FREE_DELAY_MS         = 30 * 60 * 1000;
+const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
 const MIN_SCRAPE_QUALITY    = 400;
 const TRANSLATE_CONCURRENCY = 16;
 
