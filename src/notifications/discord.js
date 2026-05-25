@@ -1,21 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger.js';
+import { buildDiscordEmbed } from '../utils/discordEmbed.js';
 
 const WEBHOOK_URL      = process.env.DISCORD_WEBHOOK_URL;
 const FREE_WEBHOOK_URL = process.env.DISCORD_FREE_WEBHOOK_URL;
 const BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_API      = 'https://discord.com/api/v10';
-const COLOR            = 0xf97316;
-
-const CATEGORY_EMOJI = {
-  'Roupas':        '👕',
-  'Calçados':      '👟',
-  'Bolsa / Mochila': '👜',
-  'Acessórios':    '🕶️',
-  'Smartwatch':    '⌚',
-  'Eletrônicos':   '🔊',
-  'Outros':        '📦',
-};
 
 const BATCH_ANNOUNCE_THRESHOLD  = 8;
 const FREE_NOTIFY_BATCH_SIZE    = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
@@ -133,7 +123,7 @@ export async function sendToDiscord(products) {
     try {
       await postWebhook(WEBHOOK_URL, {
         content: '🔥 **Novo produto detectado!**',
-        embeds:  [buildEmbed(product)],
+        embeds:  [buildDiscordEmbed(product)],
       });
       await logSent('discord_premium', product.id, itemId);
       sentSet.add(itemId ? `item:${itemId}` : `pid:${product.id}`);
@@ -182,7 +172,7 @@ export async function sendFreeDelayedNotifications() {
     try {
       await postWebhook(FREE_WEBHOOK_URL, {
         content: '⏰ **Novo produto disponível!**',
-        embeds:  [buildEmbed(product)],
+        embeds:  [buildDiscordEmbed(product)],
       });
       ok = true;
     } catch (err) {
@@ -224,7 +214,7 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
     content: isRestock
       ? '🔄 **Alerta DealsPro — produto restocado!**'
       : '🔔 **Alerta DealsPro — produto encontrado!**',
-    embeds: [buildEmbed(product)],
+    embeds: [buildDiscordEmbed(product)],
   });
 
   // Retry uma vez em caso de rate limit (429) — retry_after vem na resposta
@@ -250,39 +240,6 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
   }
 }
 
-// ── Embed builder ─────────────────────────────────────────────────────────────
-
-function buildEmbed(p) {
-  const nome     = p.nome_traduzido || p.nome;
-  const original = p.nome_traduzido && p.nome_traduzido !== p.nome ? p.nome : null;
-  const emoji    = CATEGORY_EMOJI[p.categoria] ?? '📦';
-  const categoria = p.categoria ?? 'Outros';
-
-  const embed = {
-    color:  COLOR,
-    author: { name: `${emoji}  ${categoria.toUpperCase()}  •  cssdeals.com` },
-    title:  truncate(nome, 200),
-    url:    p.link,
-    fields: [
-      { name: '💰 Preço',   value: `**${p.preco || 'Ver no site'}**`, inline: true },
-      { name: '🛒 Comprar', value: `[Abrir produto](${p.link})`,      inline: true },
-    ],
-    footer:    { text: 'DealsPro • cssdeals.com' },
-    timestamp: new Date().toISOString(),
-  };
-
-  if (original) embed.description = `*Nome original: ${truncate(original, 150)}*`;
-
-  const imagemValida = isValidImageUrl(p.imagem);
-  if (imagemValida) embed.image = { url: p.imagem };
-
-  if (p.sizes?.length) {
-    embed.fields.push({ name: '📐 Tamanhos', value: p.sizes.join(' · '), inline: false });
-  }
-
-  return embed;
-}
-
 async function postWebhook(url, body) {
   const res = await fetch(url, {
     method:  'POST',
@@ -296,14 +253,4 @@ async function postWebhook(url, body) {
   }
 }
 
-const truncate = (str, max) => str.length > max ? str.slice(0, max - 1) + '…' : str;
-const sleep    = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function isValidImageUrl(url) {
-  if (!url || url.includes(' ')) return false;
-  try {
-    const { protocol } = new URL(url);
-    return (protocol === 'http:' || protocol === 'https:') &&
-      !/placeholder|800.?x.?900|via\.placeholder|picsum|skin\/img\/product\/\d+/i.test(url);
-  } catch { return false; }
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

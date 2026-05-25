@@ -3,6 +3,7 @@ import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, sync
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
 import { categorize } from '../utils/categorize.js';
+import { classifyProducts } from '../utils/productClassify.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
@@ -133,15 +134,7 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
     if (val.cssdeals_item_id) existingItemIdMap.set(val.cssdeals_item_id, val);
   }
 
-  const newItems     = [];
-  const priceChanged = [];
-  for (const item of candidateNew) {
-    if (item.cssdeals_item_id && existingItemIdMap.has(item.cssdeals_item_id)) {
-      priceChanged.push({ item, existingId: existingItemIdMap.get(item.cssdeals_item_id).id });
-    } else {
-      newItems.push(item);
-    }
-  }
+  const { newItems, priceChanged } = classifyProducts(candidateNew, existingItemIdMap);
 
   if (priceChanged.length) {
     await Promise.allSettled(
@@ -221,4 +214,23 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
   }
 
   return inserted;
+}
+
+/**
+ * Recupera produtos das últimas 24h que ficaram com imagem placeholder após um restart.
+ * Chamado uma vez na inicialização do monitor — não bloqueia o primeiro ciclo.
+ */
+export async function enrichMissingQcImages() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('produtos_dealspro')
+    .select('id, link, imagem')
+    .gte('criado_em', cutoff)
+    .or('imagem.is.null,imagem.ilike.%skin/img/product/%,imagem.ilike.%placeholder%');
+
+  if (error) { logger.warn(`QC rehydrate query failed: ${error.message}`); return; }
+  if (!data?.length) return;
+
+  logger.info(`QC rehydrate: ${data.length} produto(s) sem imagem válida`);
+  await enrichWithQcImages(data);
 }

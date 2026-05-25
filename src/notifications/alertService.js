@@ -1,6 +1,7 @@
 import { supabase } from '../database/supabase.js';
 import { sendDiscordDM } from './discord.js';
 import { logger } from '../utils/logger.js';
+import { productMatchesAlert } from '../utils/alertMatch.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,28 +83,8 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
   }
 
   for (const product of products) {
-    const searchText = `${product.nome} ${product.nome_traduzido ?? ''}`.toLowerCase();
-
     for (const alert of premiumAlerts) {
-      const hasKeyword   = !!alert.keyword;
-      const hasCategoria = !!alert.categoria;
-
-      const keywordMatch   = hasKeyword   && searchText.includes(alert.keyword.toLowerCase());
-      const categoriaMatch = hasCategoria && product.categoria === alert.categoria;
-
-      if (hasKeyword && hasCategoria) {
-        if (!keywordMatch || !categoriaMatch) continue;
-      } else if (hasKeyword) {
-        if (!keywordMatch) continue;
-      } else if (hasCategoria) {
-        if (!categoriaMatch) continue;
-      } else {
-        continue;
-      }
-
-      const sizeMatch = !alert.size ||
-        (product.sizes ?? []).some((s) => s.toUpperCase() === alert.size.toUpperCase());
-      if (!sizeMatch) continue;
+      if (!productMatchesAlert(product, alert)) continue;
 
       const prof       = profileMap.get(alert.user_id);
       const discordId  = prof?.discord_user_id;

@@ -1,4 +1,4 @@
-import { detectAndSaveNewProducts } from '../services/productService.js';
+import { detectAndSaveNewProducts, enrichMissingQcImages } from '../services/productService.js';
 import { closeBrowser } from '../scraper/browser.js';
 import { logger } from '../utils/logger.js';
 import 'dotenv/config';
@@ -10,6 +10,9 @@ const FULL_INTERVAL = parseInt(process.env.SCRAPE_INTERVAL_SECONDS      ?? '180'
 
 export async function startMonitor() {
   logger.info(`Monitor starting — fast: ${FAST_INTERVAL}s, full: ${FULL_INTERVAL}s`);
+
+  // Recupera produtos recentes que ficaram com imagem placeholder após restart
+  enrichMissingQcImages().catch((e) => logger.warn(`QC rehydrate falhou: ${e.message}`));
 
   await runCycle();
   setInterval(runCycle, FAST_INTERVAL * 1000);

@@ -262,24 +262,30 @@ export async function scrapeCssDeals({ homepageOnly = false } = {}) {
     if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, 2000));
   }
 
-  // Segunda passagem: tenta recuperar categorias que retornaram 0 produtos (p1 timeout)
-  if (failedCats.length > 0) {
-    logger.info(`Retry: ${failedCats.length} categoria(s) com timeout — aguardando 5s...`);
-    await new Promise((r) => setTimeout(r, 5000));
-    for (let i = 0; i < failedCats.length; i += BATCH_SIZE) {
-      const batch = failedCats.slice(i, i + BATCH_SIZE);
+  // Até 2 tentativas para recuperar categorias com timeout (Cloudflare rate-limit)
+  // 1ª tentativa: 5s de espera · 2ª tentativa: 15s de espera
+  let toRetry = failedCats;
+  for (let attempt = 1; attempt <= 2 && toRetry.length > 0; attempt++) {
+    const delayMs = attempt === 1 ? 5_000 : 15_000;
+    logger.info(`Retry ${attempt}/2: ${toRetry.length} categoria(s) — aguardando ${delayMs / 1000}s...`);
+    await new Promise((r) => setTimeout(r, delayMs));
+    const stillFailed = [];
+    for (let i = 0; i < toRetry.length; i += BATCH_SIZE) {
+      const batch = toRetry.slice(i, i + BATCH_SIZE);
       const retryResults = await Promise.allSettled(
         batch.map((c) => scrapeCategory(c.id, c.name)),
       );
       let recovered = 0;
-      for (const r of retryResults) {
-        const products = r.status === 'fulfilled' ? r.value : [];
+      for (let j = 0; j < batch.length; j++) {
+        const products = retryResults[j].status === 'fulfilled' ? retryResults[j].value : [];
         allCategoryProducts.push(...products);
         if (products.length > 0) recovered++;
+        else stillFailed.push(batch[j]);
       }
-      if (recovered > 0) logger.info(`Retry: ${recovered}/${batch.length} categoria(s) recuperada(s)`);
-      if (i + BATCH_SIZE < failedCats.length) await new Promise((r) => setTimeout(r, 2000));
+      if (recovered > 0) logger.info(`Retry ${attempt}/2: ${recovered}/${batch.length} categoria(s) recuperada(s)`);
+      if (i + BATCH_SIZE < toRetry.length) await new Promise((r) => setTimeout(r, 2000));
     }
+    toRetry = stillFailed;
   }
 
   // Merge and deduplicate by link
