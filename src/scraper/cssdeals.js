@@ -17,7 +17,7 @@ const FALLBACK_CATEGORIES = [
   { name: 'Watches',     id: 20 },
 ];
 
-const BATCH_SIZE      = 5;  // max concurrent Playwright contexts
+const BATCH_SIZE      = 3;  // max concurrent Playwright contexts
 const MAX_PAGES       = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
 const MAX_CATEGORIES  = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
 
@@ -96,7 +96,8 @@ async function discoverCategories(page) {
   try {
     const categories = await page.evaluate(() => {
       const links = document.querySelectorAll('a[href*="shop-left-sidebar.html?id="]');
-      const seen = new Set();
+      const seenIds   = new Set();
+      const seenNames = new Set();
       const result = [];
 
       for (const link of links) {
@@ -105,10 +106,15 @@ async function discoverCategories(page) {
         if (!match) continue;
 
         const id = parseInt(match[1], 10);
-        if (seen.has(id)) continue;
-        seen.add(id);
+        if (seenIds.has(id)) continue;
+        seenIds.add(id);
 
         const name = link.textContent?.trim() || `Category-${id}`;
+        // CSSDeals pode listar a mesma categoria com dois IDs diferentes (ex: "sports goods").
+        // Deduplica por nome para evitar scraping duplo e logs enganosos.
+        if (seenNames.has(name)) continue;
+        seenNames.add(name);
+
         result.push({ name, id });
       }
 
@@ -247,7 +253,7 @@ export async function scrapeCssDeals({ homepageOnly = false } = {}) {
     );
     categoryResults.push(...batchResults);
     // Pausa entre batches para o rate limiter do Cloudflare resetar
-    if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, 1500));
+    if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, 2000));
   }
 
   // Merge and deduplicate by link
