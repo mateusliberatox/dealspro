@@ -59,10 +59,11 @@ async function extractProducts(page, sourceLabel) {
         : `${baseUrl}/${rawHref.replace(/^\//, '')}`;
 
       const imgEl = card.querySelector('.mn-product-img img.main-img, .mn-product-img img');
-      const imagem = (imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || '').replace(/\s+/g, '');
+      // CSSDeals usa lazy-load: data-src contém a URL real; src é placeholder de carregamento
+      const imagem = (imgEl?.getAttribute('data-src') || imgEl?.getAttribute('src') || '').replace(/\s+/g, '');
 
-      // Produtos com imagem placeholder 800×900 estão esgotados no CSSDeals
-      const isSoldOut = /800.?x.?900|placeholder/i.test(imagem);
+      // Detecta esgotados: placeholder 800×900 OU lazy-load genérico do CSSDeals (skin/img/product/N.jpg)
+      const isSoldOut = /800.?x.?900|placeholder|skin\/img\/product\/\d+/i.test(imagem);
 
       const skuEl = card.querySelector('.mn-sku');
       const skuText = skuEl?.textContent?.trim() ?? '';
@@ -286,15 +287,16 @@ export async function fetchQcImage(detailUrl) {
         document.querySelector('.single-slide .img-responsive') ??
         document.querySelector('.single-pro-img .img-responsive') ??
         document.querySelector('.mn-pro-img .img-responsive');
-      return img?.src ?? null;
+      // data-src tem a URL real em páginas com lazy-load; src pode ser placeholder
+      return img?.getAttribute('data-src') || img?.src || null;
     });
 
     if (!src) return null;
 
-    // Rejeita placeholders (produto esgotado mostra imagem genérica)
+    // Rejeita placeholders: 800×900, lazy-load genérico do CSSDeals e data URIs
     if (
       src.startsWith('data:') ||
-      /placeholder|800.?x.?900|via\.placeholder|picsum/i.test(src) ||
+      /placeholder|800.?x.?900|via\.placeholder|picsum|skin\/img\/product\/\d+/i.test(src) ||
       !/^https?:\/\/.+/.test(src)
     ) return null;
 

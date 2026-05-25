@@ -15,6 +15,15 @@ const MODES      = ['all_deals', 'both'];
 const SLEEP      = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATE_DELAY = 350; // delay entre PRODUTOS (não entre usuários)
 
+function isValidImageUrl(url) {
+  if (!url || url.includes(' ')) return false;
+  try {
+    const { protocol } = new URL(url);
+    return (protocol === 'http:' || protocol === 'https:') &&
+      !/placeholder|800.?x.?900|via\.placeholder|picsum|skin\/img\/product\/\d+/i.test(url);
+  } catch { return false; }
+}
+
 function buildMessage(product) {
   const nome = product.nome_traduzido || product.nome;
   const cat  = product.categoria ? `📂 <b>${product.categoria}</b>\n` : '';
@@ -97,7 +106,7 @@ async function dispatchFeed(users, products, channel) {
   for (let i = 0; i < products.length; i++) {
     const product  = products[i];
     const text     = buildMessage(product);
-    const imageUrl = product.imagem || null;
+    const imageUrl = isValidImageUrl(product.imagem) ? product.imagem : null;
     const eligible = users.filter((u) => !sentSet.has(sentKey(u.user_id, product)));
 
     if (eligible.length) {

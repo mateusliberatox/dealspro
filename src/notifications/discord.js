@@ -303,6 +303,6 @@ function isValidImageUrl(url) {
   try {
     const { protocol } = new URL(url);
     return (protocol === 'http:' || protocol === 'https:') &&
-      !/placeholder|800.?x.?900|via\.placeholder|picsum/i.test(url);
+      !/placeholder|800.?x.?900|via\.placeholder|picsum|skin\/img\/product\/\d+/i.test(url);
   } catch { return false; }
 }
