@@ -25,12 +25,15 @@ async function dbLookup(nome) {
   return data?.nome_traduzido ?? null;
 }
 
-function dbSave(nome, traduzido) {
+async function dbSave(nome, traduzido) {
   // Não-bloqueante — falha silenciosa (cache é oportunístico)
-  supabase
-    .from('translation_cache')
-    .upsert({ nome_original: nome, nome_traduzido: traduzido }, { onConflict: 'nome_original', ignoreDuplicates: true })
-    .catch(() => {});
+  try {
+    await supabase
+      .from('translation_cache')
+      .upsert({ nome_original: nome, nome_traduzido: traduzido }, { onConflict: 'nome_original', ignoreDuplicates: true });
+  } catch {
+    // intencional: cache DB é best-effort
+  }
 }
 
 // ── Camada 2: DeepL Free (500k chars/mês) ────────────────────────────────────
