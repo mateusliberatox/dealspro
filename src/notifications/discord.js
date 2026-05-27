@@ -49,10 +49,11 @@ async function alreadySentToChannel(channel, productId, itemId) {
   return false;
 }
 
-async function logSent(channel, productId, itemId) {
+async function logSent(channel, productId, itemId, discordMessageId = null) {
   const { error } = await getDb().from('notification_logs').insert({
-    product_id:       productId ?? null,
-    cssdeals_item_id: itemId    ?? null,
+    product_id:         productId        ?? null,
+    cssdeals_item_id:   itemId           ?? null,
+    discord_message_id: discordMessageId ?? null,
     channel,
     status: 'sent',
   });
@@ -121,11 +122,11 @@ export async function sendToDiscord(products) {
     }
 
     try {
-      await postWebhook(WEBHOOK_URL, {
+      const msg = await postWebhook(WEBHOOK_URL, {
         content: '🔥 **Novo produto detectado!**',
         embeds:  [buildDiscordEmbed(product)],
-      });
-      await logSent('discord_premium', product.id, itemId);
+      }, { waitForMessage: true });
+      await logSent('discord_premium', product.id, itemId, msg?.id ?? null);
       sentSet.add(itemId ? `item:${itemId}` : `pid:${product.id}`);
       sent++;
     } catch (err) {
@@ -240,8 +241,9 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
   }
 }
 
-async function postWebhook(url, body) {
-  const res = await fetch(url, {
+async function postWebhook(url, body, { waitForMessage = false } = {}) {
+  const target = waitForMessage ? `${url}?wait=true` : url;
+  const res = await fetch(target, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
@@ -251,6 +253,63 @@ async function postWebhook(url, body) {
     const text = await res.text();
     throw new Error(`Webhook failed (${res.status}): ${text}`);
   }
+  return waitForMessage ? res.json() : null;
+}
+
+function parseWebhookUrl(url) {
+  const match = url?.match(/\/webhooks\/(\d+)\/([^/?]+)/);
+  return match ? { id: match[1], token: match[2] } : null;
+}
+
+export async function updateQcImagesInDiscord(products) {
+  if (!WEBHOOK_URL || !products.length) return;
+
+  const webhook = parseWebhookUrl(WEBHOOK_URL);
+  if (!webhook) return;
+
+  const db = getDb();
+  const productIds = products.map((p) => p.id).filter(Boolean);
+
+  const { data: logs } = await db
+    .from('notification_logs')
+    .select('product_id, discord_message_id')
+    .eq('channel', 'discord_premium')
+    .in('product_id', productIds)
+    .not('discord_message_id', 'is', null);
+
+  if (!logs?.length) return;
+
+  const messageMap = new Map(logs.map((l) => [l.product_id, l.discord_message_id]));
+
+  let updated = 0;
+  for (const product of products) {
+    const messageId = messageMap.get(product.id);
+    if (!messageId) continue;
+
+    try {
+      const res = await fetch(
+        `${DISCORD_API}/webhooks/${webhook.id}/${webhook.token}/messages/${messageId}`,
+        {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ embeds: [buildDiscordEmbed(product)] }),
+          signal:  AbortSignal.timeout(10_000),
+        },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        logger.warn(`QC edit failed for product ${product.id} (${res.status}): ${text}`);
+        continue;
+      }
+      updated++;
+    } catch (err) {
+      logger.warn(`QC edit failed for product ${product.id}: ${err.message}`);
+    }
+
+    if (products.length > 1) await sleep(500);
+  }
+
+  if (updated > 0) logger.success(`QC: ${updated} embed(s) atualizados no Discord`);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -7,7 +7,7 @@ import { classifyProducts } from '../utils/productClassify.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
-import { sendFreeDelayedNotifications, announceNewBatch } from '../notifications/discord.js';
+import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord } from '../notifications/discord.js';
 import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 
@@ -50,6 +50,8 @@ async function enrichWithQcImages(products) {
   const failed = results.filter((r) => r.status === 'rejected' || r.value?.error).length;
   if (failed) logger.warn(`QC bulk update: ${failed}/${updates.length} falharam`);
   else logger.info(`QC: updated ${updates.length} image(s)`);
+
+  await updateQcImagesInDiscord(updates).catch((e) => logger.warn(`QC Discord edit failed: ${e.message}`));
 }
 
 export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
@@ -225,7 +227,7 @@ export async function enrichMissingQcImages() {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('produtos_dealspro')
-    .select('id, link, imagem')
+    .select('*')
     .gte('criado_em', cutoff)
     .or('imagem.is.null,imagem.ilike.%skin/img/product/%,imagem.ilike.%placeholder%');
 
