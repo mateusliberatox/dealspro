@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "scrape:once": "node src/jobs/run-once.js",
     "monitor": "node src/entry/start-monitor.js",
-    "test": "node --test src/utils/__tests__/hash.test.js src/utils/__tests__/categorize.test.js src/utils/__tests__/sizes.test.js src/utils/__tests__/productClassify.test.js src/utils/__tests__/alertMatch.test.js src/utils/__tests__/discordEmbed.test.js src/utils/__tests__/telegramMessage.test.js",
+    "test": "node --test src/utils/__tests__/hash.test.js src/utils/__tests__/categorize.test.js src/utils/__tests__/sizes.test.js src/utils/__tests__/productClassify.test.js src/utils/__tests__/alertMatch.test.js src/utils/__tests__/discordEmbed.test.js src/utils/__tests__/telegramMessage.test.js src/services/__tests__/pipeline.test.js",
     "test:scraper": "node src/scraper/test.js"
   },
   "dependencies": {

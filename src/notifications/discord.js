@@ -144,8 +144,8 @@ export async function sendToDiscord(products) {
 export async function sendFreeDelayedNotifications() {
   if (!FREE_WEBHOOK_URL) return;
 
-  const db      = getDb();
-  const cutoff  = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const db     = getDb();
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
   const { data: due } = await db
     .from('produtos_dealspro')
@@ -159,12 +159,33 @@ export async function sendFreeDelayedNotifications() {
 
   if (!due?.length) return;
 
+  // Prefetch de dedup em batch — evita 2N queries sequenciais no loop abaixo
+  const itemIds    = due.map((p) => p.cssdeals_item_id).filter(Boolean);
+  const productIds = due.map((p) => p.id).filter(Boolean);
+  const conditions = [];
+  if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
+  if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
+
+  const sentSet = new Set();
+  if (conditions.length) {
+    const { data: logs } = await db
+      .from('notification_logs')
+      .select('product_id, cssdeals_item_id')
+      .eq('channel', 'discord_free')
+      .or(conditions.join(','));
+    for (const l of logs ?? []) {
+      if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
+      if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
+    }
+  }
+
   let sent = 0;
   for (const product of due) {
-    const itemId = product.cssdeals_item_id ?? null;
+    const itemId      = product.cssdeals_item_id ?? null;
+    const alreadySent = (itemId && sentSet.has(`item:${itemId}`)) ||
+                        (!itemId && sentSet.has(`pid:${product.id}`));
 
-    // Deduplicação: cssdeals_item_id sobrevive a deleção/reinserção
-    if (await alreadySentToChannel('discord_free', product.id, itemId)) {
+    if (alreadySent) {
       await db.from('produtos_dealspro').update({ free_notified: true }).eq('id', product.id);
       continue;
     }
@@ -183,6 +204,7 @@ export async function sendFreeDelayedNotifications() {
     if (ok) {
       await db.from('produtos_dealspro').update({ free_notified: true }).eq('id', product.id);
       await logSent('discord_free', product.id, itemId);
+      sentSet.add(itemId ? `item:${itemId}` : `pid:${product.id}`);
       sent++;
     }
 

@@ -35,27 +35,37 @@ export async function startMonitor() {
 
 const FAST_TIMEOUT_MS = 2 * 60 * 1000;  // 2 min — homepage só, não deve demorar mais
 const FULL_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo completo travado por Supabase/rede
+const ALERT_AFTER_ERRORS = 3; // alerta após N erros consecutivos em qualquer ciclo
 
-let fastCycleInProgress   = false;
-let fullCycleInProgress   = false;
-let cyclesCompleted       = 0;
-let lastCycleAt           = null;
-let lastCycleType         = null;
-let lastCycleStatus       = null; // 'ok' | 'error'
-let consecutiveFullErrors = 0;
-const ALERT_AFTER_ERRORS  = 3; // notifica após 3 ciclos completos consecutivos com erro
+let fastCycleInProgress    = false;
+let fullCycleInProgress    = false;
+let cyclesCompleted        = 0;
+let lastFastCycleAt        = null;
+let lastFastCycleStatus    = null; // 'ok' | 'error' | null
+let consecutiveFastErrors  = 0;
+let lastFullCycleAt        = null;
+let lastFullCycleStatus    = null; // 'ok' | 'error' | null
+let consecutiveFullErrors  = 0;
 
 export function getHealthStatus() {
+  const fastDegraded = lastFastCycleStatus === 'error';
+  const fullDegraded = lastFullCycleStatus === 'error';
   return {
-    status:               lastCycleStatus === 'error' ? 'degraded' : 'ok',
-    uptime:               Math.floor(process.uptime()),
+    status:       (fastDegraded || fullDegraded) ? 'degraded' : 'ok',
+    uptime:       Math.floor(process.uptime()),
     cyclesCompleted,
-    lastCycleAt,
-    lastCycleType,
-    lastCycleStatus,
-    consecutiveFullErrors,
-    fastInterval:         FAST_INTERVAL,
-    fullInterval:         FULL_INTERVAL,
+    fast: {
+      lastAt:            lastFastCycleAt,
+      status:            lastFastCycleStatus,
+      consecutiveErrors: consecutiveFastErrors,
+      interval:          FAST_INTERVAL,
+    },
+    full: {
+      lastAt:            lastFullCycleAt,
+      status:            lastFullCycleStatus,
+      consecutiveErrors: consecutiveFullErrors,
+      interval:          FULL_INTERVAL,
+    },
   };
 }
 
@@ -89,7 +99,8 @@ async function runFastCycle() {
         setTimeout(() => reject(new Error('Fast cycle timeout (2min)')), FAST_TIMEOUT_MS),
       ),
     ]);
-    lastCycleStatus = 'ok';
+    lastFastCycleStatus   = 'ok';
+    consecutiveFastErrors = 0;
     if (newProducts.length) {
       logger.success(`Fast cycle complete — ${newProducts.length} new product(s) found`, {
         names: newProducts.map((p) => p.nome),
@@ -98,12 +109,16 @@ async function runFastCycle() {
       logger.info('Fast cycle complete — no new products');
     }
   } catch (err) {
-    lastCycleStatus = 'error';
-    logger.error(`Fast cycle failed: ${err.message}`);
+    lastFastCycleStatus = 'error';
+    consecutiveFastErrors++;
+    logger.error(`Fast cycle failed (${consecutiveFastErrors} consecutive): ${err.message}`);
+    if (consecutiveFastErrors >= ALERT_AFTER_ERRORS) {
+      sendDegradationAlert(`${consecutiveFastErrors} ciclos rápidos consecutivos falharam. Último erro: ${err.message}`);
+      consecutiveFastErrors = 0;
+    }
   } finally {
     cyclesCompleted++;
-    lastCycleAt   = new Date().toISOString();
-    lastCycleType = 'fast';
+    lastFastCycleAt     = new Date().toISOString();
     fastCycleInProgress = false;
   }
 }
@@ -124,7 +139,7 @@ async function runFullCycle() {
         setTimeout(() => reject(new Error('Full cycle timeout (10min)')), FULL_TIMEOUT_MS),
       ),
     ]);
-    lastCycleStatus = 'ok';
+    lastFullCycleStatus   = 'ok';
     consecutiveFullErrors = 0;
     if (newProducts.length) {
       logger.success(`Full cycle complete — ${newProducts.length} new product(s) found`, {
@@ -134,17 +149,16 @@ async function runFullCycle() {
       logger.info('Full cycle complete — no new products');
     }
   } catch (err) {
-    lastCycleStatus = 'error';
-    logger.error(`Full cycle failed: ${err.message}`);
+    lastFullCycleStatus = 'error';
     consecutiveFullErrors++;
+    logger.error(`Full cycle failed (${consecutiveFullErrors} consecutive): ${err.message}`);
     if (consecutiveFullErrors >= ALERT_AFTER_ERRORS) {
       sendDegradationAlert(`${consecutiveFullErrors} ciclos completos consecutivos falharam. Último erro: ${err.message}`);
-      consecutiveFullErrors = 0; // reset para não spammar
+      consecutiveFullErrors = 0;
     }
   } finally {
     cyclesCompleted++;
-    lastCycleAt   = new Date().toISOString();
-    lastCycleType = 'full';
+    lastFullCycleAt     = new Date().toISOString();
     fullCycleInProgress = false;
   }
 }
