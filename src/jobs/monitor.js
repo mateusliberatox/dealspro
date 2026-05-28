@@ -18,8 +18,11 @@ export async function startMonitor() {
     120_000,
   );
 
-  await runCycle();
-  setInterval(runCycle, FAST_INTERVAL * 1000);
+  // Fast e full rodam em intervalos independentes — o full nunca bloqueia o fast.
+  runFastCycle();
+  runFullCycle();
+  setInterval(runFastCycle, FAST_INTERVAL * 1000);
+  setInterval(runFullCycle, FULL_INTERVAL * 1000);
 
   const shutdown = async () => {
     logger.info('Shutting down...');
@@ -30,10 +33,11 @@ export async function startMonitor() {
   process.on('SIGTERM', shutdown);
 }
 
-const CYCLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo travado por Supabase/rede
+const FAST_TIMEOUT_MS = 2 * 60 * 1000;  // 2 min — homepage só, não deve demorar mais
+const FULL_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — evita ciclo completo travado por Supabase/rede
 
-let cycleInProgress       = false;
-let lastFullCycleAt       = 0;
+let fastCycleInProgress   = false;
+let fullCycleInProgress   = false;
 let cyclesCompleted       = 0;
 let lastCycleAt           = null;
 let lastCycleType         = null;
@@ -69,47 +73,78 @@ async function sendDegradationAlert(message) {
   }
 }
 
-async function runCycle() {
-  if (cycleInProgress) {
-    logger.warn('Ciclo anterior ainda em andamento — pulando');
+// Ciclo rápido: só homepage, notificações premium imediatas.
+// Nunca é bloqueado pelo ciclo completo.
+async function runFastCycle() {
+  if (fastCycleInProgress) {
+    logger.warn('Fast cycle já em andamento — pulando');
     return;
   }
 
-  const now          = Date.now();
-  const homepageOnly = (now - lastFullCycleAt) < FULL_INTERVAL * 1000;
-  if (!homepageOnly) lastFullCycleAt = now;
-
-  cycleInProgress = true;
+  fastCycleInProgress = true;
   try {
     const newProducts = await Promise.race([
-      detectAndSaveNewProducts({ homepageOnly }),
+      detectAndSaveNewProducts({ homepageOnly: true }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Cycle timeout (10min)')), CYCLE_TIMEOUT_MS),
+        setTimeout(() => reject(new Error('Fast cycle timeout (2min)')), FAST_TIMEOUT_MS),
       ),
     ]);
     lastCycleStatus = 'ok';
-    if (!homepageOnly) consecutiveFullErrors = 0;
     if (newProducts.length) {
-      logger.success(`Cycle complete (${homepageOnly ? 'fast' : 'full'}) — ${newProducts.length} new product(s) found`, {
+      logger.success(`Fast cycle complete — ${newProducts.length} new product(s) found`, {
         names: newProducts.map((p) => p.nome),
       });
     } else {
-      logger.info(`Cycle complete (${homepageOnly ? 'fast' : 'full'}) — no new products`);
+      logger.info('Fast cycle complete — no new products');
     }
   } catch (err) {
     lastCycleStatus = 'error';
-    logger.error(`Cycle failed: ${err.message}`);
-    if (!homepageOnly) {
-      consecutiveFullErrors++;
-      if (consecutiveFullErrors >= ALERT_AFTER_ERRORS) {
-        sendDegradationAlert(`${consecutiveFullErrors} ciclos completos consecutivos falharam. Último erro: ${err.message}`);
-        consecutiveFullErrors = 0; // reset para não spammar
-      }
+    logger.error(`Fast cycle failed: ${err.message}`);
+  } finally {
+    cyclesCompleted++;
+    lastCycleAt   = new Date().toISOString();
+    lastCycleType = 'fast';
+    fastCycleInProgress = false;
+  }
+}
+
+// Ciclo completo: homepage + todas as categorias, sync de disponibilidade,
+// notificações free atrasadas. Roda independente do fast cycle.
+async function runFullCycle() {
+  if (fullCycleInProgress) {
+    logger.warn('Full cycle já em andamento — pulando');
+    return;
+  }
+
+  fullCycleInProgress = true;
+  try {
+    const newProducts = await Promise.race([
+      detectAndSaveNewProducts({ homepageOnly: false }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Full cycle timeout (10min)')), FULL_TIMEOUT_MS),
+      ),
+    ]);
+    lastCycleStatus = 'ok';
+    consecutiveFullErrors = 0;
+    if (newProducts.length) {
+      logger.success(`Full cycle complete — ${newProducts.length} new product(s) found`, {
+        names: newProducts.map((p) => p.nome),
+      });
+    } else {
+      logger.info('Full cycle complete — no new products');
+    }
+  } catch (err) {
+    lastCycleStatus = 'error';
+    logger.error(`Full cycle failed: ${err.message}`);
+    consecutiveFullErrors++;
+    if (consecutiveFullErrors >= ALERT_AFTER_ERRORS) {
+      sendDegradationAlert(`${consecutiveFullErrors} ciclos completos consecutivos falharam. Último erro: ${err.message}`);
+      consecutiveFullErrors = 0; // reset para não spammar
     }
   } finally {
     cyclesCompleted++;
     lastCycleAt   = new Date().toISOString();
-    lastCycleType = homepageOnly ? 'fast' : 'full';
-    cycleInProgress = false;
+    lastCycleType = 'full';
+    fullCycleInProgress = false;
   }
 }

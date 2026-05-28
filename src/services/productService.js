@@ -65,12 +65,15 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
     logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${e.message}`);
   }
 
-  // 0b. Send delayed free Discord notifications for products now past visible_at
-  try {
-    await sendFreeDelayedNotifications();
-    await notifyTelegramFreeFeed();
-  } catch (e) {
-    logger.warn(`Delayed notifications skipped: ${e.message}`);
+  // 0b. Notificações free atrasadas: só no ciclo completo (heavy, 500ms/produto).
+  // O ciclo rápido não executa isso para não atrasar a detecção na homepage.
+  if (!homepageOnly) {
+    try {
+      await sendFreeDelayedNotifications();
+      await notifyTelegramFreeFeed();
+    } catch (e) {
+      logger.warn(`Delayed notifications skipped: ${e.message}`);
+    }
   }
 
   // 1. Scrape
