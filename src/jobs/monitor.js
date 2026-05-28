@@ -70,7 +70,8 @@ export function getHealthStatus() {
 }
 
 async function sendDegradationAlert(message) {
-  const url = process.env.DISCORD_WEBHOOK_URL;
+  // Usa o canal privado do admin — nunca o webhook premium público
+  const url = process.env.DISCORD_ADMIN_WEBHOOK_URL ?? process.env.DISCORD_WEBHOOK_URL;
   if (!url) return;
   try {
     await fetch(url, {

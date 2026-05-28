@@ -18,6 +18,11 @@ const SLEEP                  = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATE_DELAY             = 350; // delay entre PRODUTOS (não entre usuários)
 const FREE_NOTIFY_BATCH_SIZE = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
 
+// Telegram limita a ~30 msg/s por bot globalmente.
+// Enviamos usuários em batches de 10 com 400ms de pausa entre batches → ≤25 msg/s.
+const USER_BATCH_SIZE  = 10;
+const USER_BATCH_DELAY = 400;
+
 
 async function sendMsg(chatId, text, imageUrl = null) {
   if (!TOKEN) return false;
@@ -92,9 +97,13 @@ async function dispatchFeed(users, products, channel) {
     const imageUrl = isValidImageUrl(product.imagem) ? product.imagem : null;
     const eligible = users.filter((u) => !sentSet.has(sentKey(u.user_id, product)));
 
-    if (eligible.length) {
+    // Usuários em batches de USER_BATCH_SIZE para não ultrapassar o limite global
+    // do Telegram (30 msg/s). Promise.allSettled por batch garante paralelismo
+    // dentro do lote sem disparar todos os usuários de uma vez.
+    for (let b = 0; b < eligible.length; b += USER_BATCH_SIZE) {
+      const userBatch = eligible.slice(b, b + USER_BATCH_SIZE);
       await Promise.allSettled(
-        eligible.map(async (user) => {
+        userBatch.map(async (user) => {
           const ok = await sendMsg(user.telegram_chat_id, text, imageUrl);
           if (ok) {
             sentSet.add(sentKey(user.user_id, product));
@@ -109,6 +118,7 @@ async function dispatchFeed(users, products, channel) {
           }
         }),
       );
+      if (b + USER_BATCH_SIZE < eligible.length) await SLEEP(USER_BATCH_DELAY);
     }
 
     if (i < products.length - 1) await SLEEP(RATE_DELAY);

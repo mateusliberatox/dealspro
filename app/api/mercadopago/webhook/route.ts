@@ -1,6 +1,6 @@
 import { grantPremiumFromMPPayment, revokePremiumFromMPPayment, getPayment } from '@/lib/mercadopago';
 import { log } from '@/lib/log';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 function validateSignature(request: NextRequest): boolean {
@@ -25,9 +25,14 @@ function validateSignature(request: NextRequest): boolean {
   const dataId = request.nextUrl.searchParams.get('data.id');
   if (!dataId) return false;
 
-  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
-  const hmac     = createHmac('sha256', secret).update(manifest).digest('hex');
-  return hmac === v1;
+  const manifest  = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const hmacBytes = createHmac('sha256', secret).update(manifest).digest();
+  try {
+    const v1Bytes = Buffer.from(v1, 'hex');
+    return hmacBytes.length === v1Bytes.length && timingSafeEqual(hmacBytes, v1Bytes);
+  } catch {
+    return false; // v1 com hex inválido
+  }
 }
 
 export async function POST(request: NextRequest) {

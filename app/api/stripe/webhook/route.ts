@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
       const { data: existing } = await supabaseAdmin
         .from('dealspro_profiles')
-        .select('discord_user_id, referred_by, is_admin')
+        .select('discord_user_id, referred_by, is_admin, stripe_customer_id')
         .eq('user_id', userId)
         .single();
 
@@ -79,9 +79,12 @@ export async function POST(request: NextRequest) {
         await addPremiumRole(existing.discord_user_id);
       }
 
-      // Recompensa de indicação: 1 mês grátis para quem indicou
-      // Admin não conta como indicado nem como indicador
-      if (existing?.referred_by && !existing?.is_admin) {
+      // Recompensa de indicação: 1 mês grátis para quem indicou.
+      // Condições: usuário tem referred_by, não é admin, e é a PRIMEIRA compra
+      // (stripe_customer_id ainda nulo = nunca teve transação Stripe antes).
+      // Isso garante idempotência — re-assinaturas não recompensam o indicador novamente.
+      const isFirstPurchase = !existing?.stripe_customer_id;
+      if (existing?.referred_by && !existing?.is_admin && isFirstPurchase) {
         const { data: referrer } = await supabaseAdmin
           .from('dealspro_profiles')
           .select('user_id, plan, plan_expires_at, stripe_subscription_id, is_admin')
@@ -166,12 +169,23 @@ export async function POST(request: NextRequest) {
       break;
     }
 
-    // Reembolso: usuário recebeu o dinheiro de volta → revoga premium imediato.
+    // Reembolso: revoga premium apenas em reembolso TOTAL.
+    // Reembolsos parciais (ex: disputa de $1) não cortam o acesso do usuário.
     case 'charge.refunded': {
       const charge     = event.data.object as Stripe.Charge;
       const customerId = (charge.customer as string | null) ?? undefined;
       if (!customerId) {
         log.warn('stripe_refund_no_customer', { chargeId: charge.id });
+        break;
+      }
+
+      // Ignora reembolso parcial — só age quando 100% do valor foi devolvido
+      if (charge.amount_refunded < charge.amount) {
+        log.info('stripe_refund_partial_ignored', {
+          chargeId:        charge.id,
+          amountRefunded:  charge.amount_refunded,
+          amountTotal:     charge.amount,
+        });
         break;
       }
 
@@ -203,8 +217,8 @@ export async function POST(request: NextRequest) {
 
       log.info('stripe_refund_processed', {
         chargeId: charge.id,
-        userId: profile.user_id,
-        amount: charge.amount_refunded,
+        userId:   profile.user_id,
+        amount:   charge.amount_refunded,
       });
       break;
     }
