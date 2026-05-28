@@ -83,6 +83,24 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
     return [];
   }
 
+  // Alerta admin se homepage retornou muito poucos produtos — sinal de seletor CSS quebrado.
+  // Limiar conservador: abaixo de 5 é anômalo independente do horário.
+  const MIN_HOMEPAGE_PRODUCTS = 5;
+  if (homepageOnly && scraped.length < MIN_HOMEPAGE_PRODUCTS) {
+    logger.warn(`Homepage retornou apenas ${scraped.length} produto(s) — possível quebra de seletor CSS ou bloqueio`);
+    const adminWebhook = process.env.DISCORD_ADMIN_WEBHOOK_URL;
+    if (adminWebhook) {
+      fetch(adminWebhook, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          content: `⚠️ **DealsPro — Seletor CSS degradado**: homepage retornou apenas **${scraped.length}** produto(s). Possível mudança de layout no CSSDeals ou bloqueio Cloudflare.`,
+        }),
+        signal: AbortSignal.timeout(8_000),
+      }).catch(() => {});
+    }
+  }
+
   // 2. Attach hashes
   const withHashes = scraped.map((p) => ({
     ...p,

@@ -1,11 +1,20 @@
+import { timingSafeEqual } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { addPremiumRole, removePremiumRole } from '@/lib/discord';
 import { NextResponse } from 'next/server';
 
+function verifyCronSecret(provided: string | null): boolean {
+  const expected = process.env.CRON_SECRET;
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function POST(request: Request) {
   const secret = request.headers.get('x-admin-secret');
-  const cronOk = secret === process.env.CRON_SECRET;
+  const cronOk = verifyCronSecret(secret);
 
   // Aceita: CRON_SECRET válido OU sessão de usuário admin
   if (!cronOk) {

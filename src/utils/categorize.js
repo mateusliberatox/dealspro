@@ -1,3 +1,6 @@
+// @ts-check
+
+/** @type {{ name: string, keywords: string[] }[]} */
 const RULES = [
   { name: 'Smartwatch', keywords: [
     'watch', 'smartwatch', 'smart watch', 'relógio', '手表', '智能手表',
@@ -53,6 +56,10 @@ const RULES = [
 /**
  * Returns a category name based on keyword matching in the product name.
  * Checks the original name AND translated name (if provided).
+ *
+ * @param {string} nome
+ * @param {string} [nomeTraduzido]
+ * @returns {string}
  */
 export function categorize(nome, nomeTraduzido = '') {
   const text = `${nome} ${nomeTraduzido}`.toLowerCase();

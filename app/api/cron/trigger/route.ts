@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { expireOverduePlans } from '@/lib/plan';
@@ -5,6 +6,13 @@ import { processRoleSyncQueue } from '@/lib/discord';
 import { log } from '@/lib/log';
 
 const CRON_SECRET = process.env.CRON_SECRET;
+
+function verifyCronSecret(provided: string | null): boolean {
+  if (!provided || !CRON_SECRET) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(CRON_SECRET);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /**
  * POST /api/cron/trigger
@@ -19,7 +27,7 @@ const CRON_SECRET = process.env.CRON_SECRET;
 export async function POST(request: NextRequest) {
   // Auth check
   const secret = request.headers.get('x-cron-secret');
-  if (!CRON_SECRET || secret !== CRON_SECRET) {
+  if (!verifyCronSecret(secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

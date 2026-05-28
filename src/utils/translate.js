@@ -1,3 +1,4 @@
+// @ts-check
 import { supabase } from '../database/supabase.js';
 import { logger } from './logger.js';
 

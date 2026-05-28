@@ -1,3 +1,10 @@
+// @ts-check
+
+/**
+ * @typedef {{ nome: string, nome_traduzido?: string|null, categoria?: string|null, sizes?: string[] }} Product
+ * @typedef {{ keyword?: string|null, categoria?: string|null, size?: string|null }} Alert
+ */
+
 /**
  * Retorna true se um produto satisfaz os critérios de um alerta.
  *
@@ -7,6 +14,10 @@
  *  - apenas categoria: categoria deve casar
  *  - nenhum dos dois: nunca casa (alerta mal configurado)
  *  - size (opcional): produto deve conter o tamanho (case-insensitive)
+ *
+ * @param {Product} product
+ * @param {Alert} alert
+ * @returns {boolean}
  */
 export function productMatchesAlert(product, alert) {
   const searchText     = `${product.nome} ${product.nome_traduzido ?? ''}`.toLowerCase();
