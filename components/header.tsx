@@ -145,6 +145,7 @@ export function Header() {
               user ? (
                 <>
                   <NavLink href="/historico" onClick={closeMenu}>Histórico</NavLink>
+                  <NavLink href="/pedidos" onClick={closeMenu}>Pedidos</NavLink>
                   <NavLink href="/alerts" onClick={closeMenu}>Alertas</NavLink>
                   {isAdmin && <NavLink href="/admin" onClick={closeMenu}>Admin</NavLink>}
                   <button
@@ -269,6 +270,7 @@ export function Header() {
                 user ? (
                   <>
                     <MobileNavLink href="/historico" onClick={closeMenu}>Histórico</MobileNavLink>
+                    <MobileNavLink href="/pedidos" onClick={closeMenu}>Pedidos</MobileNavLink>
                     <MobileNavLink href="/alerts" onClick={closeMenu}>Alertas</MobileNavLink>
                     <MobileNavLink href="/minha-conta" onClick={closeMenu}>Minha conta</MobileNavLink>
                     {isAdmin && <MobileNavLink href="/admin" onClick={closeMenu}>Admin</MobileNavLink>}

@@ -2,8 +2,9 @@ import { timingSafeEqual } from 'crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { expireOverduePlans } from '@/lib/plan';
-import { processRoleSyncQueue } from '@/lib/discord';
+import { processRoleSyncQueue, sendBotDM } from '@/lib/discord';
 import { sendTelegramMedia } from '@/lib/telegram';
+import { getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, trackingConfigured } from '@/lib/tracking';
 import { log } from '@/lib/log';
 
 const db = createClient(
@@ -18,6 +19,100 @@ function verifyCronSecret(provided: string | null): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(CRON_SECRET);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ── Rastreamento de encomendas ─────────────────────────────────────────────────
+
+interface OrderRow {
+  id: string; user_id: string; tracking_code: string;
+  status: string; notified_status: string | null;
+  description: string | null; carrier_code: number | null;
+}
+
+interface ProfileRow { discord_user_id: string | null; telegram_chat_id: number | null }
+
+async function processTrackingUpdates(db: SupabaseClient): Promise<{ checked: number; updated: number; notified: number }> {
+  if (!trackingConfigured()) return { checked: 0, updated: 0, notified: 0 };
+
+  // Só verifica encomendas ativas que não foram checadas nos últimos 15 minutos
+  const checkBefore = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data: orders } = await db
+    .from('user_orders')
+    .select('id, user_id, tracking_code, status, notified_status, description, carrier_code')
+    .not('status', 'in', '("delivered","failed","returned")')
+    .or(`last_checked_at.is.null,last_checked_at.lt.${checkBefore}`)
+    .order('last_checked_at', { ascending: true, nullsFirst: true })
+    .limit(40);
+
+  if (!orders?.length) return { checked: 0, updated: 0, notified: 0 };
+
+  const rows    = orders as OrderRow[];
+  const codes   = rows.map((o) => o.tracking_code);
+  const updates = await getTrackingUpdates(codes);
+  const now     = new Date().toISOString();
+
+  let updated = 0, notified = 0;
+
+  for (const info of updates) {
+    const order = rows.find((o) => o.tracking_code === info.code);
+    if (!order) continue;
+
+    const statusChanged = info.status !== order.status;
+    const shouldNotify  = statusChanged && info.status !== order.notified_status;
+
+    await db.from('user_orders').update({
+      status:          info.status,
+      carrier_code:    info.carrier || order.carrier_code,
+      last_event:      info.lastEvent,
+      last_event_at:   info.lastAt,
+      last_checked_at: now,
+      ...(statusChanged ? { updated_at: now } : {}),
+    }).eq('id', order.id);
+
+    if (statusChanged) updated++;
+
+    if (shouldNotify) {
+      // Busca canais de notificação do usuário
+      const { data: prof } = await db
+        .from('dealspro_profiles')
+        .select('discord_user_id, telegram_chat_id')
+        .eq('user_id', order.user_id)
+        .single();
+
+      const profile = prof as ProfileRow | null;
+      const title   = order.description ?? order.tracking_code;
+      const embed   = {
+        color:       STATUS_COLOR[info.status],
+        title:       `${STATUS_EMOJI[info.status]} ${STATUS_LABELS[info.status]}`,
+        description: `**${title}**`,
+        fields: [
+          { name: 'Código',         value: `\`${order.tracking_code}\``, inline: true },
+          ...(info.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
+        ],
+        footer:    { text: 'DealsPro · Rastreamento de encomendas' },
+        timestamp: info.lastAt ?? new Date().toISOString(),
+      };
+
+      // Discord DM
+      if (profile?.discord_user_id) {
+        await sendBotDM(profile.discord_user_id, { embeds: [embed] }).catch(() => {});
+      }
+
+      // Telegram DM
+      if (profile?.telegram_chat_id) {
+        const text =
+          `${STATUS_EMOJI[info.status]} *${STATUS_LABELS[info.status]}*\n\n` +
+          `📦 ${title}\n\`${order.tracking_code}\`\n` +
+          (info.lastEvent ? `\n_${info.lastEvent}_` : '');
+        await sendTelegramMedia(profile.telegram_chat_id, text).catch(() => {});
+      }
+
+      await db.from('user_orders').update({ notified_status: info.status }).eq('id', order.id);
+      notified++;
+    }
+  }
+
+  return { checked: rows.length, updated, notified };
 }
 
 async function processTelegramQueue(db: SupabaseClient): Promise<{ sent: number; failed: number }> {
@@ -90,6 +185,12 @@ export async function POST(request: NextRequest) {
     const tgQueue = await processTelegramQueue(db);
     if (tgQueue.sent + tgQueue.failed > 0) {
       log.info('cron_telegram_queue', tgQueue);
+    }
+
+    // Verifica status das encomendas ativas e notifica usuários por DM
+    const tracking = await processTrackingUpdates(db);
+    if (tracking.checked > 0) {
+      log.info('cron_tracking', tracking);
     }
 
     // Health check: alerta no Discord se scraper parou de detectar produtos
