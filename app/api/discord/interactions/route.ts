@@ -137,19 +137,24 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
     .from('dealspro_profiles').select('user_id, plan').eq('discord_user_id', discordUserId).single();
   if (!profile) return ephemeral(`❌ Conta não encontrada. Crie a sua em ${SITE_URL} e vincule seu Discord.`);
 
-  // Verifica limite por plano
-  const limit = profile.plan === 'premium' ? ORDER_LIMIT.premium : ORDER_LIMIT.free;
+  // Rastreamento é exclusivo para Premium
+  if (profile.plan !== 'premium') {
+    return ephemeral(
+      `🔒 **Rastreamento de encomendas é exclusivo para Premium.**\n\n` +
+      `Use **/assinar** para assinar e rastrear até ${ORDER_LIMIT.premium} encomendas com notificações automáticas por DM.`,
+    );
+  }
+
+  // Verifica limite de encomendas ativas
   const { count } = await db
     .from('user_orders').select('*', { count: 'exact', head: true })
     .eq('user_id', profile.user_id)
     .not('status', 'in', '("delivered","failed","returned")');
 
-  if ((count ?? 0) >= limit) {
+  if ((count ?? 0) >= ORDER_LIMIT.premium) {
     return ephemeral(
-      `❌ Você já tem **${count}** encomendas ativas (limite do seu plano: ${limit}).\n\n` +
-      (profile.plan !== 'premium'
-        ? `Assine o **Premium** para rastrear até ${ORDER_LIMIT.premium} encomendas.\nUse **/assinar** para saber mais.`
-        : `Finalize ou remova uma encomenda antes de adicionar nova.`),
+      `❌ Você já tem **${count}** encomendas ativas (limite: ${ORDER_LIMIT.premium}).\n\n` +
+      `Remova ou aguarde a conclusão de uma antes de adicionar nova.`,
     );
   }
 
@@ -182,33 +187,40 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
     }).eq('user_id', profile.user_id).eq('tracking_code', code);
   }
 
-  const provider = getActiveProvider();
-  const PROVIDER_LABEL: Record<string, string> = {
-    wonca:        'WONCA',
-    trackingmore: 'TrackingMore',
-    aftership:    'AfterShip',
-    '17track':    '17Track',
-    correios:     'Correios',
-  };
-  const footer = provider === 'correios'
-    ? 'Rastreando via Correios (somente códigos BR*) · DM quando o status mudar'
-    : `Rastreando via ${PROVIDER_LABEL[provider] ?? provider} · DM quando o status mudar`;
+  const currentStatus = info?.status ?? 'pending';
+  const title         = description?.trim() || code;
 
-  const embed = {
-    color:       STATUS_COLOR[info?.status ?? 'pending'],
-    title:       '📦 Encomenda adicionada!',
-    description: description ? `**${description}**` : undefined,
-    fields: [
-      { name: 'Código', value: `\`${code}\``, inline: true },
-      { name: 'Status', value: `${STATUS_EMOJI[info?.status ?? 'pending']} ${STATUS_LABELS[info?.status ?? 'pending']}`, inline: true },
-      ...(info?.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
-      ...(!hasApiTracking() && !code.match(/^[A-Z]{2}\d{9}BR$/i)
-        ? [{ name: '⚠️ Atenção', value: 'Configure AfterShip para rastrear encomendas internacionais (não-BR).', inline: false }]
-        : []),
-    ],
-    footer: { text: footer },
+  const PROVIDER_LABEL: Record<string, string> = {
+    wonca: 'WONCA', trackingmore: 'TrackingMore',
+    aftership: 'AfterShip', '17track': '17Track', correios: 'Correios',
   };
-  return embedReply([embed]);
+  const provider     = getActiveProvider();
+  const providerName = PROVIDER_LABEL[provider] ?? provider;
+
+  // Embed completo — usado tanto no DM quanto na resposta ephemeral do servidor
+  const trackEmbed = {
+    color:       STATUS_COLOR[currentStatus],
+    title:       `${STATUS_EMOJI[currentStatus]} ${STATUS_LABELS[currentStatus]}`,
+    description: `**${title}**`,
+    fields: [
+      { name: 'Código',  value: `\`${code}\``, inline: true },
+      { name: 'Carrier', value: providerName,  inline: true },
+      ...(info?.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
+    ],
+    footer:    { text: 'Você receberá uma DM a cada mudança de status.' },
+    timestamp: info?.lastAt ?? new Date().toISOString(),
+  };
+
+  // Envia DM imediatamente com status inicial (fire-and-forget — não bloqueia a resposta)
+  sendBotDM(discordUserId, { embeds: [trackEmbed] }).catch(() => {});
+
+  // Resposta ephemeral no servidor (só você vê)
+  return embedReply([{
+    color:       0x10b981,
+    title:       '📦 Encomenda cadastrada!',
+    description: `\`${code}\`${description ? ` — **${description.trim()}**` : ''}\n\nStatus atual enviado por DM. Você será notificado a cada atualização.`,
+    footer:      { text: 'Somente você está vendo esta mensagem.' },
+  }]);
 }
 
 async function handlePedidos(discordUserId: string) {
@@ -266,6 +278,33 @@ async function handleRemoverPedido(discordUserId: string, trackingCode: string) 
   return ephemeral(`✅ Encomenda ${desc ? `**${desc}**` : `\`${code}\``} removida do rastreamento.`);
 }
 
+async function handleAlterarDescricao(discordUserId: string, trackingCode: string, newDescription: string) {
+  const code = trackingCode.trim().toUpperCase();
+  const desc = newDescription.trim();
+
+  if (!desc) return ephemeral('❌ A nova descrição não pode estar vazia.');
+  if (desc.length > 100) return ephemeral('❌ A descrição deve ter no máximo 100 caracteres.');
+
+  const { data: profile } = await db
+    .from('dealspro_profiles').select('user_id').eq('discord_user_id', discordUserId).single();
+  if (!profile) return ephemeral('❌ Conta não encontrada.');
+
+  const { data: order } = await db
+    .from('user_orders').select('id, description')
+    .eq('user_id', profile.user_id).eq('tracking_code', code).single();
+
+  if (!order) return ephemeral(`❌ Encomenda \`${code}\` não encontrada nos seus pedidos.`);
+
+  await db.from('user_orders').update({ description: desc }).eq('id', (order as { id: string }).id);
+
+  const old = (order as { description?: string }).description;
+  return ephemeral(
+    `✅ Descrição atualizada!\n\n` +
+    `\`${code}\`\n` +
+    (old ? `~~${old}~~ → ` : '') + `**${desc}**`,
+  );
+}
+
 // ── Endpoint principal ─────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -293,9 +332,10 @@ export async function POST(request: NextRequest) {
     if (name === 'status')           return handleStatus(discordUserId);
     if (name === 'meus-alertas')     return handleMeusAlertas(discordUserId);
     if (name === 'cancelar')         return handleCancelar(discordUserId, opt('keyword') ?? '');
-    if (name === 'rastrear')         return handleRastrear(discordUserId, opt('codigo') ?? '', opt('descricao'));
-    if (name === 'pedidos')          return handlePedidos(discordUserId);
-    if (name === 'remover-pedido')   return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
+    if (name === 'rastrear')           return handleRastrear(discordUserId, opt('codigo') ?? '', opt('descricao'));
+    if (name === 'pedidos')            return handlePedidos(discordUserId);
+    if (name === 'remover-pedido')     return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
+    if (name === 'alterar-descricao')  return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
   }
 
   return NextResponse.json({ type: 1 });

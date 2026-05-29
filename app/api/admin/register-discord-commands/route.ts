@@ -61,6 +61,24 @@ const COMMANDS = [
       required:    true,
     }],
   },
+  {
+    name:        'alterar-descricao',
+    description: 'Altera a descrição de uma encomenda cadastrada',
+    options: [
+      {
+        name:        'codigo',
+        description: 'Código de rastreamento (ex: AB123456789BR)',
+        type:        3,
+        required:    true,
+      },
+      {
+        name:        'descricao',
+        description: 'Nova descrição (ex: Nike Air Max 42 Preto)',
+        type:        3,
+        required:    true,
+      },
+    ],
+  },
 ];
 
 export async function POST(request: NextRequest) {
