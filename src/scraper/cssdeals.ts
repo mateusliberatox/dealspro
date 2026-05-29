@@ -18,9 +18,15 @@ const BATCH_SIZE     = 3;
 const MAX_PAGES      = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
 const MAX_CATEGORIES = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
 
+// Categorias que frequentemente fazem timeout — rodadas só 1×/hora
 const SLOW_CATEGORY_NAMES = new Set([
-  'Cell phone', 'Audio & Video', 'sports goods',
+  'Audio & Video', 'sports goods',
   'Belt&Glasses', 'Computer accessories', 'perfume', 'suitcase',
+]);
+
+// Categorias que consistentemente falham e nunca carregam — excluídas permanentemente
+const EXCLUDED_CATEGORY_NAMES = new Set([
+  'Cell phone',
 ]);
 
 let _slowCategoryLastRun     = 0;
@@ -188,16 +194,21 @@ export async function scrapeCssDeals({ homepageOnly = false } = {}): Promise<Scr
     categories = _categoryCache.data;
     logger.info(`Categories from cache (${categories.length})`);
   } else {
-    categories     = result.categories.slice(0, MAX_CATEGORIES);
-    _categoryCache = { data: categories, ts: now };
+    const discovered = result.categories.filter((c) => !EXCLUDED_CATEGORY_NAMES.has(c.name));
+    categories       = discovered.slice(0, MAX_CATEGORIES);
+    _categoryCache   = { data: categories, ts: now };
+    if (EXCLUDED_CATEGORY_NAMES.size > 0) {
+      logger.info(`Excluded ${EXCLUDED_CATEGORY_NAMES.size} unreliable category(ies): ${[...EXCLUDED_CATEGORY_NAMES].join(', ')}`);
+    }
     if (result.categories.length > MAX_CATEGORIES) {
       logger.info(`Discovered ${result.categories.length} categories — limiting to ${MAX_CATEGORIES}`);
     }
   }
 
+  const eligible   = categories.filter((c) => !EXCLUDED_CATEGORY_NAMES.has(c.name));
   const runSlowNow = (now - _slowCategoryLastRun) >= SLOW_CATEGORY_INTERVAL;
-  const fastCats   = categories.filter((c) => !SLOW_CATEGORY_NAMES.has(c.name));
-  const slowCats   = runSlowNow ? categories.filter((c) => SLOW_CATEGORY_NAMES.has(c.name)) : [];
+  const fastCats   = eligible.filter((c) => !SLOW_CATEGORY_NAMES.has(c.name));
+  const slowCats   = runSlowNow ? eligible.filter((c) => SLOW_CATEGORY_NAMES.has(c.name)) : [];
   if (runSlowNow && slowCats.length) {
     _slowCategoryLastRun = now;
     logger.info(`Slow categories incluídas neste ciclo (${slowCats.length}): ${slowCats.map((c) => c.name).join(', ')}`);

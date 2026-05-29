@@ -14,4 +14,4 @@ ENV SCRAPE_INTERVAL_SECONDS=180
 ENV FAST_SCRAPE_INTERVAL_SECONDS=60
 ENV SCRAPE_MAX_CATEGORIES=30
 
-CMD ["node", "src/entry/start-monitor.js"]
+CMD ["node_modules/.bin/tsx", "src/entry/start-monitor.ts"]
