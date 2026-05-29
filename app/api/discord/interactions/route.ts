@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { SITE_URL } from '@/lib/site';
 import { effectivePlan } from '@/lib/plan';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
-import { registerTrackings, getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, trackingConfigured } from '@/lib/tracking';
+import { registerTrackings, getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, hasApiTracking, getActiveProvider } from '@/lib/tracking';
 import { NextRequest, NextResponse } from 'next/server';
 
 // ── Singletons ─────────────────────────────────────────────────────────────────
@@ -163,46 +163,45 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
 
   // Registra no banco
   const { error: insertErr } = await db.from('user_orders').insert({
-    user_id:      profile.user_id,
+    user_id:       profile.user_id,
     tracking_code: code,
-    description:  description?.trim() || null,
-    status:       'pending',
+    description:   description?.trim() || null,
+    status:        'pending',
   });
   if (insertErr) return ephemeral(`❌ Erro ao cadastrar encomenda: ${insertErr.message}`);
 
-  // Registra no 17Track e já busca status inicial
-  if (trackingConfigured()) {
-    await registerTrackings([code]);
-    const [info] = await getTrackingUpdates([code]);
-    if (info && info.status !== 'pending') {
-      await db.from('user_orders').update({
-        status:         info.status,
-        last_event:     info.lastEvent,
-        last_event_at:  info.lastAt,
-        last_checked_at: new Date().toISOString(),
-        carrier_code:   info.carrier,
-      }).eq('user_id', profile.user_id).eq('tracking_code', code);
-    }
-
-    const embed = {
-      color:       STATUS_COLOR[info?.status ?? 'pending'],
-      title:       `📦 Encomenda adicionada!`,
-      description: description ? `**${description}**` : undefined,
-      fields: [
-        { name: 'Código',  value: `\`${code}\``,                                                     inline: true },
-        { name: 'Status',  value: `${STATUS_EMOJI[info?.status ?? 'pending']} ${STATUS_LABELS[info?.status ?? 'pending']}`, inline: true },
-        ...(info?.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
-      ],
-      footer: { text: 'DealsPro · Você receberá DM quando o status mudar' },
-    };
-    return embedReply([embed]);
+  // Registra no provider e já busca status inicial
+  await registerTrackings([code]);
+  const [info] = await getTrackingUpdates([code]);
+  if (info && info.status !== 'pending') {
+    await db.from('user_orders').update({
+      status:          info.status,
+      last_event:      info.lastEvent,
+      last_event_at:   info.lastAt,
+      last_checked_at: new Date().toISOString(),
+    }).eq('user_id', profile.user_id).eq('tracking_code', code);
   }
 
-  return ephemeral(
-    `✅ Encomenda \`${code}\` adicionada!\n\n` +
-    `📋 Status: Aguardando informações\n\n` +
-    `Ver todas as encomendas: ${SITE_URL}/pedidos`,
-  );
+  const provider = getActiveProvider();
+  const footer   = provider === 'correios'
+    ? 'DealsPro · Rastreando via Correios (somente códigos BR*)'
+    : `DealsPro · Rastreando via ${provider === 'aftership' ? 'AfterShip' : '17Track'} · DM quando o status mudar`;
+
+  const embed = {
+    color:       STATUS_COLOR[info?.status ?? 'pending'],
+    title:       '📦 Encomenda adicionada!',
+    description: description ? `**${description}**` : undefined,
+    fields: [
+      { name: 'Código', value: `\`${code}\``, inline: true },
+      { name: 'Status', value: `${STATUS_EMOJI[info?.status ?? 'pending']} ${STATUS_LABELS[info?.status ?? 'pending']}`, inline: true },
+      ...(info?.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
+      ...(!hasApiTracking() && !code.match(/^[A-Z]{2}\d{9}BR$/i)
+        ? [{ name: '⚠️ Atenção', value: 'Configure AfterShip para rastrear encomendas internacionais (não-BR).', inline: false }]
+        : []),
+    ],
+    footer: { text: footer },
+  };
+  return embedReply([embed]);
 }
 
 async function handlePedidos(discordUserId: string) {
