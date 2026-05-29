@@ -93,13 +93,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const appId = process.env.DISCORD_APP_ID;
-  const token = process.env.DISCORD_BOT_TOKEN;
+  const appId   = process.env.DISCORD_APP_ID;
+  const token   = process.env.DISCORD_BOT_TOKEN;
+  const guildId = process.env.DISCORD_GUILD_ID;
   if (!appId || !token) {
     return NextResponse.json({ error: 'DISCORD_APP_ID ou DISCORD_BOT_TOKEN não configurados' }, { status: 500 });
   }
 
-  const res = await fetch(`https://discord.com/api/v10/applications/${appId}/commands`, {
+  // Guild commands aparecem instantaneamente; global commands levam até 1h para propagar.
+  const endpoint = guildId
+    ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
+    : `https://discord.com/api/v10/applications/${appId}/commands`;
+
+  const res = await fetch(endpoint, {
     method:  'PUT',
     headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
     body:    JSON.stringify(COMMANDS),
