@@ -3,6 +3,7 @@ import { SITE_URL } from '@/lib/site';
 import { effectivePlan } from '@/lib/plan';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 import { registerTrackings, getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, hasApiTracking, getActiveProvider } from '@/lib/tracking';
+import { sendBotDM } from '@/lib/discord';
 import { NextRequest, NextResponse } from 'next/server';
 
 // ── Singletons ─────────────────────────────────────────────────────────────────
