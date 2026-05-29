@@ -88,6 +88,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen antialiased">
         {children}
+        <footer className="border-t border-white/5 py-4 text-center text-xs text-white/20">
+          <a href="https://www.siterastreio.com.br/" target="_blank" rel="noopener noreferrer" className="hover:text-white/40 transition-colors">
+            Rastreamento
+          </a>
+        </footer>
       </body>
     </html>
   );
