@@ -40,8 +40,8 @@ const DISCORD_ID_RE = /^\d{17,19}$/;
 function ephemeral(content: string) { return NextResponse.json({ type: 4, data: { content, flags: 64 } }); }
 function embedReply(embeds: unknown[], flags = 64) { return NextResponse.json({ type: 4, data: { embeds, flags } }); }
 
-// Limites de encomendas por plano
-const ORDER_LIMIT = { free: 3, premium: 20 } as const;
+// Limites de encomendas por plano (rastreamento é exclusivo Premium)
+const ORDER_LIMIT = { free: 0, premium: 20 } as const;
 
 // ── Handlers existentes ────────────────────────────────────────────────────────
 
@@ -183,9 +183,16 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
   }
 
   const provider = getActiveProvider();
-  const footer   = provider === 'correios'
-    ? 'DealsPro · Rastreando via Correios (somente códigos BR*)'
-    : `DealsPro · Rastreando via ${provider === 'aftership' ? 'AfterShip' : '17Track'} · DM quando o status mudar`;
+  const PROVIDER_LABEL: Record<string, string> = {
+    wonca:        'WONCA',
+    trackingmore: 'TrackingMore',
+    aftership:    'AfterShip',
+    '17track':    '17Track',
+    correios:     'Correios',
+  };
+  const footer = provider === 'correios'
+    ? 'Rastreando via Correios (somente códigos BR*) · DM quando o status mudar'
+    : `Rastreando via ${PROVIDER_LABEL[provider] ?? provider} · DM quando o status mudar`;
 
   const embed = {
     color:       STATUS_COLOR[info?.status ?? 'pending'],

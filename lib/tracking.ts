@@ -1,14 +1,19 @@
 /**
- * Tracking de encomendas — suporta 3 providers com detecção automática:
+ * Tracking de encomendas — suporta 4 providers com detecção automática:
  *
- * 1. AfterShip  (AFTERSHIP_API_KEY)       — primário, aceita e-mail pessoal, 100 tracks/mês grátis
+ * 1. WONCA      (WONCA_API_KEY)           — primário, gratuito (1000 req/mês c/ link no rodapé)
+ *    Cadastro: https://wonca.com.br → Dashboard → Configurar API Keys
+ *    API ref:  POST https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track
+ *    Auth:     Authorization: Apikey YOUR_KEY
+ *    Body:     {"code": "TRACKING_CODE"}
+ *
+ * 2. AfterShip  (AFTERSHIP_API_KEY)       — requer plano pago
  *    Cadastro: https://www.aftership.com → Settings → API Keys
- *    API ref:  https://www.aftership.com/docs/tracking/apis/tracking/post-trackings
  *
- * 2. 17Track    (SEVENTEEN_TRACK_API_KEY) — secundário, requer e-mail empresarial
+ * 3. 17Track    (SEVENTEEN_TRACK_API_KEY) — requer e-mail empresarial
  *    Cadastro: https://www.17track.net/en/api
  *
- * 3. Correios   (sem variável)            — fallback gratuito, sem cadastro, só códigos BR*
+ * 4. Correios   (sem variável)            — fallback gratuito, sem cadastro, só códigos BR*
  *    Scraping do site público dos Correios, best-effort.
  *
  * O sistema detecta o provider automaticamente e expõe a mesma interface pública.
@@ -59,9 +64,10 @@ export interface TrackingInfo {
   provider?: string;
 }
 
-export type Provider = 'trackingmore' | 'aftership' | '17track' | 'correios';
+export type Provider = 'wonca' | 'trackingmore' | 'aftership' | '17track' | 'correios';
 
 function getProvider(): Provider {
+  if (process.env.WONCA_API_KEY)           return 'wonca';
   if (process.env.TRACKINGMORE_API_KEY)    return 'trackingmore';
   if (process.env.AFTERSHIP_API_KEY)       return 'aftership';
   if (process.env.SEVENTEEN_TRACK_API_KEY) return '17track';
@@ -70,7 +76,123 @@ function getProvider(): Provider {
 
 const CORREIOS_RE = /^[A-Z]{2}\d{9}BR$/i;
 
-// ── Provider 1: TrackingMore (primário) ──────────────────────────────────────
+// ── Provider 1: WONCA (primário gratuito) ────────────────────────────────────
+//
+// API WONCA Labs — https://wonca.com.br
+//
+// Autenticação: header  Authorization: Apikey YOUR_KEY
+// Endpoint:     POST https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track
+// Body:         {"code": "TRACKING_CODE"}
+//
+// Resposta:
+//   { "json": "<JSON-escaped string>", "carrier": "CARRIER_CORREIOS" }
+//   O campo `json` é um JSON encodado como string, contendo:
+//     codObjeto:  string
+//     situacao:   string  ("T"=trânsito/retido, "E"=entregue, etc.)
+//     eventos:    Array ordenado do mais recente → mais antigo
+//       codigo:         string  (BDI, FC, PAR, PO, OEC, BDE…)
+//       tipo:           string
+//       dtHrCriado:     { date: "YYYY-MM-DD HH:mm:ss.000000", timezone: "America/Sao_Paulo" }
+//       descricao:      string  (descrição em português)
+//       descricaoFrontEnd: string
+//       unidade:        { nome: string, endereco: { cidade?, uf? } }
+//       finalizador:    "N"|"S"
+//
+// Limite gratuito: 1000 req/mês (com link no rodapé do site).
+
+const WONCA_KEY  = () => process.env.WONCA_API_KEY ?? '';
+const WONCA_URL  = 'https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track';
+
+interface WoncaEvent {
+  codigo:            string;
+  tipo:              string;
+  dtHrCriado:        { date: string; timezone?: string };
+  descricao:         string;
+  descricaoFrontEnd: string;
+  unidade:           { nome?: string; endereco?: { cidade?: string; uf?: string } };
+  finalizador:       string;
+}
+
+interface WoncaObject {
+  codObjeto: string;
+  situacao:  string;
+  eventos:   WoncaEvent[];
+}
+
+function woncaParseStatus(descr: string): TrackingStatus {
+  const d = descr.toLowerCase();
+  if (/importa[çc][aã]o n[aã]o autorizada/.test(d))                       return 'failed';
+  if (/entregue ao destinat|objeto entregue/.test(d))                      return 'delivered';
+  if (/saiu para entrega|objeto em rota de entrega/.test(d))               return 'out_for_delivery';
+  if (/devolvid|retornad/.test(d))                                         return 'returned';
+  if (/retido|fiscaliz|autoridade aduaneira|tributad|receita federal|verifica[cç][aã]o de autenticidade|selecionado para/.test(d)) return 'customs';
+  if (/an[aá]lise conclu[ií]da.*autorizada|informacoes eletronicas|informações eletrônicas|postado|objeto recebido|recebido pelos correios/.test(d)) return 'in_transit';
+  if (/objeto recebido na unidade de distribuição|em processo de triagem/.test(d)) return 'in_transit';
+  return 'in_transit';
+}
+
+async function woncaGetSingle(code: string): Promise<TrackingInfo | null> {
+  const res = await fetch(WONCA_URL, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Apikey ${WONCA_KEY()}`,
+    },
+    body:    JSON.stringify({ code }),
+    signal:  AbortSignal.timeout(12_000),
+  }).catch(() => null);
+
+  if (!res?.ok) return null;
+
+  const outer = await res.json().catch(() => null) as { json?: string } | null;
+  if (!outer?.json) return null;
+
+  let obj: WoncaObject;
+  try { obj = JSON.parse(outer.json) as WoncaObject; }
+  catch { return null; }
+
+  const eventos = obj.eventos ?? [];
+  if (!eventos.length) {
+    return { code, carrier: 'correios', status: 'pending', lastEvent: null, lastAt: null, provider: 'wonca' };
+  }
+
+  const ev      = eventos[0];
+  const descr   = ev.descricao ?? '';
+  const cidade  = ev.unidade?.endereco?.cidade ?? null;
+  const uf      = ev.unidade?.endereco?.uf ?? null;
+  const nome    = ev.unidade?.nome ?? null;
+  const local   = nome || (cidade && uf ? `${cidade}, ${uf}` : cidade ?? uf ?? null);
+  const lastEvent = local ? `${descr} — ${local}` : (descr || null);
+
+  // Converte "YYYY-MM-DD HH:mm:ss.000000" → ISO
+  const rawDate = ev.dtHrCriado?.date ?? null;
+  const lastAt  = rawDate ? new Date(rawDate.replace(' ', 'T')).toISOString() : null;
+
+  return {
+    code,
+    carrier:   'correios',
+    status:    woncaParseStatus(descr),
+    lastEvent,
+    lastAt,
+    provider:  'wonca',
+  };
+}
+
+async function woncaGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
+  if (!codes.length) return [];
+  const results: TrackingInfo[] = [];
+  // 5 paralelas por vez para não estourar rate limit
+  for (let i = 0; i < codes.length; i += 5) {
+    const batch   = codes.slice(i, i + 5);
+    const settled = await Promise.allSettled(batch.map(woncaGetSingle));
+    for (const r of settled) {
+      if (r.status === 'fulfilled' && r.value) results.push(r.value);
+    }
+  }
+  return results;
+}
+
+// ── Provider 2: TrackingMore ──────────────────────────────────────────────────
 //
 // API v4 — documentação: https://www.trackingmore.com/docs/trackingmore
 //
@@ -207,7 +329,7 @@ async function tmGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
   return results;
 }
 
-// ── Provider 2: AfterShip ─────────────────────────────────────────────────────
+// ── Provider 3: AfterShip ─────────────────────────────────────────────────────
 //
 // API v2023-10 — documentação: https://www.aftership.com/docs/tracking
 //
@@ -304,7 +426,7 @@ async function asGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
   });
 }
 
-// ── Provider 2: 17Track (secundário) ─────────────────────────────────────────
+// ── Provider 4: 17Track (secundário) ─────────────────────────────────────────
 
 const T17_KEY  = () => process.env.SEVENTEEN_TRACK_API_KEY ?? '';
 const T17_BASE = 'https://api.17track.net/track/v2.2';
@@ -354,7 +476,7 @@ async function t17GetUpdates(codes: string[]): Promise<TrackingInfo[]> {
   });
 }
 
-// ── Provider 3: Correios direto (fallback gratuito) ───────────────────────────
+// ── Provider 5: Correios direto (fallback gratuito) ───────────────────────────
 //
 // Consulta o site público dos Correios e extrai os dados do __NEXT_DATA__ SSR.
 // Fallback: regex no HTML se o JSON não estiver disponível.
@@ -452,17 +574,18 @@ export async function registerTrackings(codes: string[]): Promise<void> {
   if (p === 'trackingmore') return tmRegister(codes);
   if (p === 'aftership')    return asRegister(codes);
   if (p === '17track')      return t17Register(codes);
-  // Correios: sem registro necessário
+  // wonca & correios: sem registro necessário (query on-demand)
 }
 
 /**
- * Retorna status atualizado de até 40 encomendas por chamada.
- * TrackingMore, AfterShip e 17Track: batch.
- * Correios: chamadas individuais (apenas BR*).
+ * Retorna status atualizado para os códigos informados.
+ * WONCA/Correios: chamadas individuais paralelas (5 por vez).
+ * TrackingMore/AfterShip/17Track: batch nativo da API.
  */
 export async function getTrackingUpdates(codes: string[]): Promise<TrackingInfo[]> {
   if (!codes.length) return [];
   const p = getProvider();
+  if (p === 'wonca')        return woncaGetUpdates(codes);
   if (p === 'trackingmore') return tmGetUpdates(codes);
   if (p === 'aftership')    return asGetUpdates(codes);
   if (p === '17track')      return t17GetUpdates(codes);
