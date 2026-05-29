@@ -21,12 +21,23 @@ export async function getBrowser(): Promise<Browser> {
       browserInstance = await chromium.launch({
         headless: process.env.HEADLESS !== 'false',
         args: [
+          // Obrigatórios para Railway/Docker
           '--no-sandbox',
           '--disable-dev-shm-usage',
           '--disable-blink-features=AutomationControlled',
           '--no-zygote',
           '--disable-gpu',
           '--disable-software-rasterizer',
+          // Redução de memória (~50-100MB no Railway)
+          '--disable-background-networking',
+          '--disable-default-apps',
+          '--disable-extensions',
+          '--disable-sync',
+          '--disable-background-timer-throttling',
+          '--disable-renderer-backgrounding',
+          '--disable-backgrounding-occluded-windows',
+          '--mute-audio',
+          '--no-first-run',
         ],
       });
       browserLaunchedAt = Date.now();
