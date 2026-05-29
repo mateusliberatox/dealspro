@@ -15,7 +15,9 @@ import type { Product } from '../types.js';
 const MAX_QC_FETCHES        = 100;
 const QC_BATCH_SIZE         = 3;
 const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
-const MIN_SCRAPE_QUALITY    = 400;
+// Com MAX_PAGES=1 e 20 categorias, um scrape saudável retorna ~350-380 produtos.
+// Threshold deve detectar scrapes genuinamente ruins (<50% do esperado), não o normal.
+const MIN_SCRAPE_QUALITY = parseInt(process.env.MIN_SCRAPE_QUALITY ?? '200', 10);
 const TRANSLATE_CONCURRENCY = 16;
 
 /**
