@@ -64,7 +64,7 @@ export async function newPage(): Promise<Page> {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
       '(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
     locale:   'en-US',
-    viewport: { width: 1280, height: 800 },
+    viewport: { width: 800, height: 600 }, // menor viewport = menos work de layout/render
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   });
 

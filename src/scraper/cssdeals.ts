@@ -14,9 +14,18 @@ const FALLBACK_CATEGORIES: Category[] = [
   { name: 'Watches',     id: 20 },
 ];
 
-const BATCH_SIZE     = 3;
-const MAX_PAGES      = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
-const MAX_CATEGORIES = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '12', 10);
+const BATCH_SIZE     = 5;   // lotes maiores → ciclo completo ~40% mais rápido
+const BATCH_PAUSE_MS = 1000; // reduzido de 2s: com resource blocking, risco de rate-limit é menor
+const MAX_PAGES      = parseInt(process.env.SCRAPE_PAGES          ?? '1',  10);
+const MAX_CATEGORIES = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '20', 10);
+
+// Categorias mais ativas incluídas no fast cycle (raspa em paralelo com a homepage).
+// Produtos nessas categorias chegam em ~60s em vez de esperar o full cycle (~3min).
+// Override via FAST_CATEGORY_IDS=18,11,19 no Railway.
+const FAST_CATEGORY_IDS: number[] = (process.env.FAST_CATEGORY_IDS ?? '18,11')
+  .split(',')
+  .map((s) => parseInt(s.trim(), 10))
+  .filter((n) => !isNaN(n));
 
 // Categorias que frequentemente fazem timeout — rodadas só 1×/hora
 const SLOW_CATEGORY_NAMES = new Set([
@@ -128,12 +137,14 @@ async function discoverCategories(page: import('playwright').Page): Promise<Cate
   return FALLBACK_CATEGORIES;
 }
 
-async function scrapeHomepage(): Promise<{ products: ScrapedProduct[]; categories: Category[] }> {
+async function scrapeHomepage(skipDiscovery = false): Promise<{ products: ScrapedProduct[]; categories: Category[] }> {
   const page = await newPage();
   try {
     await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     await page.waitForSelector('a[href*="itemid="]', { timeout: 20_000 });
-    const products   = await extractProducts(page, 'Homepage');
+    const products = await extractProducts(page, 'Homepage');
+    // No fast cycle, categories are discarded anyway — skip DOM query to economizar
+    if (skipDiscovery) return { products, categories: FALLBACK_CATEGORIES };
     const categories = await discoverCategories(page);
     return { products, categories };
   } catch (err: unknown) {
@@ -176,15 +187,35 @@ let _categoryCache: { data: Category[] | null; ts: number } = { data: null, ts: 
 const CATEGORY_CACHE_TTL = 20 * 60 * 1000;
 
 export async function scrapeCssDeals({ homepageOnly = false } = {}): Promise<ScrapedProduct[]> {
-  logger.info(homepageOnly ? 'Starting fast homepage scrape...' : 'Starting multi-page scrape...');
-
-  const result           = await scrapeHomepage();
-  const homepageProducts = result.products;
+  logger.info(homepageOnly
+    ? `Starting fast scrape (homepage + ${FAST_CATEGORY_IDS.length} priority categories)...`
+    : 'Starting multi-page scrape...');
 
   if (homepageOnly) {
-    logger.success(`Homepage-only: ${homepageProducts.length} products`);
-    return homepageProducts;
+    // Todas as tarefas em paralelo: homepage + categorias prioritárias (Fashion, Shoes, …)
+    const [homepageSettled, ...fastCatSettled] = await Promise.allSettled([
+      scrapeHomepage(/* skipDiscovery= */ true),
+      ...FAST_CATEGORY_IDS.map((id) => {
+        const name = _categoryCache.data?.find((c) => c.id === id)?.name ?? `cat-${id}`;
+        return scrapeCategoryPage(id, name, 1);
+      }),
+    ]);
+
+    const homepageProducts = homepageSettled.status === 'fulfilled' ? homepageSettled.value.products : [];
+    const fastCatProducts  = fastCatSettled.flatMap((r) => r.status === 'fulfilled' ? r.value : []);
+
+    const seen   = new Set<string>(homepageProducts.map((p) => p.link));
+    const merged = [...homepageProducts];
+    for (const p of fastCatProducts) {
+      if (!seen.has(p.link)) { seen.add(p.link); merged.push(p); }
+    }
+
+    logger.success(`Fast cycle: ${merged.length} products`);
+    return merged;
   }
+
+  const result           = await scrapeHomepage(/* skipDiscovery= */ false);
+  const homepageProducts = result.products;
 
   const now      = Date.now();
   const cacheHit = _categoryCache.data && (now - _categoryCache.ts) < CATEGORY_CACHE_TTL;
@@ -233,7 +264,7 @@ export async function scrapeCssDeals({ homepageOnly = false } = {}): Promise<Scr
       allCategoryProducts.push(...products);
       if (products.length === 0) failedCats.push(batch[j]);
     }
-    if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, 2000));
+    if (i + BATCH_SIZE < shuffled.length) await new Promise((r) => setTimeout(r, BATCH_PAUSE_MS));
   }
 
   let toRetry = failedCats;
