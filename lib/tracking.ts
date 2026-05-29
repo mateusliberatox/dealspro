@@ -59,9 +59,10 @@ export interface TrackingInfo {
   provider?: string;
 }
 
-export type Provider = 'aftership' | '17track' | 'correios';
+export type Provider = 'trackingmore' | 'aftership' | '17track' | 'correios';
 
 function getProvider(): Provider {
+  if (process.env.TRACKINGMORE_API_KEY)    return 'trackingmore';
   if (process.env.AFTERSHIP_API_KEY)       return 'aftership';
   if (process.env.SEVENTEEN_TRACK_API_KEY) return '17track';
   return 'correios';
@@ -69,7 +70,144 @@ function getProvider(): Provider {
 
 const CORREIOS_RE = /^[A-Z]{2}\d{9}BR$/i;
 
-// ── Provider 1: AfterShip (primário) ─────────────────────────────────────────
+// ── Provider 1: TrackingMore (primário) ──────────────────────────────────────
+//
+// API v4 — documentação: https://www.trackingmore.com/docs/trackingmore
+//
+// Autenticação: header  Tracking-Api-Key: YOUR_KEY
+// Base URL:     https://api.trackingmore.com/v4
+//
+// Endpoints utilizados:
+//   POST /couriers/detect                — detecta carrier de um código
+//   POST /trackings/create              — registra código (erro 4016 se já existe)
+//   POST /trackings/batch               — batch de até 40 por chamada
+//   GET  /trackings/get?tracking_numbers=A,B,...  — busca status em batch
+//
+// Status tags (campo `tag` na resposta):
+//   notfound   → pending      (código ainda não capturado pela transportadora)
+//   pending    → pending      (informação recebida, aguardando movimentação)
+//   transit    → in_transit   (em trânsito)
+//   pickup     → out_for_delivery (saiu para entrega / disponível para retirada)
+//   delivered  → delivered    (entregue)
+//   undelivered→ failed       (tentativa falhou)
+//   exception  → failed       (exceção/problema)
+//   expired    → failed       (prazo expirado)
+//
+// Courier codes relevantes:
+//   correios   → Correios (Brasil)
+//   china-post → China Post / EMS
+//   cainiao    → Cainiao (AliExpress logistics)
+//   yanwen     → Yanwen Express
+//   4px        → 4PX Express
+//   (deixar vazio = auto-detect pelo TrackingMore)
+
+const TM_KEY  = () => process.env.TRACKINGMORE_API_KEY ?? '';
+const TM_BASE = 'https://api.trackingmore.com/v4';
+
+const TM_TAG_MAP: Record<string, TrackingStatus> = {
+  notfound:    'pending',
+  pending:     'pending',
+  transit:     'in_transit',
+  pickup:      'out_for_delivery',
+  delivered:   'delivered',
+  undelivered: 'failed',
+  exception:   'failed',
+  expired:     'failed',
+};
+
+/** Detecta o courier_code a partir do número de rastreamento. */
+async function tmDetectCourier(trackingNumber: string): Promise<string> {
+  // Correios BR* → sempre correios, sem precisar chamar a API
+  if (CORREIOS_RE.test(trackingNumber)) return 'correios';
+
+  const res = await fetch(`${TM_BASE}/couriers/detect`, {
+    method:  'POST',
+    headers: { 'Tracking-Api-Key': TM_KEY(), 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ tracking_number: trackingNumber }),
+    signal:  AbortSignal.timeout(8_000),
+  }).catch(() => null);
+
+  if (!res?.ok) return '';
+
+  const body     = await res.json().catch(() => null) as Record<string, unknown> | null;
+  const couriers = (body?.data as unknown[]) ?? [];
+  // Pega o primeiro carrier detectado
+  const first    = (couriers[0] as Record<string, unknown> | undefined);
+  return (first?.courier_code as string) ?? '';
+}
+
+async function tmRegister(codes: string[]): Promise<void> {
+  if (!codes.length) return;
+
+  // Batch de até 40 por chamada
+  for (let i = 0; i < codes.length; i += 40) {
+    const batch = codes.slice(i, i + 40);
+
+    // Detecta couriers em paralelo (BR* é resolvido localmente, sem API call)
+    const couriers = await Promise.all(batch.map(tmDetectCourier));
+
+    const payload = batch.map((tracking_number, j) => ({
+      tracking_number,
+      courier_code: couriers[j] || '',
+    }));
+
+    await fetch(`${TM_BASE}/trackings/batch`, {
+      method:  'POST',
+      headers: { 'Tracking-Api-Key': TM_KEY(), 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+      signal:  AbortSignal.timeout(15_000),
+    }).catch(() => {});
+  }
+}
+
+async function tmGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
+  if (!codes.length) return [];
+
+  const results: TrackingInfo[] = [];
+
+  // GET aceita até 40 códigos por chamada
+  for (let i = 0; i < codes.length; i += 40) {
+    const batch  = codes.slice(i, i + 40);
+    const params = new URLSearchParams({ tracking_numbers: batch.join(',') });
+
+    const res = await fetch(`${TM_BASE}/trackings/get?${params}`, {
+      headers: { 'Tracking-Api-Key': TM_KEY() },
+      signal:  AbortSignal.timeout(20_000),
+    }).catch(() => null);
+
+    if (!res?.ok) continue;
+
+    const body  = await res.json().catch(() => null) as Record<string, unknown> | null;
+    const items = ((body?.data as Record<string, unknown>)?.items as unknown[]) ?? [];
+
+    for (const raw of items as Array<Record<string, unknown>>) {
+      const tag   = (raw.tag as string | null) ?? 'pending';
+      let status  = TM_TAG_MAP[tag] ?? 'in_transit';
+
+      // Último evento e localização
+      const latestEvent    = (raw.latest_event as string)           ?? '';
+      const latestCheckpoint = (raw.latest_checkpoint_time as string) ?? null;
+
+      // Heurística de alfândega via texto do evento
+      if (status === 'in_transit' && /customs|alfândega|receita federal|tributad|fisco|retenid/i.test(latestEvent)) {
+        status = 'customs';
+      }
+
+      results.push({
+        code:      raw.tracking_number as string,
+        carrier:   (raw.courier_code as string) ?? '',
+        status,
+        lastEvent: latestEvent || null,
+        lastAt:    latestCheckpoint,
+        provider:  'trackingmore',
+      });
+    }
+  }
+
+  return results;
+}
+
+// ── Provider 2: AfterShip ─────────────────────────────────────────────────────
 //
 // API v2023-10 — documentação: https://www.aftership.com/docs/tracking
 //
@@ -311,20 +449,23 @@ async function correiosGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
 export async function registerTrackings(codes: string[]): Promise<void> {
   if (!codes.length) return;
   const p = getProvider();
-  if (p === 'aftership') return asRegister(codes);
-  if (p === '17track')   return t17Register(codes);
+  if (p === 'trackingmore') return tmRegister(codes);
+  if (p === 'aftership')    return asRegister(codes);
+  if (p === '17track')      return t17Register(codes);
+  // Correios: sem registro necessário
 }
 
 /**
- * Retorna status atualizado de até 100 encomendas.
- * AfterShip e 17Track: chamada em batch.
- * Correios: chamadas individuais em paralelo (apenas BR*).
+ * Retorna status atualizado de até 40 encomendas por chamada.
+ * TrackingMore, AfterShip e 17Track: batch.
+ * Correios: chamadas individuais (apenas BR*).
  */
 export async function getTrackingUpdates(codes: string[]): Promise<TrackingInfo[]> {
   if (!codes.length) return [];
   const p = getProvider();
-  if (p === 'aftership') return asGetUpdates(codes);
-  if (p === '17track')   return t17GetUpdates(codes);
+  if (p === 'trackingmore') return tmGetUpdates(codes);
+  if (p === 'aftership')    return asGetUpdates(codes);
+  if (p === '17track')      return t17GetUpdates(codes);
   return correiosGetUpdates(codes);
 }
 
