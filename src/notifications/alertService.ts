@@ -2,36 +2,38 @@ import { supabase } from '../database/supabase.js';
 import { sendDiscordDM } from './discord.js';
 import { logger } from '../utils/logger.js';
 import { productMatchesAlert } from '../utils/alertMatch.js';
+import { sendTelegramMsg } from '../utils/telegram.js';
+import type { Product, Alert, Profile } from '../types.js';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+type ProductRow = Product & { id?: string | number };
 
-async function sendTelegram(chatId, text, imageUrl = null) {
-  if (!TELEGRAM_TOKEN) return;
-  const opts = { signal: AbortSignal.timeout(10_000) };
-  if (imageUrl) {
-    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML' }),
-      ...opts,
-    }).catch(() => ({ ok: false }));
-    if (res.ok) return;
-  }
-  await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
-    ...opts,
-  }).catch(() => {});
+interface AlertRow extends Alert {
+  user_id: string;
+}
+
+interface ProfileRow extends Profile {
+  user_id: string;
+}
+
+interface DispatchDMArgs {
+  alert:       AlertRow;
+  product:     ProductRow;
+  discordId:   string | null | undefined;
+  telegramId:  number | null | undefined;
+  isRestock:   boolean;
+  notifiedSet: Set<string>;
 }
 
 /**
  * Para cada produto novo, encontra alertas ativos de usuários premium que coincidem
  * e despacha DM via Discord e/ou Telegram.
  */
-export async function matchAndNotify(products, { isRestock = false } = {}) {
+export async function matchAndNotify(
+  products: ProductRow[],
+  { isRestock = false } = {},
+): Promise<void> {
   if (!products.length) return;
 
   const { data: alerts, error: alertsError } = await supabase
@@ -42,7 +44,7 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
   if (alertsError) { logger.error(`Alert fetch failed: ${alertsError.message}`); return; }
   if (!alerts?.length) return;
 
-  const userIds = [...new Set(alerts.map((a) => a.user_id))];
+  const userIds = [...new Set((alerts as AlertRow[]).map((a) => a.user_id))];
   const { data: profiles, error: profilesError } = await supabase
     .from('dealspro_profiles')
     .select('user_id, plan, discord_user_id, telegram_chat_id')
@@ -52,18 +54,18 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
   if (profilesError) { logger.error(`Profile fetch failed: ${profilesError.message}`); return; }
   if (!profiles?.length) return;
 
-  const profileMap    = new Map(profiles.map((p) => [p.user_id, p]));
-  const premiumAlerts = alerts.filter((a) => profileMap.has(a.user_id));
+  const profileMap    = new Map((profiles as ProfileRow[]).map((p) => [p.user_id, p]));
+  const premiumAlerts = (alerts as AlertRow[]).filter((a) => profileMap.has(a.user_id));
   if (!premiumAlerts.length) return;
 
   // Pré-busca todos os logs relevantes em UMA query para evitar N+1
-  const notifiedSet = new Set();
+  const notifiedSet = new Set<string>();
   if (!isRestock) {
     const itemIds        = products.map((p) => p.cssdeals_item_id).filter(Boolean);
     const productIds     = products.map((p) => p.id).filter(Boolean);
     const premiumUserIds = [...new Set(premiumAlerts.map((a) => a.user_id))];
 
-    const conditions = [];
+    const conditions: string[] = [];
     if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
     if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
 
@@ -75,7 +77,7 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
         .in('channel', ['discord_dm', 'telegram_dm'])
         .or(conditions.join(','));
 
-      for (const l of logs ?? []) {
+      for (const l of (logs ?? []) as Array<{ user_id: string; product_id?: string | number; cssdeals_item_id?: number | bigint }>) {
         if (l.cssdeals_item_id) notifiedSet.add(`${l.user_id}:${l.cssdeals_item_id}`);
         if (l.product_id)       notifiedSet.add(`${l.user_id}:pid${l.product_id}`);
       }
@@ -95,7 +97,7 @@ export async function matchAndNotify(products, { isRestock = false } = {}) {
   }
 }
 
-async function dispatchDM({ alert, product, discordId, telegramId, isRestock = false, notifiedSet = new Set() }) {
+async function dispatchDM({ alert, product, discordId, telegramId, isRestock = false, notifiedSet }: DispatchDMArgs): Promise<void> {
   const nome   = product.nome_traduzido || product.nome;
   const itemId = product.cssdeals_item_id ?? null;
 
@@ -107,7 +109,6 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
       logger.info(`DM dedup: ${alert.user_id} × ${itemId ?? product.id}`);
       return;
     }
-    // Marca como visto agora para evitar duplicata no mesmo ciclo
     if (itemId)     notifiedSet.add(`${alert.user_id}:${itemId}`);
     if (product.id) notifiedSet.add(`${alert.user_id}:pid${product.id}`);
   }
@@ -125,7 +126,8 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
         status:           'sent',
       });
       logger.success(`Discord DM → ${alert.user_id} — "${nome}"`);
-    } catch (err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       await logNotification({
         user_id:          alert.user_id,
         product_id:       product.id,
@@ -133,37 +135,57 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
         alert_id:         alert.id,
         channel:          'discord_dm',
         status:           'failed',
-        error:            err.message,
+        error:            msg,
       });
-      logger.error(`Discord DM falhou: ${err.message}`);
+      logger.error(`Discord DM falhou: ${msg}`);
     }
-    await sleep(500); // evita 429 ao enviar DMs em sequência rápida
+    await sleep(500);
   }
 
   // Telegram DM
   if (telegramId) {
-    const icon  = isRestock ? '🔄' : '🔔';
-    const label = isRestock ? 'Produto restocado!' : 'Novo produto encontrado!';
-    const cat   = product.categoria ? `📂 <b>${product.categoria}</b>\n` : '';
-    const text  =
+    const icon     = isRestock ? '🔄' : '🔔';
+    const label    = isRestock ? 'Produto restocado!' : 'Novo produto encontrado!';
+    const cat      = product.categoria ? `📂 <b>${product.categoria}</b>\n` : '';
+    const text     =
       `${icon} <b>${label}</b>\n\n` +
       cat +
       `📦 ${nome}\n` +
       `💰 <b>${product.preco || 'Ver no site'}</b>\n\n` +
       `<a href="${product.link}">👉 Abrir no CSSDeals</a>`;
+    const imageUrl = product.imagem || null;
 
     try {
-      await sendTelegram(telegramId, text, product.imagem || null);
-      await logNotification({
+      const ok = await sendTelegramMsg(telegramId, text, imageUrl);
+      if (ok) {
+        await logNotification({
+          user_id:          alert.user_id,
+          product_id:       product.id,
+          cssdeals_item_id: itemId,
+          alert_id:         alert.id,
+          channel:          'telegram_dm',
+          status:           'sent',
+        });
+        logger.success(`Telegram DM → ${alert.user_id} — "${nome}"`);
+      } else {
+        throw new Error('sendTelegramMsg returned false');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Enfileira para retry pelo cron em vez de perder silenciosamente
+      const { error: enqueueErr } = await supabase.from('telegram_notify_queue').insert({
         user_id:          alert.user_id,
-        product_id:       product.id,
-        cssdeals_item_id: itemId,
-        alert_id:         alert.id,
-        channel:          'telegram_dm',
-        status:           'sent',
+        telegram_chat_id: telegramId,
+        product_id:       product.id ?? null,
+        cssdeals_item_id: itemId ?? null,
+        alert_id:         alert.id ?? null,
+        message_text:     text,
+        image_url:        imageUrl,
+        last_error:       msg,
+        next_retry_at:    new Date(Date.now() + 5 * 60_000).toISOString(),
       });
-      logger.success(`Telegram DM → ${alert.user_id} — "${nome}"`);
-    } catch (err) {
+      if (enqueueErr) logger.error(`Telegram enqueue failed: ${enqueueErr.message}`);
+
       await logNotification({
         user_id:          alert.user_id,
         product_id:       product.id,
@@ -171,9 +193,9 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
         alert_id:         alert.id,
         channel:          'telegram_dm',
         status:           'failed',
-        error:            err.message,
+        error:            msg,
       });
-      logger.error(`Telegram DM falhou: ${err.message}`);
+      logger.error(`Telegram DM falhou (enfileirado para retry): ${msg}`);
     }
     await sleep(500);
   }
@@ -191,7 +213,7 @@ async function dispatchDM({ alert, product, discordId, telegramId, isRestock = f
   }
 }
 
-async function logNotification(entry) {
+async function logNotification(entry: Record<string, unknown>): Promise<void> {
   const { error } = await supabase.from('notification_logs').insert(entry);
   if (error) logger.error(`Failed to log notification: ${error.message}`);
 }

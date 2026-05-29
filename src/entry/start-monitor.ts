@@ -3,7 +3,6 @@ import http from 'node:http';
 import { startMonitor, getHealthStatus } from '../jobs/monitor.js';
 import { logger } from '../utils/logger.js';
 
-// Railway injeta PORT automaticamente; fallback para 3000 em desenvolvimento
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 const server = http.createServer((req, res) => {

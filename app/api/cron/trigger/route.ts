@@ -1,9 +1,15 @@
 import { timingSafeEqual } from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { expireOverduePlans } from '@/lib/plan';
 import { processRoleSyncQueue } from '@/lib/discord';
+import { sendTelegramMedia } from '@/lib/telegram';
 import { log } from '@/lib/log';
+
+const db = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -12,6 +18,43 @@ function verifyCronSecret(provided: string | null): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(CRON_SECRET);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+async function processTelegramQueue(db: SupabaseClient): Promise<{ sent: number; failed: number }> {
+  const now = new Date().toISOString();
+  const { data: items, error } = await db
+    .from('telegram_notify_queue')
+    .select('*')
+    .lte('next_retry_at', now)
+    .order('next_retry_at', { ascending: true })
+    .limit(20);
+
+  if (error || !items?.length) return { sent: 0, failed: 0 };
+
+  let sent = 0, failed = 0;
+
+  for (const item of items) {
+    const ok = await sendTelegramMedia(item.telegram_chat_id, item.message_text, item.image_url ?? null);
+    const newAttempts = item.attempts + 1;
+
+    if (ok) {
+      await db.from('telegram_notify_queue').delete().eq('id', item.id);
+      sent++;
+    } else if (newAttempts >= item.max_attempts) {
+      await db.from('telegram_notify_queue')
+        .update({ attempts: newAttempts, last_error: 'max_attempts_reached' })
+        .eq('id', item.id);
+      failed++;
+    } else {
+      // Backoff exponencial: 5 * 2^attempts minutos (5, 10, 20…)
+      const delayMs = 5 * Math.pow(2, newAttempts) * 60_000;
+      await db.from('telegram_notify_queue')
+        .update({ attempts: newAttempts, next_retry_at: new Date(Date.now() + delayMs).toISOString() })
+        .eq('id', item.id);
+    }
+  }
+
+  return { sent, failed };
 }
 
 /**
@@ -34,10 +77,6 @@ export async function POST(request: NextRequest) {
   // Expira planos vencidos (PIX e trials sem stripe_subscription_id).
   // Lógica centralizada em lib/plan.ts, usada também no render do feed.
   try {
-    const db = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
     const expiredCount = await expireOverduePlans(db);
     if (expiredCount > 0) log.info('cron_expired_plans', { count: expiredCount });
 
@@ -45,6 +84,12 @@ export async function POST(request: NextRequest) {
     const roleSync = await processRoleSyncQueue(db);
     if (roleSync.done + roleSync.failed + roleSync.retried > 0) {
       log.info('cron_discord_role_sync', roleSync);
+    }
+
+    // Processa fila de retries de DMs Telegram (alertas que falharam no Railway)
+    const tgQueue = await processTelegramQueue(db);
+    if (tgQueue.sent + tgQueue.failed > 0) {
+      log.info('cron_telegram_queue', tgQueue);
     }
 
     // Health check: alerta no Discord se scraper parou de detectar produtos

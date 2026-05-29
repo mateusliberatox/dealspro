@@ -11,11 +11,14 @@ import { supabase } from '../database/supabase.js';
 import { logger } from '../utils/logger.js';
 import { isValidImageUrl } from '../utils/discordEmbed.js';
 import { buildTelegramMessage } from '../utils/telegramMessage.js';
+import { sendTelegramMsg } from '../utils/telegram.js';
+import type { Product } from '../types.js';
 
-const TOKEN                  = process.env.TELEGRAM_BOT_TOKEN;
+interface TelegramUser { user_id: string; telegram_chat_id: number }
+
 const MODES                  = ['all_deals', 'both'];
-const SLEEP                  = (ms) => new Promise((r) => setTimeout(r, ms));
-const RATE_DELAY             = 350; // delay entre PRODUTOS (não entre usuários)
+const SLEEP                  = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const RATE_DELAY             = 350;
 const FREE_NOTIFY_BATCH_SIZE = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
 
 // Telegram limita a ~30 msg/s por bot globalmente.
@@ -23,37 +26,14 @@ const FREE_NOTIFY_BATCH_SIZE = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '5
 const USER_BATCH_SIZE  = 10;
 const USER_BATCH_DELAY = 400;
 
-
-async function sendMsg(chatId, text, imageUrl = null) {
-  if (!TOKEN) return false;
-  const opts = { signal: AbortSignal.timeout(10_000) };
-  if (imageUrl) {
-    const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML' }),
-      ...opts,
-    }).catch(() => ({ ok: false }));
-    if (res.ok) return true;
-  }
-  const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
-    ...opts,
-  }).catch(() => ({ ok: false }));
-  return res.ok;
-}
-
 /**
  * Pré-carrega notification_logs em uma query para evitar N+1 por (usuário × produto).
- * Retorna um Set de chaves "userId:itemId" ou "userId:pidProductId".
  */
-async function buildSentSet(userIds, products, channel) {
+async function buildSentSet(userIds: string[], products: Product[], channel: string): Promise<Set<string>> {
   const itemIds    = products.map((p) => p.cssdeals_item_id).filter(Boolean);
   const productIds = products.map((p) => p.id).filter(Boolean);
 
-  const conditions = [];
+  const conditions: string[] = [];
   if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
   if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
   if (!conditions.length || !userIds.length) return new Set();
@@ -65,30 +45,26 @@ async function buildSentSet(userIds, products, channel) {
     .eq('channel', channel)
     .or(conditions.join(','));
 
-  const set = new Set();
-  for (const l of logs ?? []) {
+  const set = new Set<string>();
+  for (const l of (logs ?? []) as Array<{ user_id: string; product_id?: string | number; cssdeals_item_id?: number | bigint }>) {
     if (l.cssdeals_item_id) set.add(`${l.user_id}:${l.cssdeals_item_id}`);
     if (l.product_id)       set.add(`${l.user_id}:pid${l.product_id}`);
   }
   return set;
 }
 
-function sentKey(userId, product) {
+function sentKey(userId: string, product: Product): string {
   return product.cssdeals_item_id
     ? `${userId}:${product.cssdeals_item_id}`
     : `${userId}:pid${product.id}`;
 }
 
-/**
- * Envia produtos para todos os usuários elegíveis em paralelo.
- * Delay de RATE_DELAY ms entre produtos (não entre usuários).
- */
-async function dispatchFeed(users, products, channel) {
+async function dispatchFeed(users: TelegramUser[], products: Product[], channel: string): Promise<number> {
   if (!users.length || !products.length) return 0;
 
   const userIds = users.map((u) => u.user_id);
   const sentSet = await buildSentSet(userIds, products, channel);
-  const logsToInsert = [];
+  const logsToInsert: Record<string, unknown>[] = [];
   let sent = 0;
 
   for (let i = 0; i < products.length; i++) {
@@ -97,14 +73,11 @@ async function dispatchFeed(users, products, channel) {
     const imageUrl = isValidImageUrl(product.imagem) ? product.imagem : null;
     const eligible = users.filter((u) => !sentSet.has(sentKey(u.user_id, product)));
 
-    // Usuários em batches de USER_BATCH_SIZE para não ultrapassar o limite global
-    // do Telegram (30 msg/s). Promise.allSettled por batch garante paralelismo
-    // dentro do lote sem disparar todos os usuários de uma vez.
     for (let b = 0; b < eligible.length; b += USER_BATCH_SIZE) {
       const userBatch = eligible.slice(b, b + USER_BATCH_SIZE);
       await Promise.allSettled(
         userBatch.map(async (user) => {
-          const ok = await sendMsg(user.telegram_chat_id, text, imageUrl);
+          const ok = await sendTelegramMsg(user.telegram_chat_id, text, imageUrl ?? null);
           if (ok) {
             sentSet.add(sentKey(user.user_id, product));
             logsToInsert.push({
@@ -134,8 +107,8 @@ async function dispatchFeed(users, products, channel) {
 
 // ── Premium: envia imediatamente ─────────────────────────────────────────────
 
-export async function notifyTelegramPremiumFeed(products) {
-  if (!TOKEN || !products.length) return;
+export async function notifyTelegramPremiumFeed(products: Product[]): Promise<void> {
+  if (!process.env.TELEGRAM_BOT_TOKEN || !products.length) return;
 
   const { data: users } = await supabase
     .from('dealspro_profiles')
@@ -146,14 +119,14 @@ export async function notifyTelegramPremiumFeed(products) {
 
   if (!users?.length) return;
 
-  const sent = await dispatchFeed(users, products, 'telegram_feed');
+  const sent = await dispatchFeed(users as TelegramUser[], products, 'telegram_feed');
   if (sent > 0) logger.success(`Telegram premium feed: ${sent} mensagem(ns) enviada(s)`);
 }
 
 // ── Free: envia quando visible_at passou ─────────────────────────────────────
 
-export async function notifyTelegramFreeFeed() {
-  if (!TOKEN) return;
+export async function notifyTelegramFreeFeed(): Promise<void> {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return;
 
   const { data: users } = await supabase
     .from('dealspro_profiles')
@@ -177,6 +150,6 @@ export async function notifyTelegramFreeFeed() {
 
   if (!products?.length) return;
 
-  const sent = await dispatchFeed(users, products, 'telegram_feed');
+  const sent = await dispatchFeed(users as TelegramUser[], products as Product[], 'telegram_feed');
   if (sent > 0) logger.success(`Telegram free feed: ${sent} mensagem(ns) enviada(s)`);
 }

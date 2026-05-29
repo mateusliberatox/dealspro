@@ -1,55 +1,32 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger.js';
 import { buildDiscordEmbed } from '../utils/discordEmbed.js';
+import type { Product } from '../types.js';
 
-const WEBHOOK_URL      = process.env.DISCORD_WEBHOOK_URL;
+const WEBHOOK_URL     = process.env.DISCORD_WEBHOOK_URL;
 const FREE_WEBHOOK_URL = process.env.DISCORD_FREE_WEBHOOK_URL;
-const BOT_TOKEN        = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_API      = 'https://discord.com/api/v10';
+const BOT_TOKEN       = process.env.DISCORD_BOT_TOKEN;
+const DISCORD_API     = 'https://discord.com/api/v10';
 
-const BATCH_ANNOUNCE_THRESHOLD  = 8;
-const FREE_NOTIFY_BATCH_SIZE    = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
+const BATCH_ANNOUNCE_THRESHOLD = 8;
+const FREE_NOTIFY_BATCH_SIZE   = parseInt(process.env.FREE_NOTIFY_BATCH_SIZE ?? '50', 10);
 
-// Cliente Supabase compartilhado (lazy init)
-let _db;
-function getDb() {
-  if (!_db) _db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+let _db: SupabaseClient | null = null;
+function getDb(): SupabaseClient {
+  if (!_db) _db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   return _db;
 }
 
-// ── Helpers de deduplicação ───────────────────────────────────────────────────
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Verifica se um produto já foi enviado num canal específico.
- * Checa por cssdeals_item_id (sobrevive deleção/reinserção) e, como fallback, por product_id.
- */
-async function alreadySentToChannel(channel, productId, itemId) {
-  const db = getDb();
+// ── Deduplicação ──────────────────────────────────────────────────────────────
 
-  if (itemId) {
-    const { data } = await db
-      .from('notification_logs')
-      .select('id')
-      .eq('cssdeals_item_id', itemId)
-      .eq('channel', channel)
-      .limit(1);
-    if ((data?.length ?? 0) > 0) return true;
-  }
-
-  if (productId) {
-    const { data } = await db
-      .from('notification_logs')
-      .select('id')
-      .eq('product_id', productId)
-      .eq('channel', channel)
-      .limit(1);
-    if ((data?.length ?? 0) > 0) return true;
-  }
-
-  return false;
-}
-
-async function logSent(channel, productId, itemId, discordMessageId = null) {
+async function logSent(
+  channel: string,
+  productId: string | number | null | undefined,
+  itemId: string | bigint | number | null | undefined,
+  discordMessageId: string | null = null,
+): Promise<void> {
   const { error } = await getDb().from('notification_logs').insert({
     product_id:         productId        ?? null,
     cssdeals_item_id:   itemId           ?? null,
@@ -62,7 +39,7 @@ async function logSent(channel, productId, itemId, discordMessageId = null) {
 
 // ── Anúncio de lote grande ────────────────────────────────────────────────────
 
-export async function announceNewBatch(count, categories) {
+export async function announceNewBatch(count: number, categories: (string | null | undefined)[]): Promise<void> {
   if (!FREE_WEBHOOK_URL || count < BATCH_ANNOUNCE_THRESHOLD) return;
 
   const catList = [...new Set(categories.filter(Boolean))].slice(0, 5).join(', ');
@@ -83,28 +60,27 @@ export async function announceNewBatch(count, categories) {
   logger.success(`Announced batch of ${count} new products to free channel`);
 }
 
-// ── Webhook canal premium (imediato) ─────────────────────────────────────────
+// ── Canal premium (imediato) ──────────────────────────────────────────────────
 
-export async function sendToDiscord(products) {
+export async function sendToDiscord(products: Product[]): Promise<void> {
   if (!WEBHOOK_URL || !products.length) return;
 
   const db = getDb();
 
-  // Pré-busca logs de deduplicação em batch — evita 2N queries no loop
   const itemIds    = products.map((p) => p.cssdeals_item_id).filter(Boolean);
   const productIds = products.map((p) => p.id).filter(Boolean);
-  const conditions = [];
+  const conditions: string[] = [];
   if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
   if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
 
-  const sentSet = new Set();
+  const sentSet = new Set<string>();
   if (conditions.length) {
     const { data: logs } = await db
       .from('notification_logs')
       .select('product_id, cssdeals_item_id')
       .eq('channel', 'discord_premium')
       .or(conditions.join(','));
-    for (const l of logs ?? []) {
+    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | bigint | number }>) {
       if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
       if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
     }
@@ -112,7 +88,7 @@ export async function sendToDiscord(products) {
 
   let sent = 0;
   for (const product of products) {
-    const itemId     = product.cssdeals_item_id ?? null;
+    const itemId      = product.cssdeals_item_id ?? null;
     const alreadySent = (itemId && sentSet.has(`item:${itemId}`)) ||
                         (!itemId && sentSet.has(`pid:${product.id}`));
 
@@ -126,11 +102,11 @@ export async function sendToDiscord(products) {
         content: '🔥 **Novo produto detectado!**',
         embeds:  [buildDiscordEmbed(product)],
       }, { waitForMessage: true });
-      await logSent('discord_premium', product.id, itemId, msg?.id ?? null);
+      await logSent('discord_premium', product.id, itemId, (msg as Record<string, string> | null)?.id ?? null);
       sentSet.add(itemId ? `item:${itemId}` : `pid:${product.id}`);
       sent++;
-    } catch (err) {
-      logger.warn(`Premium webhook failed for ${product.id}: ${err.message}`);
+    } catch (err: unknown) {
+      logger.warn(`Premium webhook failed for ${product.id}: ${(err as Error).message}`);
     }
 
     if (products.length > 1) await sleep(500);
@@ -139,9 +115,9 @@ export async function sendToDiscord(products) {
   if (sent > 0) logger.success(`Discord webhook premium: ${sent}/${products.length} produto(s)`);
 }
 
-// ── Webhook canal free (retardado 30 min) ────────────────────────────────────
+// ── Canal free (retardado 30 min) ─────────────────────────────────────────────
 
-export async function sendFreeDelayedNotifications() {
+export async function sendFreeDelayedNotifications(): Promise<void> {
   if (!FREE_WEBHOOK_URL) return;
 
   const db     = getDb();
@@ -159,28 +135,25 @@ export async function sendFreeDelayedNotifications() {
 
   if (!due?.length) return;
 
-  // Prefetch de dedup em batch — evita 2N queries sequenciais no loop abaixo
-  const itemIds    = due.map((p) => p.cssdeals_item_id).filter(Boolean);
-  const productIds = due.map((p) => p.id).filter(Boolean);
-  const conditions = [];
+  const itemIds    = (due as Product[]).map((p) => p.cssdeals_item_id).filter(Boolean);
+  const productIds = (due as Product[]).map((p) => p.id).filter(Boolean);
+  const conditions: string[] = [];
   if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
   if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
 
-  const sentSet = new Set();
+  const sentSet = new Set<string>();
   if (conditions.length) {
     const { data: logs } = await db
-      .from('notification_logs')
-      .select('product_id, cssdeals_item_id')
-      .eq('channel', 'discord_free')
-      .or(conditions.join(','));
-    for (const l of logs ?? []) {
+      .from('notification_logs').select('product_id, cssdeals_item_id')
+      .eq('channel', 'discord_free').or(conditions.join(','));
+    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | bigint | number }>) {
       if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
       if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
     }
   }
 
   let sent = 0;
-  for (const product of due) {
+  for (const product of due as Product[]) {
     const itemId      = product.cssdeals_item_id ?? null;
     const alreadySent = (itemId && sentSet.has(`item:${itemId}`)) ||
                         (!itemId && sentSet.has(`pid:${product.id}`));
@@ -197,8 +170,8 @@ export async function sendFreeDelayedNotifications() {
         embeds:  [buildDiscordEmbed(product)],
       });
       ok = true;
-    } catch (err) {
-      logger.error(`Free webhook failed for ${product.id}: ${err.message}`);
+    } catch (err: unknown) {
+      logger.error(`Free webhook failed for ${product.id}: ${(err as Error).message}`);
     }
 
     if (ok) {
@@ -214,9 +187,9 @@ export async function sendFreeDelayedNotifications() {
   if (sent > 0) logger.success(`Discord free: ${sent} notificação(ões) enviada(s)`);
 }
 
-// ── DM de alerta (premium) ───────────────────────────────────────────────────
+// ── DM de alerta (premium) ────────────────────────────────────────────────────
 
-export async function sendDiscordDM(discordUserId, product, isRestock = false) {
+export async function sendDiscordDM(discordUserId: string, product: Product, isRestock = false): Promise<void> {
   if (!BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN not configured');
 
   const channelRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
@@ -231,7 +204,7 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
     throw new Error(`DM channel open failed (${channelRes.status}): ${err}`);
   }
 
-  const { id: channelId } = await channelRes.json();
+  const { id: channelId } = await channelRes.json() as { id: string };
 
   const payload = JSON.stringify({
     content: isRestock
@@ -240,7 +213,6 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
     embeds: [buildDiscordEmbed(product)],
   });
 
-  // Retry uma vez em caso de rate limit (429) — retry_after vem na resposta
   for (let attempt = 1; attempt <= 2; attempt++) {
     const msgRes = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
       method:  'POST',
@@ -252,7 +224,7 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
     if (msgRes.ok) return;
 
     if (msgRes.status === 429 && attempt < 2) {
-      const body  = await msgRes.json().catch(() => ({}));
+      const body  = await msgRes.json().catch(() => ({})) as { retry_after?: number };
       const waitMs = Math.ceil((body.retry_after ?? 1) * 1000) + 100;
       await sleep(waitMs);
       continue;
@@ -263,9 +235,13 @@ export async function sendDiscordDM(discordUserId, product, isRestock = false) {
   }
 }
 
-async function postWebhook(url, body, { waitForMessage = false } = {}) {
+async function postWebhook(
+  url: string,
+  body: Record<string, unknown>,
+  { waitForMessage = false } = {},
+): Promise<unknown> {
   const target = waitForMessage ? `${url}?wait=true` : url;
-  const res = await fetch(target, {
+  const res    = await fetch(target, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
@@ -278,18 +254,18 @@ async function postWebhook(url, body, { waitForMessage = false } = {}) {
   return waitForMessage ? res.json() : null;
 }
 
-function parseWebhookUrl(url) {
+function parseWebhookUrl(url: string | undefined): { id: string; token: string } | null {
   const match = url?.match(/\/webhooks\/(\d+)\/([^/?]+)/);
   return match ? { id: match[1], token: match[2] } : null;
 }
 
-export async function updateQcImagesInDiscord(products) {
+export async function updateQcImagesInDiscord(products: Product[]): Promise<void> {
   if (!WEBHOOK_URL || !products.length) return;
 
   const webhook = parseWebhookUrl(WEBHOOK_URL);
   if (!webhook) return;
 
-  const db = getDb();
+  const db         = getDb();
   const productIds = products.map((p) => p.id).filter(Boolean);
 
   const { data: logs } = await db
@@ -301,11 +277,14 @@ export async function updateQcImagesInDiscord(products) {
 
   if (!logs?.length) return;
 
-  const messageMap = new Map(logs.map((l) => [l.product_id, l.discord_message_id]));
+  const messageMap = new Map(
+    (logs as Array<{ product_id: string | number; discord_message_id: string }>)
+      .map((l) => [l.product_id, l.discord_message_id]),
+  );
 
   let updated = 0;
   for (const product of products) {
-    const messageId = messageMap.get(product.id);
+    const messageId = messageMap.get(product.id!);
     if (!messageId) continue;
 
     try {
@@ -324,8 +303,8 @@ export async function updateQcImagesInDiscord(products) {
         continue;
       }
       updated++;
-    } catch (err) {
-      logger.warn(`QC edit failed for product ${product.id}: ${err.message}`);
+    } catch (err: unknown) {
+      logger.warn(`QC edit failed for product ${product.id}: ${(err as Error).message}`);
     }
 
     if (products.length > 1) await sleep(500);
@@ -333,5 +312,3 @@ export async function updateQcImagesInDiscord(products) {
 
   if (updated > 0) logger.success(`QC: ${updated} embed(s) atualizados no Discord`);
 }
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

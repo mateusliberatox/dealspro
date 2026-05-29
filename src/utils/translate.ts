@@ -1,45 +1,41 @@
-// @ts-check
 import { supabase } from '../database/supabase.js';
 import { logger } from './logger.js';
 
-const HAS_CHINESE      = /[一-鿿]/;
-const MYMEMORY_URL     = 'https://api.mymemory.translated.net/get';
-const DEEPL_URL        = 'https://api-free.deepl.com/v2/translate';
-const DEEPL_KEY        = process.env.DEEPL_API_KEY;
+const HAS_CHINESE     = /[一-鿿]/;
+const MYMEMORY_URL    = 'https://api.mymemory.translated.net/get';
+const DEEPL_URL       = 'https://api-free.deepl.com/v2/translate';
+const DEEPL_KEY       = process.env.DEEPL_API_KEY;
 
 // Cache em memória: consulta rápida sem I/O — perdido no restart, repopulado pelo DB cache
-const memCache    = new Map();
+const memCache      = new Map<string, string>();
 const MEM_CACHE_MAX = 2000;
 
 // Quando a quota do MyMemory esgota, pausamos 1h antes de tentar novamente
-let _quotaExhaustedAt = 0;
-const QUOTA_COOLDOWN_MS = 60 * 60 * 1000;
+let _quotaExhaustedAt       = 0;
+const QUOTA_COOLDOWN_MS     = 60 * 60 * 1000;
 
-// ── Camada 1: DB cache ────────────────────────────────────────────────────────
+// ── DB cache ─────────────────────────────────────────────────────────────────
 
-async function dbLookup(nome) {
+async function dbLookup(nome: string): Promise<string | null> {
   const { data } = await supabase
     .from('translation_cache')
     .select('nome_traduzido')
     .eq('nome_original', nome)
     .single();
-  return data?.nome_traduzido ?? null;
+  return (data as { nome_traduzido?: string } | null)?.nome_traduzido ?? null;
 }
 
-async function dbSave(nome, traduzido) {
-  // Não-bloqueante — falha silenciosa (cache é oportunístico)
+async function dbSave(nome: string, traduzido: string): Promise<void> {
   try {
     await supabase
       .from('translation_cache')
       .upsert({ nome_original: nome, nome_traduzido: traduzido }, { onConflict: 'nome_original', ignoreDuplicates: true });
-  } catch {
-    // intencional: cache DB é best-effort
-  }
+  } catch { /* cache é best-effort */ }
 }
 
-// ── Camada 2: DeepL Free (500k chars/mês) ────────────────────────────────────
+// ── DeepL Free (500k chars/mês) ───────────────────────────────────────────────
 
-async function translateWithDeepL(nome) {
+async function translateWithDeepL(nome: string): Promise<string | null> {
   if (!DEEPL_KEY) return null;
   try {
     const res = await fetch(DEEPL_URL, {
@@ -52,16 +48,14 @@ async function translateWithDeepL(nome) {
       logger.warn(`DeepL error ${res.status} — fallback para MyMemory`);
       return null;
     }
-    const json = await res.json();
+    const json = await res.json() as { translations?: Array<{ text: string }> };
     return json?.translations?.[0]?.text ?? null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ── Camada 3: MyMemory (fallback, 1000 palavras/dia grátis) ──────────────────
+// ── MyMemory (fallback, 1000 palavras/dia grátis) ────────────────────────────
 
-async function translateWithMyMemory(nome) {
+async function translateWithMyMemory(nome: string): Promise<string | null> {
   if (_quotaExhaustedAt && (Date.now() - _quotaExhaustedAt) < QUOTA_COOLDOWN_MS) return null;
 
   try {
@@ -69,7 +63,7 @@ async function translateWithMyMemory(nome) {
     const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (!res.ok) return null;
 
-    const json    = await res.json();
+    const json    = await res.json() as { responseStatus?: number; responseDetails?: string; responseData?: { translatedText?: string } };
     const status  = json?.responseStatus;
     const details = json?.responseDetails ?? '';
 
@@ -91,11 +85,8 @@ async function translateWithMyMemory(nome) {
       _quotaExhaustedAt = 0;
       logger.info('MyMemory: quota restaurada — traduções reativadas');
     }
-
     return translated;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 // ── Entrada pública ───────────────────────────────────────────────────────────
@@ -105,13 +96,11 @@ async function translateWithMyMemory(nome) {
  * Lookup order: memCache → DB cache → DeepL Free → MyMemory fallback.
  * Falls back to original name on any error.
  */
-export async function translateName(nome) {
+export async function translateName(nome: string): Promise<string> {
   if (!HAS_CHINESE.test(nome)) return nome;
 
-  // 1. Memória (sem I/O)
-  if (memCache.has(nome)) return memCache.get(nome);
+  if (memCache.has(nome)) return memCache.get(nome)!;
 
-  // 2. DB cache (persiste entre restarts do Railway)
   try {
     const cached = await dbLookup(nome);
     if (cached) {
@@ -121,15 +110,10 @@ export async function translateName(nome) {
     }
   } catch { /* non-fatal */ }
 
-  // 3. DeepL (se DEEPL_API_KEY configurada)
   let translated = await translateWithDeepL(nome);
-
-  // 4. MyMemory como fallback
-  if (!translated) translated = await translateWithMyMemory(nome);
-
+  if (!translated)  translated = await translateWithMyMemory(nome);
   if (!translated || translated === nome) return nome;
 
-  // Salva em memória e DB para próximas consultas
   if (memCache.size >= MEM_CACHE_MAX) memCache.clear();
   memCache.set(nome, translated);
   dbSave(nome, translated);

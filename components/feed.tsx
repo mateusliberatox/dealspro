@@ -67,7 +67,15 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
   const [incoming, setIncoming]     = useState<Produto[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
   const [tamanhos, setTamanhos]     = useState<string[]>([]);
+  const [search, setSearch]         = useState('');
+  const [searchQ, setSearchQ]       = useState('');
   const sinceRef = useRef<string>(initial[0]?.criado_em ?? new Date().toISOString());
+
+  // Debounce da busca: só filtra 300ms após o usuário parar de digitar
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQ(search.trim().toLowerCase()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Live feed para premium: a cada 60s busca produtos criados após o último visto.
   // Não substitui automaticamente — empurra para `incoming` e o usuário clica pra prepender.
@@ -122,16 +130,17 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
     );
   };
 
-  const clearAll   = () => { setCategorias([]); setTamanhos([]); };
-  const isFiltered = categorias.length > 0 || tamanhos.length > 0;
+  const clearAll   = () => { setCategorias([]); setTamanhos([]); setSearch(''); };
+  const isFiltered = categorias.length > 0 || tamanhos.length > 0 || searchQ.length > 0;
 
   const filtered = useMemo(() => {
     return produtos.filter((p) => {
-      const catOk  = categorias.length === 0 || categorias.includes(p.categoria ?? 'Outros');
-      const sizeOk = tamanhos.length === 0 || p.sizes?.some((s) => tamanhos.includes(s));
-      return catOk && sizeOk;
+      const catOk    = categorias.length === 0 || categorias.includes(p.categoria ?? 'Outros');
+      const sizeOk   = tamanhos.length === 0 || p.sizes?.some((s) => tamanhos.includes(s));
+      const searchOk = !searchQ || (p.nome_traduzido ?? p.nome).toLowerCase().includes(searchQ);
+      return catOk && sizeOk && searchOk;
     });
-  }, [produtos, categorias, tamanhos]);
+  }, [produtos, categorias, tamanhos, searchQ]);
 
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
 
@@ -162,6 +171,34 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
           )}
         </div>
       )}
+
+      {/* Search */}
+      <div className="relative animate-fade-in-up" style={{ animationDelay: '0.06s' }}>
+        <span
+          className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm"
+          style={{ color: 'var(--text-3)' }}
+        >
+          🔍
+        </span>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar produto…"
+          className="glass-btn w-full rounded-lg py-2 pl-9 pr-4 text-sm outline-none focus:ring-1"
+          style={{ color: 'var(--text)', caretColor: 'var(--accent-text)' }}
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute inset-y-0 right-3 flex items-center text-xs"
+            style={{ color: 'var(--text-3)' }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
 
       {/* Category filters */}
       <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 animate-fade-in-up" style={{ animationDelay: '0.08s' }}>
@@ -202,6 +239,7 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
         <div className="flex items-center gap-3 animate-fade-in-up">
           <p className="text-xs" style={{ color: 'var(--text-3)' }}>
             {filtered.length} {filtered.length === 1 ? 'produto' : 'produtos'}
+            {searchQ && ` · "${searchQ}"`}
             {categorias.length > 0 && ` · ${categorias.length} ${categorias.length === 1 ? 'categoria' : 'categorias'}`}
             {tamanhos.length > 0 && ` · ${tamanhos.length} ${tamanhos.length === 1 ? 'tamanho' : 'tamanhos'}`}
           </p>
@@ -272,7 +310,9 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
           <p className="text-4xl mb-4">🔍</p>
           <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>
             {isFiltered
-              ? 'Nenhum produto com esses filtros.'
+              ? searchQ && !categorias.length && !tamanhos.length
+                ? `Nenhum resultado para "${searchQ}".`
+                : 'Nenhum produto com esses filtros.'
               : 'Nenhum produto disponível no momento.'}
           </p>
           {isFiltered && (

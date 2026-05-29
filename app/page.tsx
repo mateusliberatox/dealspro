@@ -24,21 +24,6 @@ async function getPageData() {
         .single();
 
       plan = effectivePlan(profile);
-
-      // Se a regra disse que expirou, reverte no banco em background — não bloqueia o render.
-      // Lógica fica em lib/plan.ts pra ficar em sincronia com o cron.
-      if (plan === 'free' && profile?.plan === 'premium') {
-        supabase
-          .from('dealspro_profiles')
-          .update({ plan: 'free' })
-          .eq('user_id', user.id)
-          .then(() =>
-            supabase
-              .from('user_alerts_dealspro')
-              .update({ is_active: false })
-              .eq('user_id', user.id),
-          );
-      }
     }
 
     const isPremium = plan === 'premium';

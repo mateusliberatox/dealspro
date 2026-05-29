@@ -1,23 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { PRODUTO_COLS } from '@/lib/types';
+import { effectivePlan } from '@/lib/plan';
+import { isRateLimited } from '@/lib/ratelimit';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Rate limit simples por IP usando Map in-memory
-// (funciona por instância serverless — suficiente para conter bots simples)
-const ipHits = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS  = 60_000; // 1 minuto
-const MAX_REQ    = 30;     // 30 req/min por IP para não-autenticados
-
-function isRateLimited(ip: string): boolean {
-  const now  = Date.now();
-  const entry = ipHits.get(ip);
-  if (!entry || now > entry.resetAt) {
-    ipHits.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  entry.count++;
-  return entry.count > MAX_REQ;
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -34,16 +19,16 @@ export async function GET(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from('dealspro_profiles')
-      .select('plan')
+      .select('plan, plan_expires_at, stripe_subscription_id')
       .eq('user_id', user.id)
       .single();
-    isPremium = profile?.plan === 'premium';
+    isPremium = effectivePlan(profile) === 'premium';
   }
 
-  // Rate limit só para não-autenticados
+  // Rate limit só para não-autenticados (Upstash Redis se configurado, fallback in-memory)
   if (!user) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
-    if (isRateLimited(ip)) {
+    if (await isRateLimited(ip)) {
       return NextResponse.json(
         { error: 'Too many requests' },
         { status: 429, headers: { 'Retry-After': '60' } },

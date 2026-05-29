@@ -10,9 +10,10 @@ import { matchAndNotify } from '../notifications/alertService.js';
 import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord } from '../notifications/discord.js';
 import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
+import type { Product } from '../types.js';
 
 const MAX_QC_FETCHES        = 100;
-const QC_BATCH_SIZE         = 3; // mantém no mesmo nível do BATCH_SIZE do scraper para não saturar memória
+const QC_BATCH_SIZE         = 3;
 const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
 const MIN_SCRAPE_QUALITY    = 400;
 const TRANSLATE_CONCURRENCY = 16;
@@ -21,9 +22,9 @@ const TRANSLATE_CONCURRENCY = 16;
  * Fetches QC photos and silently updates the DB after notifications are already sent.
  * Non-blocking — caller should not await this.
  */
-async function enrichWithQcImages(products) {
-  const toFetch = products.slice(0, MAX_QC_FETCHES);
-  const updates = [];
+async function enrichWithQcImages(products: Product[]): Promise<void> {
+  const toFetch  = products.slice(0, MAX_QC_FETCHES);
+  const updates: Product[] = [];
 
   for (let i = 0; i < toFetch.length; i += QC_BATCH_SIZE) {
     const batch   = toFetch.slice(i, i + QC_BATCH_SIZE);
@@ -41,50 +42,40 @@ async function enrichWithQcImages(products) {
     return;
   }
 
-  // Produtos já existem — apenas atualiza o campo imagem
-  const results = await Promise.allSettled(
-    updates.map(({ id, imagem }) =>
-      supabase.from('produtos_dealspro').update({ imagem }).eq('id', id),
-    ),
-  );
-  const failed = results.filter((r) => r.status === 'rejected' || r.value?.error).length;
-  if (failed) logger.warn(`QC bulk update: ${failed}/${updates.length} falharam`);
-  else logger.info(`QC: updated ${updates.length} image(s)`);
+  const { error: upsertErr } = await supabase
+    .from('produtos_dealspro')
+    .upsert(updates.map(({ id, imagem }) => ({ id, imagem })));
+  if (upsertErr) logger.warn(`QC bulk update falhou: ${upsertErr.message}`);
+  else           logger.info(`QC: updated ${updates.length} image(s)`);
 
-  await updateQcImagesInDiscord(updates).catch((e) => logger.warn(`QC Discord edit failed: ${e.message}`));
+  await updateQcImagesInDiscord(updates).catch((e: Error) => logger.warn(`QC Discord edit failed: ${e.message}`));
 }
 
-export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
+export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): Promise<Product[]> {
   logger.info(homepageOnly ? 'Starting fast cycle (homepage only)' : 'Starting full detection cycle');
 
-  // 0. Housekeeping — não-fatal: falha de rede aqui não deve abortar o ciclo de scrape
   try {
     const deleted = await deleteOldProducts();
     if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
-  } catch (e) {
-    logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${e.message}`);
+  } catch (e: unknown) {
+    logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
   }
 
-  // 0b. Notificações free atrasadas: só no ciclo completo (heavy, 500ms/produto).
-  // O ciclo rápido não executa isso para não atrasar a detecção na homepage.
   if (!homepageOnly) {
     try {
       await sendFreeDelayedNotifications();
       await notifyTelegramFreeFeed();
-    } catch (e) {
-      logger.warn(`Delayed notifications skipped: ${e.message}`);
+    } catch (e: unknown) {
+      logger.warn(`Delayed notifications skipped: ${(e as Error).message}`);
     }
   }
 
-  // 1. Scrape
   const scraped = await scrapeCssDeals({ homepageOnly });
   if (!scraped.length) {
     logger.warn('No products scraped — site may have blocked or changed layout');
     return [];
   }
 
-  // Alerta admin se homepage retornou muito poucos produtos — sinal de seletor CSS quebrado.
-  // Limiar conservador: abaixo de 5 é anômalo independente do horário.
   const MIN_HOMEPAGE_PRODUCTS = 5;
   if (homepageOnly && scraped.length < MIN_HOMEPAGE_PRODUCTS) {
     logger.warn(`Homepage retornou apenas ${scraped.length} produto(s) — possível quebra de seletor CSS ou bloqueio`);
@@ -101,36 +92,31 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
     }
   }
 
-  // 2. Attach hashes
   const withHashes = scraped.map((p) => ({
     ...p,
     hash: generateProductHash(p.nome, p.preco, p.link),
   }));
 
-  // 3. Diff against DB + sync availability (marca esgotados / restaura restocados)
-  let existingMap;
+  let existingMap: Awaited<ReturnType<typeof getExistingHashMap>>;
   try {
     existingMap = await getExistingHashMap();
     logger.info(`DB has ${existingMap.size} existing hashes`);
-  } catch (e) {
-    logger.error(`getExistingHashMap failed — abortando ciclo: ${e.message}`);
+  } catch (e: unknown) {
+    logger.error(`getExistingHashMap failed — abortando ciclo: ${(e as Error).message}`);
     return [];
   }
 
-  // Links com imagem placeholder 800×900 = esgotado confirmado pelo CSSDeals
   const soldOutLinks = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
   const scrapedLinks = new Set(withHashes.map((p) => p.link));
 
   if (soldOutLinks.size > 0) logger.info(`${soldOutLinks.size} produto(s) com placeholder 800×900 detectados como esgotados`);
 
-  // Ciclo homepage-only tem visão parcial do site — syncAvailability causaria falsos esgotados
-  // Guarda de qualidade: scrapes muito pequenos também indicam falha parcial
   const scrapeOk = !homepageOnly && scraped.length >= MIN_SCRAPE_QUALITY;
   if (!scrapeOk && !homepageOnly) {
     logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping availability sync to avoid false sold-out marks`);
   }
   const { markedUnavailable, restored, restoredIds } = scrapeOk
-    ? await syncAvailability(scrapedLinks, soldOutLinks).catch((e) => {
+    ? await syncAvailability(scrapedLinks, soldOutLinks).catch((e: Error) => {
         logger.warn(`syncAvailability falhou (não-fatal): ${e.message}`);
         return { markedUnavailable: 0, restored: 0, restoredIds: [] };
       })
@@ -143,19 +129,16 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
         .from('produtos_dealspro')
         .select('*')
         .in('id', restoredIds);
-      if (restocked?.length) await matchAndNotify(restocked, { isRestock: true });
+      if (restocked?.length) await matchAndNotify(restocked as Product[], { isRestock: true });
     }
   }
 
-  // Exclui produtos esgotados (placeholder 800×900) de "novos" — não notificar sobre item sem estoque
   const candidateNew  = withHashes.filter((p) => !existingMap.has(p.hash) && !p.isSoldOut);
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));
 
-  // Detecta mudança de preço: mesmo cssdeals_item_id já existe no DB com hash diferente.
-  // Nesses casos atualiza o preço silenciosamente — sem nova notificação (não é produto novo).
-  const existingItemIdMap = new Map();
+  const existingItemIdMap = new Map<string | number | bigint, { id: string | number }>();
   for (const [, val] of existingMap) {
-    if (val.cssdeals_item_id) existingItemIdMap.set(val.cssdeals_item_id, val);
+    if (val.cssdeals_item_id != null) existingItemIdMap.set(val.cssdeals_item_id, val);
   }
 
   const { newItems, priceChanged } = classifyProducts(candidateNew, existingItemIdMap);
@@ -163,7 +146,7 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
   if (priceChanged.length) {
     await Promise.allSettled(
       priceChanged.map(({ item, existingId }) =>
-        updateProductPrice(existingId, item.preco).catch((e) =>
+        updateProductPrice(existingId, item.preco).catch((e: Error) =>
           logger.warn(`Price update failed for id ${existingId}: ${e.message}`),
         ),
       ),
@@ -173,22 +156,20 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
 
   logger.info(`Found ${newItems.length} new, ${existingItems.length} existing, ${priceChanged.length} price-changed`);
 
-  // 4. Merge sizes on existing products — in parallel
   await Promise.allSettled(
     existingItems
       .filter((p) => p.sizes?.length)
       .map((p) => {
-        const existing = existingMap.get(p.hash);
+        const existing = existingMap.get(p.hash)!;
         return mergeSizes(existing.id, existing.sizes, p.sizes).catch(
-          (e) => logger.warn(`Size merge skipped: ${e.message}`),
+          (e: Error) => logger.warn(`Size merge skipped: ${e.message}`),
         );
       }),
   );
 
   if (!newItems.length) return [];
 
-  // 5. Enrich: translate + categorize in parallel batches (rate-limit safe per batch)
-  const enriched = [];
+  const enriched: Product[] = [];
   for (let i = 0; i < newItems.length; i += TRANSLATE_CONCURRENCY) {
     const batch   = newItems.slice(i, i + TRANSLATE_CONCURRENCY);
     const results = await Promise.all(
@@ -201,7 +182,6 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
     enriched.push(...results);
   }
 
-  // 6. Persist with visible_at = now + 30min (free delay)
   const visibleAt = new Date(Date.now() + FREE_DELAY_MS).toISOString();
   const rows = enriched.map((p) => ({
     nome:             p.nome,
@@ -217,24 +197,22 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
     free_notified:    false,
   }));
 
-  let inserted;
+  let inserted: Product[];
   try {
     inserted = await insertProducts(rows);
     logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
-  } catch (e) {
-    logger.error(`insertProducts failed — abortando notificações: ${e.message}`);
+  } catch (e: unknown) {
+    logger.error(`insertProducts failed — abortando notificações: ${(e as Error).message}`);
     return [];
   }
 
-  // 7. Premium webhook fires immediately — QC images update silently in background
-  await dispatchNotifications(inserted).catch((e) => logger.warn(`dispatchNotifications falhou: ${e.message}`));
-  await matchAndNotify(inserted).catch((e) => logger.warn(`matchAndNotify falhou: ${e.message}`));
-  await notifyTelegramPremiumFeed(inserted).catch((e) => logger.warn(`telegramPremiumFeed falhou: ${e.message}`));
-  await announceNewBatch(inserted.length, inserted.map((p) => p.categoria));
+  await dispatchNotifications(inserted).catch((e: Error) => logger.warn(`dispatchNotifications falhou: ${e.message}`));
+  await matchAndNotify(inserted).catch((e: Error) => logger.warn(`matchAndNotify falhou: ${e.message}`));
+  await notifyTelegramPremiumFeed(inserted).catch((e: Error) => logger.warn(`telegramPremiumFeed falhou: ${e.message}`));
+  await announceNewBatch(inserted.length, inserted.map((p) => p.categoria)).catch((e: Error) => logger.warn(`announceNewBatch falhou: ${e.message}`));
 
-  // 8. Fetch QC images after notifications are already sent — non-blocking
   if (inserted.length > 0) {
-    enrichWithQcImages(inserted).catch((e) => logger.warn(`QC enrichment failed: ${e.message}`));
+    enrichWithQcImages(inserted).catch((e: Error) => logger.warn(`QC enrichment failed: ${e.message}`));
   }
 
   return inserted;
@@ -244,7 +222,7 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}) {
  * Recupera produtos das últimas 24h que ficaram com imagem placeholder após um restart.
  * Chamado uma vez na inicialização do monitor — não bloqueia o primeiro ciclo.
  */
-export async function enrichMissingQcImages() {
+export async function enrichMissingQcImages(): Promise<void> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('produtos_dealspro')
@@ -256,5 +234,5 @@ export async function enrichMissingQcImages() {
   if (!data?.length) return;
 
   logger.info(`QC rehydrate: ${data.length} produto(s) sem imagem válida`);
-  await enrichWithQcImages(data);
+  await enrichWithQcImages(data as Product[]);
 }

@@ -1,0 +1,165 @@
+import { supabase } from './supabase.js';
+import type { Product } from '../types.js';
+
+const TABLE = 'produtos_dealspro';
+const OLD_DAYS           = 5;
+const OLD_DAYS_AVAILABLE = 30;
+const NOTIF_LOG_DAYS     = 60;
+
+interface HashEntry { id: string | number; sizes: string[]; cssdeals_item_id: string | bigint | number | null }
+interface SyncResult { markedUnavailable: number; restored: number; restoredIds: (string | number)[]; lastSeenUpdated?: number }
+
+export async function getExistingHashMap(): Promise<Map<string, HashEntry>> {
+  const map  = new Map<string, HashEntry>();
+  const PAGE = 1000;
+  let   from = 0;
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+
+  while (true) {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('id, hash, sizes, cssdeals_item_id')
+      .gte('criado_em', cutoff)
+      .range(from, from + PAGE - 1);
+
+    if (error) throw new Error(`Failed to fetch hashes: ${error.message}`);
+    if (!data?.length) break;
+
+    for (const r of data as Array<{ id: string | number; hash: string; sizes?: string[]; cssdeals_item_id?: string | bigint | number | null }>) {
+      map.set(r.hash, { id: r.id, sizes: r.sizes ?? [], cssdeals_item_id: r.cssdeals_item_id ?? null });
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return map;
+}
+
+export async function insertProducts(products: Record<string, unknown>[]): Promise<Product[]> {
+  if (!products.length) return [];
+  const insertedAfter = new Date().toISOString();
+
+  const { error } = await supabase
+    .from(TABLE)
+    .upsert(products, { onConflict: 'hash', ignoreDuplicates: true });
+
+  if (error) throw new Error(`Failed to insert products: ${error.message}`);
+
+  const { data, error: fetchError } = await supabase
+    .from(TABLE)
+    .select('*')
+    .gte('criado_em', insertedAfter);
+
+  if (fetchError) throw new Error(`Failed to fetch inserted products: ${fetchError.message}`);
+  return (data ?? []) as Product[];
+}
+
+export async function updateProductPrice(id: string | number, preco: string): Promise<void> {
+  const { error } = await supabase.from(TABLE).update({ preco }).eq('id', id);
+  if (error) throw new Error(`Failed to update price for id ${id}: ${error.message}`);
+}
+
+export async function mergeSizes(id: string | number, existingSizes: string[], newSizes: string[]): Promise<void> {
+  const merged = [...new Set([...existingSizes, ...newSizes])];
+  if (merged.length === existingSizes.length) return;
+  const { error } = await supabase.from(TABLE).update({ sizes: merged }).eq('id', id);
+  if (error) throw new Error(`Failed to merge sizes for id ${id}: ${error.message}`);
+}
+
+export async function updateCategoria(id: string | number, categoria: string): Promise<void> {
+  const { error } = await supabase.from(TABLE).update({ categoria }).eq('id', id);
+  if (error) throw new Error(`Failed to update categoria: ${error.message}`);
+}
+
+export async function deleteOldProducts(): Promise<number> {
+  const cutoffUnavailable = new Date();
+  cutoffUnavailable.setDate(cutoffUnavailable.getDate() - OLD_DAYS);
+  const cutoffAvailable = new Date();
+  cutoffAvailable.setDate(cutoffAvailable.getDate() - OLD_DAYS_AVAILABLE);
+
+  const { data: d1, error: e1 } = await supabase
+    .from(TABLE).delete()
+    .lt('criado_em', cutoffUnavailable.toISOString()).eq('disponivel', false).select('id');
+  if (e1) throw new Error(`Failed to delete unavailable products: ${e1.message}`);
+
+  const { data: d2, error: e2 } = await supabase
+    .from(TABLE).delete()
+    .lt('criado_em', cutoffAvailable.toISOString()).eq('disponivel', true).select('id');
+  if (e2) throw new Error(`Failed to delete old available products: ${e2.message}`);
+
+  const cutoffLogs = new Date();
+  cutoffLogs.setDate(cutoffLogs.getDate() - NOTIF_LOG_DAYS);
+  const { error: e3 } = await supabase
+    .from('notification_logs').delete()
+    .lt('created_at', cutoffLogs.toISOString())
+    .in('channel', ['discord_premium', 'discord_free', 'telegram_feed']);
+  if (e3) throw new Error(`Failed to delete old notification logs: ${e3.message}`);
+
+  const cutoffDmLogs = new Date();
+  cutoffDmLogs.setMonth(cutoffDmLogs.getMonth() - 6);
+  const { error: e4 } = await supabase
+    .from('notification_logs').delete()
+    .lt('created_at', cutoffDmLogs.toISOString())
+    .in('channel', ['discord_dm', 'telegram_dm']);
+  if (e4) throw new Error(`Failed to delete old DM logs: ${e4.message}`);
+
+  const cutoffTranslations = new Date();
+  cutoffTranslations.setDate(cutoffTranslations.getDate() - 90);
+  const { error: e5 } = await supabase
+    .from('translation_cache').delete().lt('criado_em', cutoffTranslations.toISOString());
+  if (e5) throw new Error(`Failed to delete old translation cache: ${e5.message}`);
+
+  return (d1?.length ?? 0) + (d2?.length ?? 0);
+}
+
+const UNAVAIL_THRESHOLD_MS = 3 * 60 * 60 * 1000;
+const LAST_SEEN_STALE_MS   = 30 * 60 * 1000;
+
+export async function syncAvailability(
+  scrapedLinks: Set<string>,
+  soldOutLinks: Set<string> = new Set(),
+): Promise<SyncResult> {
+  if (!scrapedLinks.size) return { markedUnavailable: 0, restored: 0, restoredIds: [] };
+
+  const now    = new Date();
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from(TABLE).select('id, link, disponivel, last_seen_at').gte('criado_em', cutoff);
+
+  if (error) throw new Error(`syncAvailability fetch failed: ${error.message}`);
+
+  const seenStale:         (string | number)[] = [];
+  const toMarkUnavailable: (string | number)[] = [];
+  const toRestore:         (string | number)[] = [];
+
+  for (const p of (data ?? []) as Array<{ id: string | number; link: string; disponivel: boolean; last_seen_at?: string }>) {
+    const isSoldOut = soldOutLinks.has(p.link);
+    const inScrape  = scrapedLinks.has(p.link) && !isSoldOut;
+
+    if (isSoldOut) {
+      if (p.disponivel) toMarkUnavailable.push(p.id);
+    } else if (inScrape) {
+      if (!p.disponivel) toRestore.push(p.id);
+      const lastSeenAge = p.last_seen_at ? now.getTime() - new Date(p.last_seen_at).getTime() : Infinity;
+      if (lastSeenAge >= LAST_SEEN_STALE_MS) seenStale.push(p.id);
+    } else if (p.disponivel) {
+      const lastSeen = p.last_seen_at ? new Date(p.last_seen_at) : new Date(0);
+      if (now.getTime() - lastSeen.getTime() >= UNAVAIL_THRESHOLD_MS) {
+        toMarkUnavailable.push(p.id);
+      }
+    }
+  }
+
+  if (seenStale.length)         await supabase.from(TABLE).update({ last_seen_at: now.toISOString() }).in('id', seenStale);
+  if (toMarkUnavailable.length) await supabase.from(TABLE).update({ disponivel: false }).in('id', toMarkUnavailable);
+  if (toRestore.length)         await supabase.from(TABLE).update({ disponivel: true }).in('id', toRestore);
+
+  return { markedUnavailable: toMarkUnavailable.length, restored: toRestore.length, restoredIds: toRestore, lastSeenUpdated: seenStale.length };
+}
+
+export async function getLatestProducts(limit = 20): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from(TABLE).select('*').order('criado_em', { ascending: false }).limit(limit);
+  if (error) throw new Error(`Failed to fetch latest products: ${error.message}`);
+  return (data ?? []) as Product[];
+}

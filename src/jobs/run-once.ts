@@ -7,8 +7,8 @@ try {
   logger.info('Run-once cycle starting');
   const newProducts = await detectAndSaveNewProducts();
   logger.success(`Done — ${newProducts.length} new product(s) saved`);
-} catch (err) {
-  logger.error(`Run-once failed: ${err.message}`);
+} catch (err: unknown) {
+  logger.error(`Run-once failed: ${(err as Error).message}`);
   process.exitCode = 1;
 } finally {
   await closeBrowser();
