@@ -44,7 +44,19 @@ export async function closeBrowser(): Promise<void> {
   }
 }
 
-/** Creates a new page with a realistic browser profile. */
+// Tipos de recurso que o scraper nunca precisa — bloquear reduz egress em ~85%
+// e acelera o carregamento da página (sem esperar imagens de 2-3MB por listagem).
+const BLOCKED_RESOURCE_TYPES = new Set([
+  'image', 'stylesheet', 'font', 'media', 'manifest', 'other',
+]);
+
+// Domínios de analytics/tracking que só geram tráfego desnecessário
+const BLOCKED_DOMAINS = [
+  'google-analytics.com', 'googletagmanager.com', 'facebook.com',
+  'doubleclick.net', 'hotjar.com', 'clarity.ms',
+];
+
+/** Creates a new page with a realistic browser profile and resource blocking. */
 export async function newPage(): Promise<Page> {
   const browser = await getBrowser();
   const context = await browser.newContext({
@@ -57,6 +69,21 @@ export async function newPage(): Promise<Page> {
   });
 
   const page = await context.newPage();
+
+  // Bloqueia recursos desnecessários para reduzir egress de rede no Railway.
+  // CSSDeals renderiza a listagem via HTML/JS — CSS e imagens não são necessários para scraping.
+  await page.route('**/*', (route) => {
+    const type = route.request().resourceType();
+    const url  = route.request().url();
+    if (
+      BLOCKED_RESOURCE_TYPES.has(type) ||
+      BLOCKED_DOMAINS.some((d) => url.includes(d))
+    ) {
+      route.abort();
+    } else {
+      route.continue();
+    }
+  });
 
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
