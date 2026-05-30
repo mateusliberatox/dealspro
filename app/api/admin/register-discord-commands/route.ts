@@ -114,5 +114,14 @@ export async function POST(request: NextRequest) {
   const data = await res.json();
   if (!res.ok) return NextResponse.json({ error: data }, { status: res.status });
 
+  // Limpa comandos globais para evitar duplicatas (guild commands têm prioridade)
+  if (guildId) {
+    await fetch(`https://discord.com/api/v10/applications/${appId}/commands`, {
+      method:  'PUT',
+      headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify([]),
+    }).catch(() => {});
+  }
+
   return NextResponse.json({ registered: (data as unknown[]).length, commands: (data as Array<{ name: string }>).map((c) => c.name) });
 }
