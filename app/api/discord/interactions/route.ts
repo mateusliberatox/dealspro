@@ -361,10 +361,11 @@ function handleDeclAdd(sessionId: string) {
       custom_id: `decl_modal:${sessionId}`,
       title:     'Adicionar produto',
       components: [
-        { type: 1, components: [{ type: 4, custom_id: 'produto',    label: 'Produto',             style: 1, placeholder: 'Ex: Nike Air Max 42 Preto', required: true,  max_length: 100 }] },
-        { type: 1, components: [{ type: 4, custom_id: 'cor',        label: 'Cor',                 style: 1, placeholder: 'Ex: Preto',                 required: false, max_length: 40  }] },
-        { type: 1, components: [{ type: 4, custom_id: 'tamanho',    label: 'Tamanho',             style: 1, placeholder: 'Ex: 42',                    required: false, max_length: 20  }] },
-        { type: 1, components: [{ type: 4, custom_id: 'quantidade', label: 'Quantidade',          style: 1, placeholder: '1',                         required: false, max_length: 3   }] },
+        { type: 1, components: [{ type: 4, custom_id: 'produto',    label: 'Produto',                    style: 1, placeholder: 'Ex: Nike Air Max 42 Preto', required: true,  max_length: 100 }] },
+        { type: 1, components: [{ type: 4, custom_id: 'preco_pago', label: 'Preço pago (qualquer moeda)', style: 1, placeholder: 'Ex: 200 (para distribuir valor proporcionalmente)', required: false, max_length: 10  }] },
+        { type: 1, components: [{ type: 4, custom_id: 'cor',        label: 'Cor',                        style: 1, placeholder: 'Ex: Preto',                 required: false, max_length: 40  }] },
+        { type: 1, components: [{ type: 4, custom_id: 'tamanho',    label: 'Tamanho',                    style: 1, placeholder: 'Ex: 42',                    required: false, max_length: 20  }] },
+        { type: 1, components: [{ type: 4, custom_id: 'quantidade', label: 'Quantidade',                 style: 1, placeholder: '1',                         required: false, max_length: 3   }] },
       ],
     },
   });
@@ -372,10 +373,11 @@ function handleDeclAdd(sessionId: string) {
 
 // Processa submissão do modal — type 6 (deferred update) + after() para evitar timeout
 async function handleDeclModal(sessionId: string, fields: Record<string, string>, discordUserId: string, interactionToken: string) {
-  const produto    = fields['produto']?.trim()  ?? '';
-  const cor        = fields['cor']?.trim()      ?? '';
-  const tamanho    = fields['tamanho']?.trim()  ?? '';
-  const quantidade = Math.max(1, parseInt(fields['quantidade'] ?? '1') || 1);
+  const produto    = fields['produto']?.trim()   ?? '';
+  const cor        = fields['cor']?.trim()       ?? '';
+  const tamanho    = fields['tamanho']?.trim()   ?? '';
+  const quantidade = Math.max(1, parseInt(fields['quantidade']  ?? '1') || 1);
+  const preco_pago = parseFloat(fields['preco_pago'] ?? '0') || 0;
 
   if (!produto) return ephemeral('❌ O nome do produto é obrigatório.');
 
@@ -388,7 +390,7 @@ async function handleDeclModal(sessionId: string, fields: Record<string, string>
 
     const session  = row as { id: string; total_value_usd: number; original_value: number; moeda: string; items: unknown[] };
     const descricao = await analyzeProduct(produto);
-    const items     = [...(session.items as object[]), { produto, descricao, cor, tamanho, quantidade }];
+    const items     = [...(session.items as object[]), { produto, descricao, cor, tamanho, quantidade, preco_pago }];
 
     await db.from('declaration_sessions').update({ items }).eq('id', sessionId);
 

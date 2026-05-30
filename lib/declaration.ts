@@ -14,6 +14,7 @@ export interface DeclarationItem {
   cor:        string;
   tamanho:    string;
   quantidade: number;
+  preco_pago: number;   // preço pago por unidade (qualquer moeda — usado só para proporção)
 }
 
 export interface DeclarationSession {
@@ -90,11 +91,19 @@ function inferDescription(produto: string): string {
 
 // ── Geração do texto de declaração ───────────────────────────────────────────
 
+// Calcula o valor declarado de cada item proporcional ao preço pago
+function calcItemValues(items: DeclarationItem[], totalUsd: number): number[] {
+  const totalPago = items.reduce((s, i) => s + (i.preco_pago || 1) * i.quantidade, 0);
+  return items.map((item) => {
+    const share = ((item.preco_pago || 1) * item.quantidade) / totalPago;
+    return parseFloat((totalUsd * share).toFixed(2));
+  });
+}
+
 export function buildDeclarationText(session: DeclarationSession): string {
   if (!session.items.length) return '';
 
-  const totalQty   = session.items.reduce((s, i) => s + i.quantidade, 0);
-  const valueEach  = session.total_value_usd / (totalQty || 1);
+  const itemValues = calcItemValues(session.items, session.total_value_usd);
 
   const COL = { attr: 28, produto: 22, qtd: 5, valor: 12 };
   const pad  = (s: string, n: number) => s.slice(0, n).padEnd(n);
@@ -102,9 +111,9 @@ export function buildDeclarationText(session: DeclarationSession): string {
     `| ${pad(a, COL.attr)} | ${pad(p, COL.produto)} | ${pad(q, COL.qtd)} | ${pad(v, COL.valor)} |`;
 
   const sep  = `+${'-'.repeat(COL.attr + 2)}+${'-'.repeat(COL.produto + 2)}+${'-'.repeat(COL.qtd + 2)}+${'-'.repeat(COL.valor + 2)}+`;
-  const rows = session.items.map((item) => {
-    const attrs  = [item.cor && `Cor: ${item.cor}`, item.tamanho && `Tam: ${item.tamanho}`].filter(Boolean).join(' / ') || '-';
-    const itemVal = `$${(valueEach * item.quantidade).toFixed(2)} USD`;
+  const rows = session.items.map((item, i) => {
+    const attrs   = [item.cor && `Cor: ${item.cor}`, item.tamanho && `Tam: ${item.tamanho}`].filter(Boolean).join(' / ') || '-';
+    const itemVal = `$${itemValues[i].toFixed(2)} USD`;
     return line(attrs, item.descricao, String(item.quantidade), itemVal);
   });
 
@@ -117,15 +126,14 @@ export function buildDeclarationText(session: DeclarationSession): string {
 // ── Embed de estado da sessão ─────────────────────────────────────────────────
 
 export function buildSessionEmbed(session: DeclarationSession) {
-  const totalQty  = session.items.reduce((s, i) => s + i.quantidade, 0);
-  const valueEach = session.total_value_usd / (totalQty || 1);
-  const valorStr = `$${session.total_value_usd.toFixed(2)} USD` +
+  const itemValues = calcItemValues(session.items, session.total_value_usd);
+  const valorStr   = `$${session.total_value_usd.toFixed(2)} USD` +
     (session.moeda === 'yuan' ? ` _(convertido de ¥${session.original_value})_` : '');
 
   const itemLines = session.items.map((item, i) => {
     const attrs   = [item.cor && `Cor: ${item.cor}`, item.tamanho && `Tam: ${item.tamanho}`].filter(Boolean).join(' · ');
-    const itemVal = (valueEach * item.quantidade).toFixed(2);
-    return `**${i + 1}.** ${item.descricao} × ${item.quantidade}${attrs ? ` _(${attrs})_` : ''} — $${itemVal}`;
+    const pago    = item.preco_pago ? ` · pago: ${item.preco_pago}` : '';
+    return `**${i + 1}.** ${item.descricao} × ${item.quantidade}${attrs ? ` _(${attrs})_` : ''} — **$${itemValues[i].toFixed(2)}**${pago}`;
   });
 
   return {
