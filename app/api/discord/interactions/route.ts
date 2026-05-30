@@ -318,63 +318,69 @@ async function handleAlterarDescricao(discordUserId: string, trackingCode: strin
 
 // ── Declaração aduaneira ───────────────────────────────────────────────────────
 
-async function handleDeclarar(discordUserId: string, produto: string, valorUsd: number, quantidade: number) {
+async function handleDeclarar(
+  discordUserId: string,
+  produto: string,
+  valorUsd: number,
+  quantidade: number,
+  interactionToken: string,
+) {
   if (!produto.trim()) return ephemeral('❌ Informe o nome do produto.');
   if (valorUsd <= 0)   return ephemeral('❌ O valor deve ser maior que zero.');
 
-  const suggestion = await analyzeDeclaration(produto.trim(), valorUsd, quantidade);
+  const appId = process.env.DISCORD_APP_ID!;
 
-  // Salva draft para o botão compartilhar
-  const { data: draft } = await db.from('declaration_drafts').insert({
-    discord_user_id: discordUserId,
-    produto:         produto.trim(),
-    valor_usd:       valorUsd,
-    quantidade,
-    descricao:       suggestion.descricao,
-    categoria:       suggestion.categoria,
-    avisos:          suggestion.avisos,
-  }).select('id').single();
+  // Processa após responder — evita timeout de 3s do Discord
+  after(async () => {
+    const suggestion = await analyzeDeclaration(produto.trim(), valorUsd, quantidade);
 
-  const draftId = (draft as { id: string } | null)?.id ?? '';
+    const { data: draft } = await db.from('declaration_drafts').insert({
+      discord_user_id: discordUserId,
+      produto:         produto.trim(),
+      valor_usd:       valorUsd,
+      quantidade,
+      descricao:       suggestion.descricao,
+      categoria:       suggestion.categoria,
+      avisos:          suggestion.avisos,
+    }).select('id').single();
 
-  const embed = {
-    color:       suggestion.valor_ok ? 0x3b82f6 : 0xf59e0b,
-    title:       '📋 Sugestão de declaração aduaneira',
-    fields: [
-      { name: 'Produto informado', value: produto.trim(), inline: true },
-      { name: 'Categoria',         value: suggestion.categoria, inline: true },
-      { name: 'Descrição sugerida', value: `**${suggestion.descricao}**`, inline: false },
-      { name: 'Valor · Qtd',        value: `US$ ${valorUsd.toFixed(2)} · ${quantidade} un`, inline: true },
-      ...(suggestion.avisos.length ? [{
-        name:   '⚠️ Atenção',
-        value:  suggestion.avisos.map((a) => `• ${a}`).join('\n'),
-        inline: false,
-      }] : []),
-    ],
-    footer: {
-      text: `${suggestion.via_ia ? '✨ Análise por IA' : '📖 Análise por regras'} · Sugestão — não é garantia de liberação`,
-    },
-  };
+    const draftId = (draft as { id: string } | null)?.id ?? '';
 
-  const components = draftId ? [{
-    type: 1,
-    components: [
-      {
-        type:      2,
-        style:     1,
-        label:     '📢 Compartilhar com a comunidade',
-        custom_id: `decl_share:${draftId}`,
-      },
-      {
-        type:      2,
-        style:     2,
-        label:     '🔒 Só eu',
-        custom_id: 'decl_dismiss',
-      },
-    ],
-  }] : [];
+    const embed = {
+      color:  suggestion.valor_ok ? 0x3b82f6 : 0xf59e0b,
+      title:  '📋 Sugestão de declaração aduaneira',
+      fields: [
+        { name: 'Produto informado',  value: produto.trim(),                                 inline: true  },
+        { name: 'Categoria',          value: suggestion.categoria,                           inline: true  },
+        { name: 'Descrição sugerida', value: `**${suggestion.descricao}**`,                  inline: false },
+        { name: 'Valor · Qtd',        value: `US$ ${valorUsd.toFixed(2)} · ${quantidade} un`, inline: true  },
+        ...(suggestion.avisos.length ? [{
+          name:   '⚠️ Atenção',
+          value:  suggestion.avisos.map((a) => `• ${a}`).join('\n'),
+          inline: false,
+        }] : []),
+      ],
+      footer: { text: `${suggestion.via_ia ? '✨ Análise por IA' : '📖 Análise por regras'} · Sugestão — não é garantia de liberação` },
+    };
 
-  return NextResponse.json({ type: 4, data: { embeds: [embed], flags: 64, components } });
+    const components = draftId ? [{
+      type: 1,
+      components: [
+        { type: 2, style: 1, label: '📢 Compartilhar com a comunidade', custom_id: `decl_share:${draftId}` },
+        { type: 2, style: 2, label: '🔒 Só eu', custom_id: 'decl_dismiss' },
+      ],
+    }] : [];
+
+    // Edita a resposta deferida com o conteúdo real
+    await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ embeds: [embed], components }),
+    }).catch(() => {});
+  });
+
+  // Responde imediatamente com deferido ephemeral (mostra "carregando..." só para você)
+  return NextResponse.json({ type: 5, data: { flags: 64 } });
 }
 
 async function handleDeclShare(draftId: string, discordUserId: string) {
@@ -473,7 +479,7 @@ export async function POST(request: NextRequest) {
     if (name === 'pedidos')           return handlePedidos(discordUserId);
     if (name === 'remover-pedido')    return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
     if (name === 'alterar-descricao') return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
-    if (name === 'declarar')          return handleDeclarar(discordUserId, opt('produto') ?? '', optN('valor'), optN('quantidade') || 1);
+    if (name === 'declarar')          return handleDeclarar(discordUserId, opt('produto') ?? '', optN('valor'), optN('quantidade') || 1, interaction.token as string);
   }
 
   // Button / component interactions (type 3)
