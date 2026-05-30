@@ -4,7 +4,7 @@ import { effectivePlan } from '@/lib/plan';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 import { registerTrackings, getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, hasApiTracking, getActiveProvider } from '@/lib/tracking';
 import { sendBotDM } from '@/lib/discord';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 
 // ── Singletons ─────────────────────────────────────────────────────────────────
 
@@ -176,53 +176,49 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
   });
   if (insertErr) return ephemeral(`❌ Erro ao cadastrar encomenda: ${insertErr.message}`);
 
-  // Registra no provider e já busca status inicial
-  await registerTrackings([code]);
-  const [info] = await getTrackingUpdates([code]);
-  if (info && info.status !== 'pending') {
-    await db.from('user_orders').update({
-      status:          info.status,
-      last_event:      info.lastEvent,
-      last_event_at:   info.lastAt,
-      last_checked_at: new Date().toISOString(),
-    }).eq('user_id', profile.user_id).eq('tracking_code', code);
-  }
-
-  const currentStatus = info?.status ?? 'pending';
-  const title         = description?.trim() || code;
-
+  const title = description?.trim() || code;
   const PROVIDER_LABEL: Record<string, string> = {
     wonca: 'WONCA', trackingmore: 'TrackingMore',
     aftership: 'AfterShip', '17track': '17Track', correios: 'Correios',
   };
-  const provider     = getActiveProvider();
-  const providerName = PROVIDER_LABEL[provider] ?? provider;
+  const providerName = PROVIDER_LABEL[getActiveProvider()] ?? getActiveProvider();
 
-  // Embed completo — usado tanto no DM quanto na resposta ephemeral do servidor
-  const trackEmbed = {
-    color:       STATUS_COLOR[currentStatus],
-    title:       `${STATUS_EMOJI[currentStatus]} ${STATUS_LABELS[currentStatus]}`,
-    description: `**${title}**`,
-    fields: [
-      { name: 'Código',  value: `\`${code}\``, inline: true },
-      { name: 'Carrier', value: providerName,  inline: true },
-      ...(info?.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
-    ],
-    footer:    { text: 'Você receberá uma DM a cada mudança de status.' },
-    timestamp: info?.lastAt ?? new Date().toISOString(),
-  };
+  // Busca status e envia DM DEPOIS da resposta (after evita timeout de 3s do Discord)
+  after(async () => {
+    await registerTrackings([code]);
+    const [info] = await getTrackingUpdates([code]);
 
-  // Envia DM com status inicial (await com timeout de 2s para não estourar o limite do Discord)
-  await Promise.race([
-    sendBotDM(discordUserId, { embeds: [trackEmbed] }),
-    new Promise<void>((resolve) => setTimeout(resolve, 2000)),
-  ]).catch(() => {});
+    if (info && info.status !== 'pending') {
+      await db.from('user_orders').update({
+        status:          info.status,
+        last_event:      info.lastEvent,
+        last_event_at:   info.lastAt,
+        last_checked_at: new Date().toISOString(),
+      }).eq('user_id', profile.user_id).eq('tracking_code', code);
+    }
 
-  // Resposta ephemeral no servidor (só você vê)
+    const status = info?.status ?? 'pending';
+    await sendBotDM(discordUserId, {
+      embeds: [{
+        color:       STATUS_COLOR[status],
+        title:       `${STATUS_EMOJI[status]} ${STATUS_LABELS[status]}`,
+        description: `**${title}**`,
+        fields: [
+          { name: 'Código',   value: `\`${code}\``,  inline: true },
+          { name: 'Rastreio', value: providerName,    inline: true },
+          ...(info?.lastEvent ? [{ name: 'Último evento', value: info.lastEvent, inline: false }] : []),
+        ],
+        footer:    { text: 'Você receberá uma DM a cada mudança de status.' },
+        timestamp: info?.lastAt ?? new Date().toISOString(),
+      }],
+    }).catch(() => {});
+  });
+
+  // Responde ao Discord imediatamente (< 1s) — sem timeout
   return embedReply([{
     color:       0x10b981,
     title:       '📦 Encomenda cadastrada!',
-    description: `\`${code}\`${description ? ` — **${description.trim()}**` : ''}\n\nStatus atual enviado por DM. Você será notificado a cada atualização.`,
+    description: `\`${code}\`${description ? ` — **${description.trim()}**` : ''}\n\nStatus atual sendo buscado — chegará por DM em instantes.`,
     footer:      { text: 'Somente você está vendo esta mensagem.' },
   }]);
 }
