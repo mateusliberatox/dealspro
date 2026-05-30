@@ -370,14 +370,8 @@ function handleDeclAdd(sessionId: string) {
   });
 }
 
-// Processa submissão do modal — atualiza a mensagem da sessão (type 7)
-async function handleDeclModal(sessionId: string, fields: Record<string, string>, discordUserId: string) {
-  const { data: row } = await db.from('declaration_sessions')
-    .select('*').eq('id', sessionId).eq('discord_user_id', discordUserId).single();
-
-  if (!row) return ephemeral('❌ Sessão não encontrada ou expirada. Use `/declarar` novamente.');
-
-  const session = row as { id: string; total_value_usd: number; original_value: number; moeda: string; items: unknown[] };
+// Processa submissão do modal — type 6 (deferred update) + after() para evitar timeout
+async function handleDeclModal(sessionId: string, fields: Record<string, string>, discordUserId: string, interactionToken: string) {
   const produto    = fields['produto']?.trim()  ?? '';
   const cor        = fields['cor']?.trim()      ?? '';
   const tamanho    = fields['tamanho']?.trim()  ?? '';
@@ -385,17 +379,32 @@ async function handleDeclModal(sessionId: string, fields: Record<string, string>
 
   if (!produto) return ephemeral('❌ O nome do produto é obrigatório.');
 
-  const descricao = await analyzeProduct(produto);
-  const items = [...(session.items as object[]), { produto, descricao, cor, tamanho, quantidade }];
+  const appId = process.env.DISCORD_APP_ID!;
 
-  await db.from('declaration_sessions').update({ items }).eq('id', sessionId);
+  after(async () => {
+    const { data: row } = await db.from('declaration_sessions')
+      .select('*').eq('id', sessionId).eq('discord_user_id', discordUserId).single();
+    if (!row) return;
 
-  const updated = { id: session.id, total_value_usd: Number(session.total_value_usd), original_value: Number(session.original_value), moeda: session.moeda as Moeda, items: items as never };
-  const embed      = buildSessionEmbed(updated);
-  const components = buildSessionComponents(sessionId, true);
+    const session  = row as { id: string; total_value_usd: number; original_value: number; moeda: string; items: unknown[] };
+    const descricao = await analyzeProduct(produto);
+    const items     = [...(session.items as object[]), { produto, descricao, cor, tamanho, quantidade }];
 
-  // type 7 = UPDATE_MESSAGE (atualiza a mensagem original do botão)
-  return NextResponse.json({ type: 7, data: { embeds: [embed], components } });
+    await db.from('declaration_sessions').update({ items }).eq('id', sessionId);
+
+    const updated    = { id: session.id, total_value_usd: Number(session.total_value_usd), original_value: Number(session.original_value), moeda: session.moeda as Moeda, items: items as never };
+    const embed      = buildSessionEmbed(updated);
+    const components = buildSessionComponents(sessionId, true);
+
+    await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ embeds: [embed], components }),
+    }).catch(() => {});
+  });
+
+  // Responde imediatamente sem alterar a mensagem ainda
+  return NextResponse.json({ type: 6 });
 }
 
 // Gera o texto final da declaração
@@ -527,7 +536,7 @@ export async function POST(request: NextRequest) {
         const inner = (row.components as Array<Record<string, unknown>>)?.[0];
         if (inner?.custom_id && inner?.value) fields[inner.custom_id as string] = inner.value as string;
       }
-      return handleDeclModal(sessionId, fields, discordUserId);
+      return handleDeclModal(sessionId, fields, discordUserId, interaction.token as string);
     }
   }
 
