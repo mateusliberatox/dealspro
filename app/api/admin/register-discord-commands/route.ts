@@ -67,18 +67,18 @@ const COMMANDS = [
     options: [
       {
         name:        'valor',
-        description: 'Valor total máximo a declarar (ex: 350 para ¥350 ou 50 para $50)',
+        description: 'Valor total em USD a declarar (ex: 50). Se pagou em yuan, use moeda:yuan',
         type:        10,
         required:    true,
       },
       {
         name:        'moeda',
-        description: 'Moeda do valor informado (padrão: yuan)',
+        description: 'Moeda do valor informado (padrão: USD)',
         type:        3,
         required:    false,
         choices: [
+          { name: 'USD — dólar (padrão)', value: 'usd' },
           { name: 'Yuan (¥) — converte para USD automaticamente', value: 'yuan' },
-          { name: 'Dólar (USD)', value: 'usd' },
         ],
       },
     ],

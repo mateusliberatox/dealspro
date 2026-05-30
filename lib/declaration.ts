@@ -109,8 +109,7 @@ export function buildDeclarationText(session: DeclarationSession): string {
   });
 
   const header = line('Atributos', 'Produto', 'Qtd', 'Preço Total');
-  const total  = `Total: $${session.total_value_usd.toFixed(2)} USD` +
-    (session.moeda === 'yuan' ? ` (¥${session.original_value})` : '');
+  const total  = `Total declarado: $${session.total_value_usd.toFixed(2)} USD`;
 
   return ['```', sep, header, sep, ...rows, sep, '', total, '```'].join('\n');
 }
@@ -120,9 +119,8 @@ export function buildDeclarationText(session: DeclarationSession): string {
 export function buildSessionEmbed(session: DeclarationSession) {
   const totalQty  = session.items.reduce((s, i) => s + i.quantidade, 0);
   const valueEach = session.total_value_usd / (totalQty || 1);
-  const valorStr  = session.moeda === 'yuan'
-    ? `$${session.total_value_usd.toFixed(2)} USD (¥${session.original_value})`
-    : `$${session.total_value_usd.toFixed(2)} USD`;
+  const valorStr = `$${session.total_value_usd.toFixed(2)} USD` +
+    (session.moeda === 'yuan' ? ` _(convertido de ¥${session.original_value})_` : '');
 
   const itemLines = session.items.map((item, i) => {
     const attrs   = [item.cor && `Cor: ${item.cor}`, item.tamanho && `Tam: ${item.tamanho}`].filter(Boolean).join(' · ');

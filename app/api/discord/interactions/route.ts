@@ -512,7 +512,7 @@ export async function POST(request: NextRequest) {
     if (name === 'pedidos')           return handlePedidos(discordUserId);
     if (name === 'remover-pedido')    return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
     if (name === 'alterar-descricao') return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
-    if (name === 'declarar')          return handleDeclarar(discordUserId, optN('valor'), (opt('moeda') ?? 'yuan') as Moeda, interaction.token as string);
+    if (name === 'declarar')          return handleDeclarar(discordUserId, optN('valor'), (opt('moeda') ?? 'usd') as Moeda, interaction.token as string);
   }
 
   // Button / component interactions (type 3)
