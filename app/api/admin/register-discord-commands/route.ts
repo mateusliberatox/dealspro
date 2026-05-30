@@ -63,25 +63,23 @@ const COMMANDS = [
   },
   {
     name:        'declarar',
-    description: 'Gera uma sugestão de declaração aduaneira para importação',
+    description: 'Monta uma declaração aduaneira com múltiplos produtos',
     options: [
       {
-        name:        'produto',
-        description: 'Nome do produto (ex: Nike Air Max 42 Preto)',
-        type:        3,
-        required:    true,
-      },
-      {
         name:        'valor',
-        description: 'Valor declarado em USD (ex: 45.99)',
-        type:        10, // NUMBER
+        description: 'Valor total máximo a declarar (ex: 350 para ¥350 ou 50 para $50)',
+        type:        10,
         required:    true,
       },
       {
-        name:        'quantidade',
-        description: 'Quantidade de itens (padrão: 1)',
-        type:        4, // INTEGER
+        name:        'moeda',
+        description: 'Moeda do valor informado (padrão: yuan)',
+        type:        3,
         required:    false,
+        choices: [
+          { name: 'Yuan (¥) — converte para USD automaticamente', value: 'yuan' },
+          { name: 'Dólar (USD)', value: 'usd' },
+        ],
       },
     ],
   },

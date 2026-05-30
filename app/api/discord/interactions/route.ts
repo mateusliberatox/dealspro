@@ -4,7 +4,7 @@ import { effectivePlan } from '@/lib/plan';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 import { registerTrackings, getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, hasApiTracking, getActiveProvider } from '@/lib/tracking';
 import { sendBotDM } from '@/lib/discord';
-import { analyzeDeclaration } from '@/lib/declaration';
+import { convertToUsd, analyzeProduct, buildDeclarationText, buildSessionEmbed, buildSessionComponents } from '@/lib/declaration';
 import { NextRequest, NextResponse, after } from 'next/server';
 
 const DECLARATIONS_CHANNEL_ID = process.env.DISCORD_DECLARATIONS_CHANNEL_ID ?? '1510141475068051566';
@@ -318,60 +318,31 @@ async function handleAlterarDescricao(discordUserId: string, trackingCode: strin
 
 // ── Declaração aduaneira ───────────────────────────────────────────────────────
 
+type Moeda = 'usd' | 'yuan';
+
 async function handleDeclarar(
   discordUserId: string,
-  produto: string,
-  valorUsd: number,
-  quantidade: number,
+  valor: number,
+  moeda: Moeda,
   interactionToken: string,
 ) {
-  if (!produto.trim()) return ephemeral('❌ Informe o nome do produto.');
-  if (valorUsd <= 0)   return ephemeral('❌ O valor deve ser maior que zero.');
-
+  if (valor <= 0) return ephemeral('❌ O valor deve ser maior que zero.');
   const appId = process.env.DISCORD_APP_ID!;
 
-  // Processa após responder — evita timeout de 3s do Discord
   after(async () => {
-    const suggestion = await analyzeDeclaration(produto.trim(), valorUsd, quantidade);
-
-    const { data: draft } = await db.from('declaration_drafts').insert({
+    const totalUsd = await convertToUsd(valor, moeda);
+    const { data: session } = await db.from('declaration_sessions').insert({
       discord_user_id: discordUserId,
-      produto:         produto.trim(),
-      valor_usd:       valorUsd,
-      quantidade,
-      descricao:       suggestion.descricao,
-      categoria:       suggestion.categoria,
-      avisos:          suggestion.avisos,
+      total_value_usd: totalUsd,
+      original_value:  valor,
+      moeda,
+      items:           [],
     }).select('id').single();
 
-    const draftId = (draft as { id: string } | null)?.id ?? '';
+    const sid = (session as { id: string } | null)?.id ?? '';
+    const embed      = buildSessionEmbed({ id: sid, total_value_usd: totalUsd, original_value: valor, moeda, items: [] });
+    const components = buildSessionComponents(sid, false);
 
-    const embed = {
-      color:  suggestion.valor_ok ? 0x3b82f6 : 0xf59e0b,
-      title:  '📋 Sugestão de declaração aduaneira',
-      fields: [
-        { name: 'Produto informado',  value: produto.trim(),                                 inline: true  },
-        { name: 'Categoria',          value: suggestion.categoria,                           inline: true  },
-        { name: 'Descrição sugerida', value: `**${suggestion.descricao}**`,                  inline: false },
-        { name: 'Valor · Qtd',        value: `US$ ${valorUsd.toFixed(2)} · ${quantidade} un`, inline: true  },
-        ...(suggestion.avisos.length ? [{
-          name:   '⚠️ Atenção',
-          value:  suggestion.avisos.map((a) => `• ${a}`).join('\n'),
-          inline: false,
-        }] : []),
-      ],
-      footer: { text: `${suggestion.via_ia ? '✨ Análise por IA' : '📖 Análise por regras'} · Sugestão — não é garantia de liberação` },
-    };
-
-    const components = draftId ? [{
-      type: 1,
-      components: [
-        { type: 2, style: 1, label: '📢 Compartilhar com a comunidade', custom_id: `decl_share:${draftId}` },
-        { type: 2, style: 2, label: '🔒 Só eu', custom_id: 'decl_dismiss' },
-      ],
-    }] : [];
-
-    // Edita a resposta deferida com o conteúdo real
     await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -379,71 +350,124 @@ async function handleDeclarar(
     }).catch(() => {});
   });
 
-  // Responde imediatamente com deferido ephemeral (mostra "carregando..." só para você)
   return NextResponse.json({ type: 5, data: { flags: 64 } });
 }
 
-async function handleDeclShare(draftId: string, discordUserId: string) {
-  // Busca o draft
-  const { data: draft } = await db
-    .from('declaration_drafts')
-    .select('*')
-    .eq('id', draftId)
-    .eq('discord_user_id', discordUserId)
-    .single();
+// Abre modal para adicionar produto
+function handleDeclAdd(sessionId: string) {
+  return NextResponse.json({
+    type: 9,
+    data: {
+      custom_id: `decl_modal:${sessionId}`,
+      title:     'Adicionar produto',
+      components: [
+        { type: 1, components: [{ type: 4, custom_id: 'produto',    label: 'Produto',             style: 1, placeholder: 'Ex: Nike Air Max 42 Preto', required: true,  max_length: 100 }] },
+        { type: 1, components: [{ type: 4, custom_id: 'cor',        label: 'Cor',                 style: 1, placeholder: 'Ex: Preto',                 required: false, max_length: 40  }] },
+        { type: 1, components: [{ type: 4, custom_id: 'tamanho',    label: 'Tamanho',             style: 1, placeholder: 'Ex: 42',                    required: false, max_length: 20  }] },
+        { type: 1, components: [{ type: 4, custom_id: 'quantidade', label: 'Quantidade',          style: 1, placeholder: '1',                         required: false, max_length: 3   }] },
+      ],
+    },
+  });
+}
 
-  if (!draft) {
-    return ephemeral('❌ Declaração não encontrada ou expirada. Use `/declarar` novamente.');
-  }
+// Processa submissão do modal — atualiza a mensagem da sessão (type 7)
+async function handleDeclModal(sessionId: string, fields: Record<string, string>, discordUserId: string) {
+  const { data: row } = await db.from('declaration_sessions')
+    .select('*').eq('id', sessionId).eq('discord_user_id', discordUserId).single();
 
-  const d = draft as {
-    produto: string; valor_usd: number; quantidade: number;
-    descricao: string; categoria: string; avisos: string[];
-  };
+  if (!row) return ephemeral('❌ Sessão não encontrada ou expirada. Use `/declarar` novamente.');
 
-  // Posta no canal público
-  const publicEmbed = {
+  const session = row as { id: string; total_value_usd: number; original_value: number; moeda: string; items: unknown[] };
+  const produto    = fields['produto']?.trim()  ?? '';
+  const cor        = fields['cor']?.trim()      ?? '';
+  const tamanho    = fields['tamanho']?.trim()  ?? '';
+  const quantidade = Math.max(1, parseInt(fields['quantidade'] ?? '1') || 1);
+
+  if (!produto) return ephemeral('❌ O nome do produto é obrigatório.');
+
+  const descricao = await analyzeProduct(produto);
+  const items = [...(session.items as object[]), { produto, descricao, cor, tamanho, quantidade }];
+
+  await db.from('declaration_sessions').update({ items }).eq('id', sessionId);
+
+  const updated = { id: session.id, total_value_usd: Number(session.total_value_usd), original_value: Number(session.original_value), moeda: session.moeda as Moeda, items: items as never };
+  const embed      = buildSessionEmbed(updated);
+  const components = buildSessionComponents(sessionId, true);
+
+  // type 7 = UPDATE_MESSAGE (atualiza a mensagem original do botão)
+  return NextResponse.json({ type: 7, data: { embeds: [embed], components } });
+}
+
+// Gera o texto final da declaração
+async function handleDeclGenerate(sessionId: string, discordUserId: string) {
+  const { data: row } = await db.from('declaration_sessions')
+    .select('*').eq('id', sessionId).eq('discord_user_id', discordUserId).single();
+
+  if (!row) return ephemeral('❌ Sessão não encontrada. Use `/declarar` novamente.');
+
+  const session = row as { id: string; total_value_usd: number; original_value: number; moeda: string; items: unknown[] };
+  if (!(session.items as unknown[]).length) return ephemeral('❌ Adicione pelo menos um produto antes de gerar.');
+
+  const s = { ...session, moeda: session.moeda as Moeda, total_value_usd: Number(session.total_value_usd), original_value: Number(session.original_value) } as never;
+  const text = buildDeclarationText(s);
+
+  // Posta no canal público com reactions
+  const shareEmbed = {
     color:       0x3b82f6,
-    title:       '📋 Avaliação de declaração aduaneira',
-    description: `<@${discordUserId}> quer saber se essa declaração faz sentido.`,
-    fields: [
-      { name: 'Produto',            value: d.produto,                                          inline: true },
-      { name: 'Categoria',          value: d.categoria,                                        inline: true },
-      { name: 'Descrição sugerida', value: `**${d.descricao}**`,                               inline: false },
-      { name: 'Valor · Qtd',        value: `US$ ${Number(d.valor_usd).toFixed(2)} · ${d.quantidade} un`, inline: true },
-      ...(d.avisos?.length ? [{
-        name:   '⚠️ Pontos de atenção',
-        value:  d.avisos.map((a: string) => `• ${a}`).join('\n'),
-        inline: false,
-      }] : []),
-    ],
-    footer: { text: 'Reaja: ✅ Parece ok  ·  ⚠️ Cuidado  ·  ❌ Não usaria  ·  Sugestão da comunidade — não é garantia de liberação' },
+    title:       '📋 Declaração para avaliação',
+    description: `<@${discordUserId}> quer saber se essa declaração faz sentido:\n\n${text}`,
+    footer:      { text: 'Sugestão da comunidade — não é garantia de liberação' },
   };
+
+  // Responde com o texto + botão de compartilhar
+  const components = [{
+    type: 1,
+    components: [
+      { type: 2, style: 1, label: '📢 Compartilhar com a comunidade', custom_id: `decl_share:${sessionId}` },
+      { type: 2, style: 4, label: '🗑️ Descartar', custom_id: `decl_discard:${sessionId}` },
+    ],
+  }];
+
+  return NextResponse.json({ type: 7, data: {
+    embeds: [{ color: 0x10b981, title: '📋 Declaração gerada', description: text, footer: { text: 'Somente você está vendo. Copie o texto ou compartilhe com a comunidade.' } }],
+    components,
+  }});
+}
+
+// Compartilha no canal público
+async function handleDeclShare(sessionId: string, discordUserId: string) {
+  const { data: row } = await db.from('declaration_sessions')
+    .select('*').eq('id', sessionId).eq('discord_user_id', discordUserId).single();
+
+  if (!row) return ephemeral('❌ Sessão não encontrada.');
+
+  const session = row as { id: string; total_value_usd: number; original_value: number; moeda: string; items: unknown[] };
+  const s = { ...session, moeda: session.moeda as Moeda, total_value_usd: Number(session.total_value_usd), original_value: Number(session.original_value) } as never;
+  const text = buildDeclarationText(s);
 
   const msgRes = await fetch(`https://discord.com/api/v10/channels/${DECLARATIONS_CHANNEL_ID}/messages`, {
     method:  'POST',
     headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN()}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ embeds: [publicEmbed] }),
+    body:    JSON.stringify({ content: `<@${discordUserId}> compartilhou uma declaração para avaliação:\n\n${text}\n\n*Sugestão da comunidade — não é garantia de liberação*` }),
   });
 
-  if (!msgRes.ok) {
-    return ephemeral('❌ Não foi possível postar no canal. Verifique se o bot tem permissão.');
-  }
+  if (!msgRes.ok) return ephemeral('❌ Não foi possível postar no canal.');
 
-  // Adiciona reações automaticamente
   const msg = await msgRes.json() as { id: string };
-  const reactions = ['✅', '⚠️', '❌'];
-  for (const r of reactions) {
+  for (const r of ['✅', '⚠️', '❌']) {
     await fetch(
       `https://discord.com/api/v10/channels/${DECLARATIONS_CHANNEL_ID}/messages/${msg.id}/reactions/${encodeURIComponent(r)}/@me`,
       { method: 'PUT', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN()}` } },
     ).catch(() => {});
   }
 
-  // Remove draft após compartilhar
-  await db.from('declaration_drafts').delete().eq('id', draftId);
+  await db.from('declaration_sessions').delete().eq('id', sessionId);
+  return NextResponse.json({ type: 7, data: { embeds: [{ color: 0x10b981, title: '✅ Compartilhado!', description: 'A comunidade pode reagir com ✅ ⚠️ ❌.' }], components: [] } });
+}
 
-  return ephemeral('✅ Declaração compartilhada! A comunidade pode reagir com ✅ ⚠️ ❌.');
+async function handleDeclDiscard(sessionId: string, discordUserId: string) {
+  await db.from('declaration_sessions').delete().eq('id', sessionId).eq('discord_user_id', discordUserId);
+  return NextResponse.json({ type: 7, data: { embeds: [{ color: 0x6b7280, title: '🗑️ Declaração descartada.' }], components: [] } });
 }
 
 // ── Endpoint principal ─────────────────────────────────────────────────────────
@@ -479,14 +503,32 @@ export async function POST(request: NextRequest) {
     if (name === 'pedidos')           return handlePedidos(discordUserId);
     if (name === 'remover-pedido')    return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
     if (name === 'alterar-descricao') return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
-    if (name === 'declarar')          return handleDeclarar(discordUserId, opt('produto') ?? '', optN('valor'), optN('quantidade') || 1, interaction.token as string);
+    if (name === 'declarar')          return handleDeclarar(discordUserId, optN('valor'), (opt('moeda') ?? 'yuan') as Moeda, interaction.token as string);
   }
 
   // Button / component interactions (type 3)
   if (interaction.type === 3) {
     const customId = (interaction.data as Record<string, unknown>)?.custom_id as string ?? '';
-    if (customId.startsWith('decl_share:')) return handleDeclShare(customId.replace('decl_share:', ''), discordUserId);
-    if (customId === 'decl_dismiss')        return NextResponse.json({ type: 6 }); // ACK sem resposta
+    if (customId.startsWith('decl_add:'))     return handleDeclAdd(customId.replace('decl_add:', ''));
+    if (customId.startsWith('decl_gen:'))     return handleDeclGenerate(customId.replace('decl_gen:', ''), discordUserId);
+    if (customId.startsWith('decl_share:'))   return handleDeclShare(customId.replace('decl_share:', ''), discordUserId);
+    if (customId.startsWith('decl_discard:')) return handleDeclDiscard(customId.replace('decl_discard:', ''), discordUserId);
+    if (customId === 'decl_dismiss')          return NextResponse.json({ type: 6 });
+  }
+
+  // Modal submissions (type 5)
+  if (interaction.type === 5) {
+    const customId = (interaction.data as Record<string, unknown>)?.custom_id as string ?? '';
+    if (customId.startsWith('decl_modal:')) {
+      const sessionId = customId.replace('decl_modal:', '');
+      const components = (interaction.data as Record<string, unknown>)?.components as Array<Record<string, unknown>> ?? [];
+      const fields: Record<string, string> = {};
+      for (const row of components) {
+        const inner = (row.components as Array<Record<string, unknown>>)?.[0];
+        if (inner?.custom_id && inner?.value) fields[inner.custom_id as string] = inner.value as string;
+      }
+      return handleDeclModal(sessionId, fields, discordUserId);
+    }
   }
 
   return NextResponse.json({ type: 1 });

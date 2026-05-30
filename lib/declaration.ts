@@ -1,172 +1,153 @@
 /**
- * Gerador de sugestão de declaração aduaneira via OpenAI gpt-4o-mini.
- * Se OPENAI_API_KEY não estiver configurada, usa fallback por regras.
- *
- * Não oferece garantia legal — apenas sugere descrições comuns para
- * importações pessoais via Correios.
+ * Gerador de declaração aduaneira para importações pessoais via Correios.
+ * Suporta múltiplos itens, conversão Yuan→USD e análise por IA (gpt-4o-mini).
+ * Não oferece garantia legal — apenas sugestões práticas.
  */
 
 import OpenAI from 'openai';
 
-export interface DeclarationSuggestion {
-  descricao:    string;    // descrição simplificada (não-branded) em português
-  categoria:    string;    // categoria do produto
-  avisos:       string[];  // alertas relevantes
-  valor_ok:     boolean;   // valor declarado parece razoável?
-  via_ia:       boolean;   // true = OpenAI; false = regras
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+
+export interface DeclarationItem {
+  produto:    string;   // nome original informado pelo usuário
+  descricao:  string;   // descrição simplificada (não-branded) sugerida pela IA
+  cor:        string;
+  tamanho:    string;
+  quantidade: number;
 }
 
-// ── Fallback por regras ───────────────────────────────────────────────────────
-
-const CATEGORIAS: Array<{
-  pattern: RegExp;
-  categoria: string;
-  descricao: string;
-  avisos: string[];
-}> = [
-  {
-    pattern:   /tênis|sneaker|nike|adidas|jordan|air max|yeezy|vans|converse|calçado|sapato|sandália/i,
-    categoria: 'Calçados',
-    descricao: 'Calçado esportivo',
-    avisos:    ['Artigos de marca conhecida podem ser retidos para verificação de autenticidade.'],
-  },
-  {
-    pattern:   /camiseta|camisa|blusa|moletom|hoodie|jaqueta|casaco|roupa|vestido|bermuda|short|calça|polo/i,
-    categoria: 'Vestuário',
-    descricao: 'Peça de vestuário',
-    avisos:    ['Artigos de marca podem ser retidos. Prefira descrições genéricas.'],
-  },
-  {
-    pattern:   /relógio|watch|smartwatch/i,
-    categoria: 'Relógios',
-    descricao: 'Relógio de pulso',
-    avisos:    ['Relógios de marca são frequentemente taxados e retidos. Declare como "relógio" sem marca.'],
-  },
-  {
-    pattern:   /fone|headphone|earphone|airpod|earbuds|fone de ouvido/i,
-    categoria: 'Eletrônicos',
-    descricao: 'Fone de ouvido',
-    avisos:    ['Eletrônicos acima de US$ 50 podem ser tributados. Mantenha o valor declarado preciso.'],
-  },
-  {
-    pattern:   /celular|smartphone|iphone|samsung|xiaomi|phone/i,
-    categoria: 'Eletrônicos',
-    descricao: 'Telefone celular',
-    avisos:    ['Celulares são frequentemente tributados e inspecionados. Declare o valor real.', 'Pode ser necessário homologação ANATEL para liberação.'],
-  },
-  {
-    pattern:   /bolsa|bag|mochila|carteira|wallet|pochete/i,
-    categoria: 'Acessórios',
-    descricao: 'Bolsa / acessório de moda',
-    avisos:    ['Bolsas de marca são alvo comum de retenção por verificação de autenticidade.'],
-  },
-  {
-    pattern:   /perfume|cologne|fragrance|eau de/i,
-    categoria: 'Cosméticos',
-    descricao: 'Perfume',
-    avisos:    ['Perfumes são classificados como líquido inflamável — restrições de transporte aéreo podem se aplicar.'],
-  },
-  {
-    pattern:   /brinquedo|toy|boneco|action figure|lego/i,
-    categoria: 'Brinquedos',
-    descricao: 'Brinquedo',
-    avisos:    ['Brinquedos precisam de certificação INMETRO para comercialização — para uso pessoal, sem restrição.'],
-  },
-  {
-    pattern:   /suplemento|whey|creatina|proteína|vitamina|supplement/i,
-    categoria: 'Suplementos',
-    descricao: 'Suplemento alimentar',
-    avisos:    ['Suplementos podem ser retidos pela ANVISA para análise. Verifique se o produto é permitido no Brasil.'],
-  },
-];
-
-const AVISOS_VALOR: Array<{ min: number; max: number; aviso: string }> = [
-  { min: 0,   max: 50,  aviso: '' },
-  { min: 50,  max: 300, aviso: 'Valor entre US$ 50 e US$ 300: pode incidir imposto de importação (60% + ICMS).' },
-  { min: 300, max: Infinity, aviso: 'Valor acima de US$ 300: sujeito a despacho aduaneiro formal com tributação integral.' },
-];
-
-function fallbackAnalysis(produto: string, valorUsd: number): DeclarationSuggestion {
-  const match = CATEGORIAS.find((c) => c.pattern.test(produto));
-  const avisos = match ? [...match.avisos] : ['Descreva o produto de forma genérica, sem mencionar marcas.'];
-
-  const avisoValor = AVISOS_VALOR.find((v) => valorUsd >= v.min && valorUsd < v.max)?.aviso ?? '';
-  if (avisoValor) avisos.unshift(avisoValor);
-
-  return {
-    descricao: match?.descricao ?? 'Produto de uso pessoal',
-    categoria: match?.categoria ?? 'Geral',
-    avisos,
-    valor_ok: valorUsd <= 300,
-    via_ia:   false,
-  };
+export interface DeclarationSession {
+  id:              string;
+  total_value_usd: number;
+  original_value:  number;
+  moeda:           'usd' | 'yuan';
+  items:           DeclarationItem[];
 }
 
-// ── Análise via OpenAI ────────────────────────────────────────────────────────
+// ── Conversão de moeda ────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Você é um especialista em importações pessoais pelo Correios para o Brasil.
-Ajuda pessoas a entender como descrever produtos chineses na declaração aduaneira de forma precisa e sem marcas.
-NÃO oferece garantias legais — apenas sugestões práticas baseadas em experiência comum.
-Responda APENAS com JSON válido, sem markdown, sem explicações extras.`;
+const CNY_USD_FALLBACK = 0.138; // ≈ 1 CNY = $0.138 USD (fallback fixo)
 
-const USER_PROMPT = (produto: string, valor: number, qtd: number) =>
-  `Produto: "${produto}"
-Valor declarado: US$ ${valor.toFixed(2)}
-Quantidade: ${qtd}
+export async function convertToUsd(amount: number, moeda: 'usd' | 'yuan'): Promise<number> {
+  if (moeda === 'usd') return amount;
+  try {
+    const res  = await fetch('https://open.er-api.com/v6/latest/CNY', { signal: AbortSignal.timeout(4_000) });
+    const data = await res.json() as { rates?: Record<string, number> };
+    const rate = data.rates?.USD ?? CNY_USD_FALLBACK;
+    return parseFloat((amount * rate).toFixed(2));
+  } catch {
+    return parseFloat((amount * CNY_USD_FALLBACK).toFixed(2));
+  }
+}
 
-Retorne um JSON com exatamente estes campos:
-{
-  "descricao": "descrição genérica em português sem marca (máx 60 chars)",
-  "categoria": "categoria do produto (ex: Calçados, Vestuário, Eletrônicos)",
-  "avisos": ["array de avisos relevantes em português, máx 3 itens, strings curtas"],
-  "valor_ok": true/false
-}`;
+// ── Análise de produto via IA ─────────────────────────────────────────────────
 
-export async function analyzeDeclaration(
-  produto: string,
-  valorUsd: number,
-  quantidade: number = 1,
-): Promise<DeclarationSuggestion> {
+const SYSTEM_PROMPT =
+  'Você é especialista em importações pessoais pelo Correios para o Brasil. ' +
+  'Sugere descrições genéricas e sem marca para declarações aduaneiras. ' +
+  'Responda APENAS com JSON válido, sem markdown.';
+
+export async function analyzeProduct(produto: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return fallbackAnalysis(produto, valorUsd);
+  if (!apiKey) return inferDescription(produto);
 
   try {
     const client = new OpenAI({ apiKey });
-    const resp = await client.chat.completions.create({
+    const resp   = await client.chat.completions.create({
       model:       'gpt-4o-mini',
-      temperature: 0.2,
-      max_tokens:  300,
+      temperature: 0.1,
+      max_tokens:  60,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user',   content: USER_PROMPT(produto, valorUsd, quantidade) },
+        { role: 'user',   content: `Produto: "${produto}". Retorne {"descricao": "descrição genérica sem marca em português, máx 40 chars"}` },
       ],
     });
-
-    const raw = resp.choices[0]?.message?.content?.trim() ?? '';
-    const parsed = JSON.parse(raw) as {
-      descricao: string;
-      categoria: string;
-      avisos:    string[];
-      valor_ok:  boolean;
-    };
-
-    // Adiciona aviso de valor se necessário
-    const avisos = parsed.avisos ?? [];
-    if (valorUsd > 50 && valorUsd <= 300 && !avisos.some((a) => a.includes('US$'))) {
-      avisos.unshift('Valor entre US$ 50–300: pode incidir imposto de 60% + ICMS.');
-    }
-    if (valorUsd > 300) {
-      avisos.unshift('Valor acima de US$ 300: sujeito a despacho aduaneiro formal.');
-    }
-
-    return {
-      descricao: parsed.descricao,
-      categoria: parsed.categoria,
-      avisos:    avisos.slice(0, 3),
-      valor_ok:  parsed.valor_ok,
-      via_ia:    true,
-    };
+    const raw    = resp.choices[0]?.message?.content?.trim() ?? '';
+    const parsed = JSON.parse(raw) as { descricao: string };
+    return parsed.descricao || inferDescription(produto);
   } catch {
-    return fallbackAnalysis(produto, valorUsd);
+    return inferDescription(produto);
   }
+}
+
+function inferDescription(produto: string): string {
+  const p = produto.toLowerCase();
+  if (/tênis|sneaker|nike|adidas|jordan|yeezy|vans|calçado|sapato/.test(p)) return 'Calçado esportivo';
+  if (/sandália|chinelo|tamanco/.test(p))                                    return 'Calçado casual';
+  if (/camiseta|camisa|blusa|polo/.test(p))                                  return 'Camiseta';
+  if (/moletom|hoodie|casaco|jaqueta/.test(p))                               return 'Peça de agasalho';
+  if (/calça|jeans|short|bermuda/.test(p))                                   return 'Peça de vestuário inferior';
+  if (/vestido|saia/.test(p))                                                return 'Vestido / saia';
+  if (/bolsa|mochila|bag/.test(p))                                           return 'Bolsa';
+  if (/carteira|wallet/.test(p))                                             return 'Carteira';
+  if (/relógio|watch/.test(p))                                               return 'Relógio de pulso';
+  if (/fone|headphone|earphone|earbuds/.test(p))                             return 'Fone de ouvido';
+  if (/celular|smartphone|phone/.test(p))                                    return 'Telefone celular';
+  if (/óculos/.test(p))                                                      return 'Óculos';
+  if (/cinto|belt/.test(p))                                                  return 'Cinto';
+  return 'Artigo de uso pessoal';
+}
+
+// ── Geração do texto de declaração ───────────────────────────────────────────
+
+export function buildDeclarationText(session: DeclarationSession): string {
+  if (!session.items.length) return '';
+
+  const totalQty   = session.items.reduce((s, i) => s + i.quantidade, 0);
+  const valueEach  = session.total_value_usd / (totalQty || 1);
+
+  const COL = { attr: 28, produto: 22, qtd: 5, valor: 12 };
+  const pad  = (s: string, n: number) => s.slice(0, n).padEnd(n);
+  const line = (a: string, p: string, q: string, v: string) =>
+    `| ${pad(a, COL.attr)} | ${pad(p, COL.produto)} | ${pad(q, COL.qtd)} | ${pad(v, COL.valor)} |`;
+
+  const sep  = `+${'-'.repeat(COL.attr + 2)}+${'-'.repeat(COL.produto + 2)}+${'-'.repeat(COL.qtd + 2)}+${'-'.repeat(COL.valor + 2)}+`;
+  const rows = session.items.map((item) => {
+    const attrs  = [item.cor && `Cor: ${item.cor}`, item.tamanho && `Tam: ${item.tamanho}`].filter(Boolean).join(' / ') || '-';
+    const itemVal = `$${(valueEach * item.quantidade).toFixed(2)} USD`;
+    return line(attrs, item.descricao, String(item.quantidade), itemVal);
+  });
+
+  const header = line('Atributos', 'Produto', 'Qtd', 'Preço Total');
+  const total  = `Total: $${session.total_value_usd.toFixed(2)} USD` +
+    (session.moeda === 'yuan' ? ` (¥${session.original_value})` : '');
+
+  return ['```', sep, header, sep, ...rows, sep, '', total, '```'].join('\n');
+}
+
+// ── Embed de estado da sessão ─────────────────────────────────────────────────
+
+export function buildSessionEmbed(session: DeclarationSession) {
+  const totalQty  = session.items.reduce((s, i) => s + i.quantidade, 0);
+  const valueEach = session.total_value_usd / (totalQty || 1);
+  const valorStr  = session.moeda === 'yuan'
+    ? `$${session.total_value_usd.toFixed(2)} USD (¥${session.original_value})`
+    : `$${session.total_value_usd.toFixed(2)} USD`;
+
+  const itemLines = session.items.map((item, i) => {
+    const attrs   = [item.cor && `Cor: ${item.cor}`, item.tamanho && `Tam: ${item.tamanho}`].filter(Boolean).join(' · ');
+    const itemVal = (valueEach * item.quantidade).toFixed(2);
+    return `**${i + 1}.** ${item.descricao} × ${item.quantidade}${attrs ? ` _(${attrs})_` : ''} — $${itemVal}`;
+  });
+
+  return {
+    color:       0x3b82f6,
+    title:       '📋 Declaração em andamento',
+    description: itemLines.length
+      ? itemLines.join('\n')
+      : '_Nenhum item ainda. Clique em **Adicionar produto**._',
+    fields: [{ name: 'Valor total declarado', value: valorStr, inline: true }],
+    footer: { text: 'Sugestão — não é garantia de liberação pela Receita Federal.' },
+  };
+}
+
+export function buildSessionComponents(sessionId: string, hasItems: boolean) {
+  return [{
+    type: 1,
+    components: [
+      { type: 2, style: 1, label: '➕ Adicionar produto', custom_id: `decl_add:${sessionId}` },
+      ...(hasItems ? [{ type: 2, style: 3, label: '📋 Gerar declaração', custom_id: `decl_gen:${sessionId}` }] : []),
+      { type: 2, style: 4, label: '🗑️ Descartar', custom_id: `decl_discard:${sessionId}` },
+    ],
+  }];
 }
