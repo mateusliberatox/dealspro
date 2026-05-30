@@ -62,6 +62,30 @@ const COMMANDS = [
     }],
   },
   {
+    name:        'declarar',
+    description: 'Gera uma sugestão de declaração aduaneira para importação',
+    options: [
+      {
+        name:        'produto',
+        description: 'Nome do produto (ex: Nike Air Max 42 Preto)',
+        type:        3,
+        required:    true,
+      },
+      {
+        name:        'valor',
+        description: 'Valor declarado em USD (ex: 45.99)',
+        type:        10, // NUMBER
+        required:    true,
+      },
+      {
+        name:        'quantidade',
+        description: 'Quantidade de itens (padrão: 1)',
+        type:        4, // INTEGER
+        required:    false,
+      },
+    ],
+  },
+  {
     name:        'alterar-descricao',
     description: 'Altera a descrição de uma encomenda cadastrada',
     options: [

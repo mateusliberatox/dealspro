@@ -4,7 +4,11 @@ import { effectivePlan } from '@/lib/plan';
 import { stripe, STRIPE_PRICE_ID } from '@/lib/stripe';
 import { registerTrackings, getTrackingUpdates, STATUS_LABELS, STATUS_EMOJI, STATUS_COLOR, hasApiTracking, getActiveProvider } from '@/lib/tracking';
 import { sendBotDM } from '@/lib/discord';
+import { analyzeDeclaration } from '@/lib/declaration';
 import { NextRequest, NextResponse, after } from 'next/server';
+
+const DECLARATIONS_CHANNEL_ID = process.env.DISCORD_DECLARATIONS_CHANNEL_ID ?? '1510141475068051566';
+const DISCORD_BOT_TOKEN        = () => process.env.DISCORD_BOT_TOKEN ?? '';
 
 // ── Singletons ─────────────────────────────────────────────────────────────────
 
@@ -312,6 +316,130 @@ async function handleAlterarDescricao(discordUserId: string, trackingCode: strin
   );
 }
 
+// ── Declaração aduaneira ───────────────────────────────────────────────────────
+
+async function handleDeclarar(discordUserId: string, produto: string, valorUsd: number, quantidade: number) {
+  if (!produto.trim()) return ephemeral('❌ Informe o nome do produto.');
+  if (valorUsd <= 0)   return ephemeral('❌ O valor deve ser maior que zero.');
+
+  const suggestion = await analyzeDeclaration(produto.trim(), valorUsd, quantidade);
+
+  // Salva draft para o botão compartilhar
+  const { data: draft } = await db.from('declaration_drafts').insert({
+    discord_user_id: discordUserId,
+    produto:         produto.trim(),
+    valor_usd:       valorUsd,
+    quantidade,
+    descricao:       suggestion.descricao,
+    categoria:       suggestion.categoria,
+    avisos:          suggestion.avisos,
+  }).select('id').single();
+
+  const draftId = (draft as { id: string } | null)?.id ?? '';
+
+  const embed = {
+    color:       suggestion.valor_ok ? 0x3b82f6 : 0xf59e0b,
+    title:       '📋 Sugestão de declaração aduaneira',
+    fields: [
+      { name: 'Produto informado', value: produto.trim(), inline: true },
+      { name: 'Categoria',         value: suggestion.categoria, inline: true },
+      { name: 'Descrição sugerida', value: `**${suggestion.descricao}**`, inline: false },
+      { name: 'Valor · Qtd',        value: `US$ ${valorUsd.toFixed(2)} · ${quantidade} un`, inline: true },
+      ...(suggestion.avisos.length ? [{
+        name:   '⚠️ Atenção',
+        value:  suggestion.avisos.map((a) => `• ${a}`).join('\n'),
+        inline: false,
+      }] : []),
+    ],
+    footer: {
+      text: `${suggestion.via_ia ? '✨ Análise por IA' : '📖 Análise por regras'} · Sugestão — não é garantia de liberação`,
+    },
+  };
+
+  const components = draftId ? [{
+    type: 1,
+    components: [
+      {
+        type:      2,
+        style:     1,
+        label:     '📢 Compartilhar com a comunidade',
+        custom_id: `decl_share:${draftId}`,
+      },
+      {
+        type:      2,
+        style:     2,
+        label:     '🔒 Só eu',
+        custom_id: 'decl_dismiss',
+      },
+    ],
+  }] : [];
+
+  return NextResponse.json({ type: 4, data: { embeds: [embed], flags: 64, components } });
+}
+
+async function handleDeclShare(draftId: string, discordUserId: string) {
+  // Busca o draft
+  const { data: draft } = await db
+    .from('declaration_drafts')
+    .select('*')
+    .eq('id', draftId)
+    .eq('discord_user_id', discordUserId)
+    .single();
+
+  if (!draft) {
+    return ephemeral('❌ Declaração não encontrada ou expirada. Use `/declarar` novamente.');
+  }
+
+  const d = draft as {
+    produto: string; valor_usd: number; quantidade: number;
+    descricao: string; categoria: string; avisos: string[];
+  };
+
+  // Posta no canal público
+  const publicEmbed = {
+    color:       0x3b82f6,
+    title:       '📋 Avaliação de declaração aduaneira',
+    description: `<@${discordUserId}> quer saber se essa declaração faz sentido.`,
+    fields: [
+      { name: 'Produto',            value: d.produto,                                          inline: true },
+      { name: 'Categoria',          value: d.categoria,                                        inline: true },
+      { name: 'Descrição sugerida', value: `**${d.descricao}**`,                               inline: false },
+      { name: 'Valor · Qtd',        value: `US$ ${Number(d.valor_usd).toFixed(2)} · ${d.quantidade} un`, inline: true },
+      ...(d.avisos?.length ? [{
+        name:   '⚠️ Pontos de atenção',
+        value:  d.avisos.map((a: string) => `• ${a}`).join('\n'),
+        inline: false,
+      }] : []),
+    ],
+    footer: { text: 'Reaja: ✅ Parece ok  ·  ⚠️ Cuidado  ·  ❌ Não usaria  ·  Sugestão da comunidade — não é garantia de liberação' },
+  };
+
+  const msgRes = await fetch(`https://discord.com/api/v10/channels/${DECLARATIONS_CHANNEL_ID}/messages`, {
+    method:  'POST',
+    headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN()}`, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ embeds: [publicEmbed] }),
+  });
+
+  if (!msgRes.ok) {
+    return ephemeral('❌ Não foi possível postar no canal. Verifique se o bot tem permissão.');
+  }
+
+  // Adiciona reações automaticamente
+  const msg = await msgRes.json() as { id: string };
+  const reactions = ['✅', '⚠️', '❌'];
+  for (const r of reactions) {
+    await fetch(
+      `https://discord.com/api/v10/channels/${DECLARATIONS_CHANNEL_ID}/messages/${msg.id}/reactions/${encodeURIComponent(r)}/@me`,
+      { method: 'PUT', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN()}` } },
+    ).catch(() => {});
+  }
+
+  // Remove draft após compartilhar
+  await db.from('declaration_drafts').delete().eq('id', draftId);
+
+  return ephemeral('✅ Declaração compartilhada! A comunidade pode reagir com ✅ ⚠️ ❌.');
+}
+
 // ── Endpoint principal ─────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -323,26 +451,36 @@ export async function POST(request: NextRequest) {
 
   if (interaction.type === 1) return NextResponse.json({ type: 1 });
 
+  const discordUserId = (interaction.member as Record<string, unknown> | undefined)?.user
+    ? ((interaction.member as Record<string, unknown>).user as Record<string, unknown>).id as string
+    : (interaction.user as Record<string, unknown> | undefined)?.id as string ?? '';
+
+  if (!discordUserId || !DISCORD_ID_RE.test(discordUserId))
+    return ephemeral('❌ Não foi possível identificar seu usuário.');
+
+  // Slash commands (type 2)
   if (interaction.type === 2) {
-    const name          = interaction.data ? (interaction.data as Record<string, unknown>).name as string : '';
-    const discordUserId = (interaction.member as Record<string, unknown> | undefined)?.user
-      ? ((interaction.member as Record<string, unknown>).user as Record<string, unknown>).id as string
-      : (interaction.user as Record<string, unknown> | undefined)?.id as string ?? '';
-
-    if (!discordUserId || !DISCORD_ID_RE.test(discordUserId))
-      return ephemeral('❌ Não foi possível identificar seu usuário.');
-
+    const name = interaction.data ? (interaction.data as Record<string, unknown>).name as string : '';
     const opts = (interaction.data as Record<string, unknown>)?.options as Array<Record<string, unknown>> | undefined;
-    const opt  = (name: string) => opts?.find((o) => o.name === name)?.value as string | undefined;
+    const opt  = (key: string) => opts?.find((o) => o.name === key)?.value as string | undefined;
+    const optN = (key: string) => Number(opts?.find((o) => o.name === key)?.value ?? 0);
 
-    if (name === 'assinar')          return handleAssinar(discordUserId);
-    if (name === 'status')           return handleStatus(discordUserId);
-    if (name === 'meus-alertas')     return handleMeusAlertas(discordUserId);
-    if (name === 'cancelar')         return handleCancelar(discordUserId, opt('keyword') ?? '');
-    if (name === 'rastrear')           return handleRastrear(discordUserId, opt('codigo') ?? '', opt('descricao'));
-    if (name === 'pedidos')            return handlePedidos(discordUserId);
-    if (name === 'remover-pedido')     return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
-    if (name === 'alterar-descricao')  return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
+    if (name === 'assinar')           return handleAssinar(discordUserId);
+    if (name === 'status')            return handleStatus(discordUserId);
+    if (name === 'meus-alertas')      return handleMeusAlertas(discordUserId);
+    if (name === 'cancelar')          return handleCancelar(discordUserId, opt('keyword') ?? '');
+    if (name === 'rastrear')          return handleRastrear(discordUserId, opt('codigo') ?? '', opt('descricao'));
+    if (name === 'pedidos')           return handlePedidos(discordUserId);
+    if (name === 'remover-pedido')    return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
+    if (name === 'alterar-descricao') return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
+    if (name === 'declarar')          return handleDeclarar(discordUserId, opt('produto') ?? '', optN('valor'), optN('quantidade') || 1);
+  }
+
+  // Button / component interactions (type 3)
+  if (interaction.type === 3) {
+    const customId = (interaction.data as Record<string, unknown>)?.custom_id as string ?? '';
+    if (customId.startsWith('decl_share:')) return handleDeclShare(customId.replace('decl_share:', ''), discordUserId);
+    if (customId === 'decl_dismiss')        return NextResponse.json({ type: 6 }); // ACK sem resposta
   }
 
   return NextResponse.json({ type: 1 });
