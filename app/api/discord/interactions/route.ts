@@ -212,8 +212,11 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
     timestamp: info?.lastAt ?? new Date().toISOString(),
   };
 
-  // Envia DM imediatamente com status inicial (fire-and-forget — não bloqueia a resposta)
-  sendBotDM(discordUserId, { embeds: [trackEmbed] }).catch(() => {});
+  // Envia DM com status inicial (await com timeout de 2s para não estourar o limite do Discord)
+  await Promise.race([
+    sendBotDM(discordUserId, { embeds: [trackEmbed] }),
+    new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+  ]).catch(() => {});
 
   // Resposta ephemeral no servidor (só você vê)
   return embedReply([{
