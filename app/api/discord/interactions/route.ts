@@ -229,7 +229,7 @@ async function handleRastrear(discordUserId: string, trackingCode: string, descr
 
 async function handlePedidos(discordUserId: string) {
   const { data: profile } = await db
-    .from('dealspro_profiles').select('user_id, plan, plan_expires_at').eq('discord_user_id', discordUserId).single();
+    .from('dealspro_profiles').select('user_id, plan, plan_expires_at, stripe_subscription_id').eq('discord_user_id', discordUserId).single();
   if (!profile) return ephemeral(`❌ Conta não encontrada. Crie a sua em ${SITE_URL}`);
   if (effectivePlan(profile) !== 'premium') return ephemeral(PREMIUM_ONLY_MSG);
 
@@ -269,7 +269,7 @@ async function handlePedidos(discordUserId: string) {
 async function handleRemoverPedido(discordUserId: string, trackingCode: string) {
   const code = trackingCode.trim().toUpperCase();
   const { data: profile } = await db
-    .from('dealspro_profiles').select('user_id, plan, plan_expires_at').eq('discord_user_id', discordUserId).single();
+    .from('dealspro_profiles').select('user_id, plan, plan_expires_at, stripe_subscription_id').eq('discord_user_id', discordUserId).single();
   if (!profile) return ephemeral(`❌ Conta não encontrada.`);
   if (effectivePlan(profile) !== 'premium') return ephemeral(PREMIUM_ONLY_MSG);
 
@@ -292,7 +292,7 @@ async function handleAlterarDescricao(discordUserId: string, trackingCode: strin
   if (desc.length > 100) return ephemeral('❌ A descrição deve ter no máximo 100 caracteres.');
 
   const { data: profile } = await db
-    .from('dealspro_profiles').select('user_id, plan, plan_expires_at').eq('discord_user_id', discordUserId).single();
+    .from('dealspro_profiles').select('user_id, plan, plan_expires_at, stripe_subscription_id').eq('discord_user_id', discordUserId).single();
   if (!profile) return ephemeral('❌ Conta não encontrada.');
   if (effectivePlan(profile) !== 'premium') return ephemeral(PREMIUM_ONLY_MSG);
 
