@@ -34,13 +34,21 @@ interface ProfileRow { discord_user_id: string | null; telegram_chat_id: number 
 async function processTrackingUpdates(db: SupabaseClient): Promise<{ checked: number; updated: number; notified: number }> {
   if (!trackingConfigured()) return { checked: 0, updated: 0, notified: 0 };
 
-  // Só verifica encomendas ativas que não foram checadas nos últimos 15 minutos
-  const checkBefore = new Date(Date.now() - 15 * 60_000).toISOString();
+  // Verifica encomendas ativas não checadas nas últimas 4h (conserva créditos da API)
+  // out_for_delivery: intervalo menor (1h) para notificar entrega mais rápido
+  const now          = Date.now();
+  const checkBefore  = new Date(now - 4 * 60 * 60_000).toISOString();
+  const checkBefore1h = new Date(now - 1 * 60 * 60_000).toISOString();
+
+  // Prioridade: out_for_delivery (1h) + demais ativos (4h)
   const { data: orders } = await db
     .from('user_orders')
     .select('id, user_id, tracking_code, status, notified_status, description, carrier_code')
     .not('status', 'in', '("delivered","failed","returned")')
-    .or(`last_checked_at.is.null,last_checked_at.lt.${checkBefore}`)
+    .or(
+      `and(status.eq.out_for_delivery,or(last_checked_at.is.null,last_checked_at.lt.${checkBefore1h})),` +
+      `and(status.neq.out_for_delivery,or(last_checked_at.is.null,last_checked_at.lt.${checkBefore}))`,
+    )
     .order('last_checked_at', { ascending: true, nullsFirst: true })
     .limit(40);
 

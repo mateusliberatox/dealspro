@@ -142,10 +142,12 @@ async function woncaGetSingle(code: string): Promise<TrackingInfo | null> {
     signal:  AbortSignal.timeout(12_000),
   }).catch(() => null);
 
-  if (!res?.ok) return null;
+  if (!res?.ok) return correiosGetSingle(code); // fallback se WONCA falhar
 
-  const outer = await res.json().catch(() => null) as { json?: string } | null;
-  if (!outer?.json) return null;
+  const outer = await res.json().catch(() => null) as { json?: string; code?: string } | null;
+
+  // Créditos esgotados → fallback Correios direto (gratuito)
+  if (!outer?.json || outer.code === 'failed_precondition') return correiosGetSingle(code);
 
   let obj: WoncaObject;
   try { obj = JSON.parse(outer.json) as WoncaObject; }
@@ -556,9 +558,9 @@ function correiosParseStatus(descr: string): TrackingStatus {
 }
 
 async function correiosGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
-  const brCodes = codes.filter((c) => CORREIOS_RE.test(c));
-  if (!brCodes.length) return [];
-  const results = await Promise.allSettled(brCodes.map(correiosGetSingle));
+  if (!codes.length) return [];
+  // Aceita qualquer código — Correios rastreia BR* e internacionais (LZ, RX, CN, etc.)
+  const results = await Promise.allSettled(codes.map(correiosGetSingle));
   return results.flatMap((r) => r.status === 'fulfilled' && r.value ? [r.value] : []);
 }
 
