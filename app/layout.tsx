@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import Script from 'next/script';
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
+import { CookieBanner } from '@/components/cookie-banner';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -79,15 +79,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_SCHEMA) }}
         />
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5158893095104645"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
       </head>
       <body className="min-h-screen antialiased">
         {children}
+        <CookieBanner />
         <footer className="border-t border-white/5 py-6 text-center text-xs text-white/30">
           <div className="mx-auto max-w-4xl px-4 flex flex-col items-center gap-3">
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
