@@ -56,8 +56,8 @@ async function processTrackingUpdates(db: SupabaseClient): Promise<{ checked: nu
 
   const rows    = orders as OrderRow[];
   const codes   = rows.map((o) => o.tracking_code);
-  const updates = await getTrackingUpdates(codes);
-  const now     = new Date().toISOString();
+  const updates  = await getTrackingUpdates(codes);
+  const nowIso   = new Date().toISOString();
 
   let updated = 0, notified = 0;
 
@@ -73,8 +73,8 @@ async function processTrackingUpdates(db: SupabaseClient): Promise<{ checked: nu
       carrier_code:    info.carrier || order.carrier_code,
       last_event:      info.lastEvent,
       last_event_at:   info.lastAt,
-      last_checked_at: now,
-      ...(statusChanged ? { updated_at: now } : {}),
+      last_checked_at: nowIso,
+      ...(statusChanged ? { updated_at: nowIso } : {}),
     }).eq('id', order.id);
 
     if (statusChanged) updated++;
