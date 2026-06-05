@@ -10,6 +10,16 @@ const COMMANDS = [
   {
     name:        'assinar',
     description: 'Assine o DealsPro Premium',
+    options: [{
+      name:        'plano',
+      description: 'Escolha o plano (padrão: mensal)',
+      type:        3,
+      required:    false,
+      choices: [
+        { name: '📅 Mensal — R$ 9,99/mês',              value: 'mensal' },
+        { name: '🏆 Anual — R$ 79,90/ano (2 meses grátis)', value: 'anual' },
+      ],
+    }],
   },
   {
     name:        'status',

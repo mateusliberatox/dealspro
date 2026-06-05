@@ -10,6 +10,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { UpgradeButton } from '@/components/upgrade-button';
+import { PlanToggle } from '@/components/plan-toggle';
+
 const COMPARE = [
   { feature: 'Feed de deals',                free: true,  premium: true  },
   { feature: 'Filtros por categoria',        free: true,  premium: true  },
@@ -20,7 +22,6 @@ const COMPARE = [
   { feature: 'Filtro por tamanho',           free: false, premium: true  },
   { feature: 'Histórico completo de deals',  free: false, premium: true  },
 ];
-
 
 async function getPremiumCount(): Promise<number> {
   const supabase = await createClient();
@@ -71,13 +72,11 @@ export default async function UpgradePage() {
 
         {/* Comparativo */}
         <div className="glass rounded-2xl overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          {/* Header */}
           <div className="grid grid-cols-3 px-5 py-3 text-xs font-bold uppercase tracking-widest" style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', color: 'var(--text-3)' }}>
             <span>Recurso</span>
             <span className="text-center">Free</span>
             <span className="text-center gradient-blue-text">Premium</span>
           </div>
-
           {COMPARE.map(({ feature, free, premium }, i) => (
             <div
               key={feature}
@@ -96,25 +95,16 @@ export default async function UpgradePage() {
           ))}
         </div>
 
-        {/* CTA */}
+        {/* CTA com toggle de plano */}
         <div className="glass rounded-2xl p-7 text-center space-y-5 animate-fade-in-up" style={{ animationDelay: '0.2s', border: '1px solid rgba(59,130,246,0.3)' }}>
 
-          {/* Opção cartão */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-3)' }}>Assinatura com cartão</p>
-            <div className="flex items-end justify-center gap-2">
-              <p className="text-4xl font-extrabold tracking-tight gradient-blue-text">R$ 7,99</p>
-              <p className="text-sm mb-1" style={{ color: 'var(--text-3)' }}>no 1º mês</p>
-            </div>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)' }}>depois R$ 9,99/mês · cancele quando quiser</p>
-          </div>
-
-          <UpgradeButton className="w-full py-4 text-base" variant="card" />
+          {/* Toggle mensal / anual */}
+          <PlanToggle />
 
           {/* Divisor */}
           <div className="relative flex items-center">
             <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
-            <span className="mx-3 text-xs" style={{ color: 'var(--text-4)' }}>ou</span>
+            <span className="mx-3 text-xs" style={{ color: 'var(--text-4)' }}>ou pague com</span>
             <div className="flex-1 border-t" style={{ borderColor: 'var(--border)' }} />
           </div>
 

@@ -50,7 +50,7 @@ const ORDER_LIMIT = { free: 0, premium: 20 } as const;
 
 // ── Handlers existentes ────────────────────────────────────────────────────────
 
-async function handleAssinar(discordUserId: string) {
+async function handleAssinar(discordUserId: string, planArg?: string) {
   const { data: profile } = await db
     .from('dealspro_profiles')
     .select('user_id, plan, stripe_customer_id')
@@ -65,8 +65,13 @@ async function handleAssinar(discordUserId: string) {
   }
   if (profile.plan === 'premium') return ephemeral('⭐ Você já é **Premium**! Aproveite os benefícios exclusivos.');
 
+  const isAnnual = planArg === 'anual';
+  const priceId  = isAnnual
+    ? (process.env.STRIPE_ANNUAL_PRICE_ID ?? STRIPE_PRICE_ID)
+    : STRIPE_PRICE_ID;
+
   const session = await stripe.checkout.sessions.create({
-    line_items:          [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+    line_items:          [{ price: priceId, quantity: 1 }],
     mode:                'subscription',
     client_reference_id: profile.user_id,
     customer:            profile.stripe_customer_id ?? undefined,
@@ -74,8 +79,10 @@ async function handleAssinar(discordUserId: string) {
     cancel_url:          `${SITE_URL}/upgrade`,
   });
 
+  const planLabel = isAnnual ? 'Anual (R$ 79,90 — economia de 2 meses)' : 'Mensal (R$ 9,99/mês)';
+
   return ephemeral(
-    '🔗 **Seu link exclusivo para o DealsPro Premium:**\n\n' +
+    `🔗 **Seu link exclusivo para o DealsPro Premium — ${planLabel}:**\n\n` +
     `👉 [Assinar agora](${session.url})\n\n` +
     '*Somente você está vendo esta mensagem. Link válido por 24 horas.*',
   );
@@ -665,7 +672,7 @@ export async function POST(request: NextRequest) {
     const opt  = (key: string) => opts?.find((o) => o.name === key)?.value as string | undefined;
     const optN = (key: string) => Number(opts?.find((o) => o.name === key)?.value ?? 0);
 
-    if (name === 'assinar')           return handleAssinar(discordUserId);
+    if (name === 'assinar')           return handleAssinar(discordUserId, opt('plano'));
     if (name === 'status')            return handleStatus(discordUserId);
     if (name === 'meus-alertas')      return handleMeusAlertas(discordUserId);
     if (name === 'cancelar')          return handleCancelar(discordUserId, opt('keyword') ?? '');

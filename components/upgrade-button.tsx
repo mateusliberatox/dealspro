@@ -5,9 +5,10 @@ import { useState } from 'react';
 interface UpgradeButtonProps {
   className?: string;
   variant?: 'card' | 'pix';
+  plan?: 'monthly' | 'annual';
 }
 
-export function UpgradeButton({ className, variant = 'card' }: UpgradeButtonProps) {
+export function UpgradeButton({ className, variant = 'card', plan = 'monthly' }: UpgradeButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
 
@@ -18,13 +19,21 @@ export function UpgradeButton({ className, variant = 'card' }: UpgradeButtonProp
       window.location.href = '/pix-checkout';
       return;
     }
-    const res  = await fetch('/api/stripe/checkout', { method: 'POST' });
+    const res  = await fetch('/api/stripe/checkout', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ plan }),
+    });
     const data = await res.json();
     if (!res.ok) { setError(data.error ?? 'Erro ao iniciar checkout'); setLoading(false); return; }
     window.location.href = data.url;
   }
 
-  const label = variant === 'pix' ? '🏦 Pagar com PIX' : '💳 Assinar com Cartão';
+  const label = variant === 'pix'
+    ? '🏦 Pagar com PIX'
+    : plan === 'annual'
+    ? '💳 Assinar Anual'
+    : '💳 Assinar com Cartão';
 
   return (
     <div>
