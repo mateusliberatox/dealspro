@@ -86,10 +86,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="border-t border-white/5 py-6 text-center text-xs text-white/30">
           <div className="mx-auto max-w-4xl px-4 flex flex-col items-center gap-3">
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
-              <a href="/sobre" className="hover:text-white/60 transition-colors">Sobre</a>
+              <a href="/ranking" className="hover:text-white/60 transition-colors">Ranking</a>
+              <a href="/categoria/roupas" className="hover:text-white/60 transition-colors">Roupas</a>
+              <a href="/categoria/calcados" className="hover:text-white/60 transition-colors">Calçados</a>
+              <a href="/categoria/bolsas" className="hover:text-white/60 transition-colors">Bolsas</a>
+              <a href="/categoria/acessorios" className="hover:text-white/60 transition-colors">Acessórios</a>
+              <a href="/categoria/eletronicos" className="hover:text-white/60 transition-colors">Eletrônicos</a>
               <a href="/faq" className="hover:text-white/60 transition-colors">FAQ</a>
-              <a href="/politica-de-privacidade" className="hover:text-white/60 transition-colors">Política de Privacidade</a>
-              <a href="/termos" className="hover:text-white/60 transition-colors">Termos de Uso</a>
+              <a href="/sobre" className="hover:text-white/60 transition-colors">Sobre</a>
+              <a href="/politica-de-privacidade" className="hover:text-white/60 transition-colors">Privacidade</a>
+              <a href="/termos" className="hover:text-white/60 transition-colors">Termos</a>
               <a href="https://www.siterastreio.com.br/" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">Rastreamento</a>
               <a href="https://discord.gg/dBXRdqM2Z" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">Discord</a>
             </div>

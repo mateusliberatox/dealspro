@@ -100,6 +100,11 @@ export function Header() {
 
           <nav className="flex items-center gap-1 sm:gap-2 text-sm">
 
+            {/* Ranking — visível para todos */}
+            <NavLink href="/ranking" active={pathname === '/ranking'}>
+              🔥 Ranking
+            </NavLink>
+
             {/* Discord — visível para todos */}
             <a
               href={DISCORD_INVITE}
@@ -254,7 +259,8 @@ export function Header() {
             </div>
 
             <div className="flex flex-col gap-1 p-3 flex-1">
-              <MobileNavLink href="/" onClick={closeMenu}>Feed de Deals</MobileNavLink>
+              <MobileNavLink href="/" onClick={closeMenu} active={pathname === '/'}>Feed de Deals</MobileNavLink>
+              <MobileNavLink href="/ranking" onClick={closeMenu} active={pathname === '/ranking'}>🔥 Ranking Semanal</MobileNavLink>
               <a
                 href={DISCORD_INVITE}
                 target="_blank"
