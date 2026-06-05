@@ -101,6 +101,73 @@ const COMMANDS = [
       },
     ],
   },
+  {
+    name:        'avaliar-seller',
+    description: 'Avalie um seller do CSSDeals',
+    options: [
+      {
+        name:         'seller',
+        description:  'Nome do seller (escolha da lista ou sugira um novo)',
+        type:         3,
+        required:     true,
+        autocomplete: true,
+      },
+      {
+        name:        'nota',
+        description: 'Nota de 1 a 5',
+        type:        4, // INTEGER
+        required:    true,
+        choices: [
+          { name: '⭐ 1 — Péssimo',  value: 1 },
+          { name: '⭐⭐ 2 — Ruim',   value: 2 },
+          { name: '⭐⭐⭐ 3 — Ok',   value: 3 },
+          { name: '⭐⭐⭐⭐ 4 — Bom',  value: 4 },
+          { name: '⭐⭐⭐⭐⭐ 5 — Excelente', value: 5 },
+        ],
+      },
+      {
+        name:        'comentario',
+        description: 'Comentário opcional (ex: entrega rápida, boa qualidade)',
+        type:        3,
+        required:    false,
+      },
+    ],
+  },
+  {
+    name:        'seller',
+    description: 'Veja as avaliações de um seller do CSSDeals',
+    options: [
+      {
+        name:         'nome',
+        description:  'Nome do seller',
+        type:         3,
+        required:     true,
+        autocomplete: true,
+      },
+    ],
+  },
+  {
+    name:        'aprovar-seller',
+    description: '[Admin] Aprova ou rejeita um seller pendente',
+    options: [
+      {
+        name:        'nome',
+        description: 'Nome do seller a aprovar/rejeitar',
+        type:        3,
+        required:    true,
+      },
+      {
+        name:        'acao',
+        description: 'Ação a executar',
+        type:        3,
+        required:    true,
+        choices: [
+          { name: '✅ Aprovar',  value: 'aprovar' },
+          { name: '❌ Rejeitar', value: 'rejeitar' },
+        ],
+      },
+    ],
+  },
 ];
 
 export async function POST(request: NextRequest) {

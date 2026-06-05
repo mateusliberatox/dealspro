@@ -316,6 +316,147 @@ async function handleAlterarDescricao(discordUserId: string, trackingCode: strin
   );
 }
 
+// ── Avaliação de sellers ───────────────────────────────────────────────────────
+
+const STAR_MAP: Record<number, string> = { 1: '⭐', 2: '⭐⭐', 3: '⭐⭐⭐', 4: '⭐⭐⭐⭐', 5: '⭐⭐⭐⭐⭐' };
+
+async function handleAvaliarSeller(discordUserId: string, sellerName: string, nota: number, comentario?: string) {
+  if (!sellerName?.trim()) return ephemeral('❌ Informe o nome do seller.');
+  if (nota < 1 || nota > 5) return ephemeral('❌ A nota deve ser entre 1 e 5.');
+
+  const name = sellerName.trim();
+
+  // Busca seller aprovado com nome exato (case-insensitive)
+  const { data: existing } = await db
+    .from('sellers').select('id, name, status').ilike('name', name).single();
+
+  let sellerId: number;
+
+  if (!existing) {
+    // Cria pendente e avisa admin
+    const { data: created, error } = await db
+      .from('sellers').insert({ name, status: 'pending', created_by: discordUserId })
+      .select('id').single();
+
+    if (error || !created) return ephemeral('❌ Erro ao registrar o seller. Tente novamente.');
+    sellerId = (created as { id: number }).id;
+
+    // Notifica admin via webhook
+    const adminUrl = process.env.DISCORD_ADMIN_WEBHOOK_URL ?? process.env.DISCORD_WEBHOOK_URL;
+    if (adminUrl) {
+      fetch(adminUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `🏪 **Novo seller pendente de aprovação:** \`${name}\`\nSubmetido por <@${discordUserId}>\n\nUse \`/aprovar-seller nome:${name} acao:aprovar\` para aprovar.`,
+        }),
+        signal: AbortSignal.timeout(8_000),
+      }).catch(() => {});
+    }
+
+    return ephemeral(
+      `⏳ **Seller \`${name}\` ainda não está cadastrado.**\n\n` +
+      `Sua sugestão foi enviada para aprovação. Assim que aprovado, você poderá avaliá-lo.\n\n` +
+      `*Para sellers existentes, use o autocomplete ao digitar o nome.*`,
+    );
+  }
+
+  if ((existing as { status: string }).status !== 'approved') {
+    return ephemeral(`⏳ O seller **${(existing as { name: string }).name}** ainda está pendente de aprovação.`);
+  }
+
+  sellerId = (existing as { id: number }).id;
+
+  // Insere ou atualiza avaliação
+  const { error } = await db.from('seller_ratings').upsert({
+    seller_id:       sellerId,
+    discord_user_id: discordUserId,
+    nota,
+    comentario:      comentario?.trim() || null,
+    updated_at:      new Date().toISOString(),
+  }, { onConflict: 'seller_id,discord_user_id' });
+
+  if (error) return ephemeral('❌ Erro ao salvar avaliação. Tente novamente.');
+
+  return ephemeral(
+    `✅ **Avaliação registrada!**\n\n` +
+    `🏪 ${(existing as { name: string }).name}\n` +
+    `${STAR_MAP[nota]} (${nota}/5)\n` +
+    (comentario ? `💬 "${comentario.trim()}"` : ''),
+  );
+}
+
+async function handleSeller(sellerName: string) {
+  if (!sellerName?.trim()) return ephemeral('❌ Informe o nome do seller.');
+
+  const { data: seller } = await db
+    .from('sellers').select('id, name, status').ilike('name', sellerName.trim()).single();
+
+  if (!seller) return ephemeral(`❌ Seller **${sellerName}** não encontrado. Use o autocomplete para escolher um seller cadastrado.`);
+  if ((seller as { status: string }).status !== 'approved') {
+    return ephemeral(`⏳ O seller **${(seller as { name: string }).name}** está pendente de aprovação.`);
+  }
+
+  const { data: ratings } = await db
+    .from('seller_ratings')
+    .select('nota, comentario, created_at')
+    .eq('seller_id', (seller as { id: number }).id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (!ratings?.length) {
+    return ephemeral(`🏪 **${(seller as { name: string }).name}**\n\nAinda sem avaliações. Seja o primeiro! Use \`/avaliar-seller\`.`);
+  }
+
+  const total = ratings.length;
+  const soma  = (ratings as Array<{ nota: number }>).reduce((s, r) => s + r.nota, 0);
+  const media = (soma / total).toFixed(1);
+
+  const dist = [1,2,3,4,5].map((n) => {
+    const count = (ratings as Array<{ nota: number }>).filter((r) => r.nota === n).length;
+    const bar   = '█'.repeat(Math.round((count / total) * 10));
+    return `${n}★ ${bar} ${count}`;
+  }).reverse().join('\n');
+
+  const ultimos = (ratings as Array<{ nota: number; comentario?: string | null; created_at: string }>)
+    .filter((r) => r.comentario)
+    .slice(0, 3)
+    .map((r) => `> ${STAR_MAP[r.nota]} "${r.comentario}"`)
+    .join('\n');
+
+  const embed = {
+    color:       0x3b82f6,
+    title:       `🏪 ${(seller as { name: string }).name}`,
+    description: `**${media}/5** ${STAR_MAP[Math.round(Number(media))]} · ${total} avaliação${total !== 1 ? 'ões' : ''}`,
+    fields: [
+      { name: 'Distribuição', value: `\`\`\`${dist}\`\`\``, inline: false },
+      ...(ultimos ? [{ name: 'Comentários recentes', value: ultimos, inline: false }] : []),
+    ],
+    footer: { text: 'DealsPro · Use /avaliar-seller para avaliar' },
+  };
+
+  return embedReply([embed], 0); // público
+}
+
+async function handleAprovarSeller(discordUserId: string, sellerName: string, acao: 'aprovar' | 'rejeitar') {
+  // Verifica se é admin
+  const { data: profile } = await db
+    .from('dealspro_profiles').select('is_admin').eq('discord_user_id', discordUserId).single();
+  if (!(profile as { is_admin?: boolean } | null)?.is_admin) {
+    return ephemeral('❌ Apenas administradores podem aprovar sellers.');
+  }
+
+  const { data: seller } = await db
+    .from('sellers').select('id, name').ilike('name', sellerName.trim()).single();
+  if (!seller) return ephemeral(`❌ Seller **${sellerName}** não encontrado.`);
+
+  const status = acao === 'aprovar' ? 'approved' : 'rejected';
+  await db.from('sellers').update({ status }).eq('id', (seller as { id: number }).id);
+
+  const icon = acao === 'aprovar' ? '✅' : '❌';
+  return ephemeral(`${icon} Seller **${(seller as { name: string }).name}** ${acao === 'aprovar' ? 'aprovado' : 'rejeitado'} com sucesso.`);
+}
+
 // ── Declaração aduaneira ───────────────────────────────────────────────────────
 
 type Moeda = 'usd' | 'yuan';
@@ -492,6 +633,24 @@ export async function POST(request: NextRequest) {
 
   if (interaction.type === 1) return NextResponse.json({ type: 1 });
 
+  // Autocomplete (type 4) — sugestões de sellers
+  if (interaction.type === 4) {
+    const opts    = (interaction.data as Record<string, unknown>)?.options as Array<Record<string, unknown>> | undefined;
+    const focused = opts?.find((o) => o.focused);
+    const query   = (focused?.value as string) ?? '';
+
+    const { data: sellers } = await db
+      .from('sellers')
+      .select('name')
+      .eq('status', 'approved')
+      .ilike('name', `%${query}%`)
+      .order('name')
+      .limit(25);
+
+    const choices = (sellers ?? []).map((s: { name: string }) => ({ name: s.name, value: s.name }));
+    return NextResponse.json({ type: 8, data: { choices } });
+  }
+
   const discordUserId = (interaction.member as Record<string, unknown> | undefined)?.user
     ? ((interaction.member as Record<string, unknown>).user as Record<string, unknown>).id as string
     : (interaction.user as Record<string, unknown> | undefined)?.id as string ?? '';
@@ -515,6 +674,9 @@ export async function POST(request: NextRequest) {
     if (name === 'remover-pedido')    return handleRemoverPedido(discordUserId, opt('codigo') ?? '');
     if (name === 'alterar-descricao') return handleAlterarDescricao(discordUserId, opt('codigo') ?? '', opt('descricao') ?? '');
     if (name === 'declarar')          return handleDeclarar(discordUserId, optN('valor'), (opt('moeda') ?? 'usd') as Moeda, interaction.token as string);
+    if (name === 'avaliar-seller')    return handleAvaliarSeller(discordUserId, opt('seller') ?? '', Math.round(optN('nota')), opt('comentario'));
+    if (name === 'seller')            return handleSeller(opt('nome') ?? '');
+    if (name === 'aprovar-seller')    return handleAprovarSeller(discordUserId, opt('nome') ?? '', (opt('acao') ?? 'aprovar') as 'aprovar' | 'rejeitar');
   }
 
   // Button / component interactions (type 3)
