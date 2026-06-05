@@ -63,14 +63,14 @@ export function TelegramModeSelector({ current, isPremium }: Props) {
               <span
                 className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border"
                 style={{
-                  borderColor:     active ? '#229ED9' : 'var(--border)',
-                  backgroundColor: active ? '#229ED9' : 'transparent',
+                  borderColor:     active ? 'var(--telegram-color)' : 'var(--border)',
+                  backgroundColor: active ? 'var(--telegram-color)' : 'transparent',
                 }}
               >
                 {active && <span className="block h-1.5 w-1.5 rounded-full bg-white" />}
               </span>
               <div>
-                <p className="text-xs font-semibold" style={{ color: active ? '#229ED9' : 'var(--text)' }}>
+                <p className="text-xs font-semibold" style={{ color: active ? 'var(--telegram-color)' : 'var(--text)' }}>
                   {opt.label}
                 </p>
                 <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'var(--text-3)' }}>

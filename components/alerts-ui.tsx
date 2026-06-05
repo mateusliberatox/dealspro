@@ -176,9 +176,9 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
           <button
             onClick={addAlert}
             disabled={pending || alerts.length >= MAX_ALERTS}
-            className="shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            className="shrink-0 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Adicionar
+            {pending ? 'Salvando…' : 'Adicionar'}
           </button>
         </div>
 

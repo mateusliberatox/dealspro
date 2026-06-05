@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { notFound } from 'next/navigation';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { RedirectCountdown } from '@/components/redirect-countdown';
 import { AdUnit } from '@/components/ad-unit';
@@ -98,13 +99,15 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
           {p.imagem ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={p.imagem}
-              alt={nome}
-              referrerPolicy="no-referrer"
-              className="h-16 w-16 shrink-0 rounded-lg object-cover"
-            />
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg">
+              <Image
+                src={p.imagem}
+                alt={nome}
+                fill
+                referrerPolicy="no-referrer"
+                className="object-cover"
+              />
+            </div>
           ) : (
             <div className="h-16 w-16 shrink-0 rounded-lg" style={{ background: 'var(--surface-3)' }} />
           )}
@@ -166,13 +169,12 @@ export default async function GoPage({ params }: { params: Promise<{ id: string 
                   >
                     <div className="aspect-square w-full overflow-hidden" style={{ background: 'var(--surface-3)' }}>
                       {s.imagem ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={s.imagem}
                           alt={sNome}
+                          fill
                           referrerPolicy="no-referrer"
-                          loading="lazy"
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center" style={{ color: 'var(--text-3)' }}>·</div>

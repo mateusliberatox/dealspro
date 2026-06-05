@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import type { Produto } from '@/lib/types';
 
 interface ProductCardProps {
@@ -68,13 +69,13 @@ export function ProductCard({ produto, featured = false, index = 0 }: ProductCar
         style={{ background: 'var(--surface-3)' }}
       >
         {hasValidImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={produto.imagem}
+          <Image
+            src={produto.imagem!}
             alt={nome}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             referrerPolicy="no-referrer"
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
             onError={() => setImgError(true)}
           />
         ) : (

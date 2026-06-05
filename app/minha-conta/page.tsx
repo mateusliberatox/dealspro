@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/header';
 import { PortalButton } from '@/components/portal-button';
@@ -69,7 +70,7 @@ export default async function MinhaContaPage() {
         >
           <div className="flex items-center gap-4">
             {profile?.discord_avatar ? (
-              <img src={profile.discord_avatar} alt="avatar" className="h-14 w-14 rounded-full shrink-0" referrerPolicy="no-referrer" />
+              <Image src={profile.discord_avatar} alt={`Avatar de ${profile.discord_username ?? user.email}`} width={56} height={56} className="h-14 w-14 rounded-full shrink-0" referrerPolicy="no-referrer" />
             ) : (
               <div
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl font-bold text-white"
@@ -157,7 +158,7 @@ export default async function MinhaContaPage() {
             {/* Discord */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <svg width="18" height="14" viewBox="0 0 127.14 96.36" fill="#5865F2" aria-hidden>
+                <svg width="18" height="14" viewBox="0 0 127.14 96.36" fill="var(--discord-color)" aria-hidden>
                   <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
                 </svg>
                 <div className="min-w-0">
@@ -177,7 +178,7 @@ export default async function MinhaContaPage() {
             {/* Telegram */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="#229ED9" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--telegram-color)" aria-hidden>
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.16 13.67l-2.965-.924c-.644-.204-.657-.644.136-.953l11.57-4.461c.537-.194 1.006.131.993.889z"/>
                 </svg>
                 <div className="min-w-0">
@@ -193,7 +194,7 @@ export default async function MinhaContaPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
-                  style={{ background: '#229ED9' }}
+                  style={{ background: 'var(--telegram-color)' }}
                 >
                   Vincular
                 </a>

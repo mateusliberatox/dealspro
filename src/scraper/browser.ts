@@ -4,7 +4,7 @@ import 'dotenv/config';
 let browserInstance:   Browser | null = null;
 let browserLaunchedAt = 0;
 let launchPromise:     Promise<Browser> | null = null;
-const BROWSER_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 horas
+const BROWSER_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — Chromium não libera heap sem restart
 
 export async function getBrowser(): Promise<Browser> {
   const now    = Date.now();
@@ -28,6 +28,8 @@ export async function getBrowser(): Promise<Browser> {
           '--no-zygote',
           '--disable-gpu',
           '--disable-software-rasterizer',
+          // Cap do heap V8 — sem isso o Chromium cresce indefinidamente no Railway
+          '--js-flags=--max-old-space-size=256',
           // Redução de memória (~50-100MB no Railway)
           '--disable-background-networking',
           '--disable-default-apps',

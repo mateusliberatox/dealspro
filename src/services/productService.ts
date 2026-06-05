@@ -20,37 +20,45 @@ const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 1
 const MIN_SCRAPE_QUALITY = parseInt(process.env.MIN_SCRAPE_QUALITY ?? '200', 10);
 const TRANSLATE_CONCURRENCY = 16;
 
+let _qcEnrichmentInProgress = false;
+
 /**
  * Fetches QC photos and silently updates the DB after notifications are already sent.
  * Non-blocking — caller should not await this.
  */
 async function enrichWithQcImages(products: Product[]): Promise<void> {
-  const toFetch  = products.slice(0, MAX_QC_FETCHES);
-  const updates: Product[] = [];
+  if (_qcEnrichmentInProgress) { logger.info('QC enrichment já em andamento — pulando'); return; }
+  _qcEnrichmentInProgress = true;
+  try {
+    const toFetch  = products.slice(0, MAX_QC_FETCHES);
+    const updates: Product[] = [];
 
-  for (let i = 0; i < toFetch.length; i += QC_BATCH_SIZE) {
-    const batch   = toFetch.slice(i, i + QC_BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map((p) => fetchQcImage(p.link)));
-    results.forEach((r, j) => {
-      if (r.status === 'fulfilled' && r.value) {
-        updates.push({ ...toFetch[i + j], imagem: r.value });
-      }
-    });
-    if (i + QC_BATCH_SIZE < toFetch.length) await new Promise((r) => setTimeout(r, 2000));
+    for (let i = 0; i < toFetch.length; i += QC_BATCH_SIZE) {
+      const batch   = toFetch.slice(i, i + QC_BATCH_SIZE);
+      const results = await Promise.allSettled(batch.map((p) => fetchQcImage(p.link)));
+      results.forEach((r, j) => {
+        if (r.status === 'fulfilled' && r.value) {
+          updates.push({ ...toFetch[i + j], imagem: r.value });
+        }
+      });
+      if (i + QC_BATCH_SIZE < toFetch.length) await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    if (!updates.length) {
+      logger.warn(`QC: nenhuma imagem obtida para ${toFetch.length} produto(s) — possível bloqueio`);
+      return;
+    }
+
+    const { error: upsertErr } = await supabase
+      .from('produtos_dealspro')
+      .upsert(updates.map(({ id, imagem }) => ({ id, imagem })));
+    if (upsertErr) logger.warn(`QC bulk update falhou: ${upsertErr.message}`);
+    else           logger.info(`QC: updated ${updates.length} image(s)`);
+
+    await updateQcImagesInDiscord(updates).catch((e: Error) => logger.warn(`QC Discord edit failed: ${e.message}`));
+  } finally {
+    _qcEnrichmentInProgress = false;
   }
-
-  if (!updates.length) {
-    logger.warn(`QC: nenhuma imagem obtida para ${toFetch.length} produto(s) — possível bloqueio`);
-    return;
-  }
-
-  const { error: upsertErr } = await supabase
-    .from('produtos_dealspro')
-    .upsert(updates.map(({ id, imagem }) => ({ id, imagem })));
-  if (upsertErr) logger.warn(`QC bulk update falhou: ${upsertErr.message}`);
-  else           logger.info(`QC: updated ${updates.length} image(s)`);
-
-  await updateQcImagesInDiscord(updates).catch((e: Error) => logger.warn(`QC Discord edit failed: ${e.message}`));
 }
 
 export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): Promise<Product[]> {
