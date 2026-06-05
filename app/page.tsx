@@ -82,7 +82,7 @@ export default async function HomePage() {
         isPremium={isPremium}
       />
 
-      <main className="mx-auto max-w-6xl px-4 pb-16">
+      <main className="mx-auto max-w-screen-2xl px-4 pb-16">
 
         {/* Section header */}
         <div className="mb-6 flex items-end justify-between gap-4 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>

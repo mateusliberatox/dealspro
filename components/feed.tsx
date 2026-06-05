@@ -282,7 +282,7 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
                 </div>
 
                 {/* Grid */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                   {featured && (
                     <div className="col-span-2 animate-scale-in" style={{ animationDelay: '0.18s' }}>
                       <ProductCard produto={featured} featured index={0} />
