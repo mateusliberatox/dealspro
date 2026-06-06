@@ -109,11 +109,41 @@
     }
   }
 
+  // ── Avaliações de sellers ─────────────────────────────────────────────────────
+
+  function injectSellerRating() {
+    if (document.querySelector('.dp-seller-badge')) return;
+    const SELS = ['[class*="shopName"]','[class*="ShopName"]','[class*="sellerName"]','[class*="shop"]','[class*="seller"]'];
+    let name = null;
+    for (const sel of SELS) {
+      const text = document.querySelector(sel)?.textContent?.trim();
+      if (text && text.length > 1 && text.length < 60) { name = text; break; }
+    }
+    if (!name) return;
+
+    chrome.runtime.sendMessage({ type: 'GET_SELLER', name }, (res) => {
+      if (!res?.ok || !res.data?.found) return;
+      const s = res.data.seller;
+      const STARS = ['','★','★★','★★★','★★★★','★★★★★'];
+      const color = s.avg >= 4 ? '#16a34a' : s.avg >= 3 ? '#d97706' : '#dc2626';
+      const badge = document.createElement('div');
+      badge.className = 'dp-seller-badge';
+      badge.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;margin-top:8px;background:rgba(15,23,42,0.85);border:1px solid rgba(59,130,246,0.3);font-family:-apple-system,sans-serif';
+      badge.innerHTML = `<span style="font-size:10px;font-weight:700;color:#60a5fa">DealsPro</span><span style="font-size:13px;color:${color}">${STARS[Math.round(s.avg)]}</span><span style="font-size:11px;font-weight:700;color:#f1f5f9">${s.avg}/5</span><span style="font-size:10px;color:#64748b">(${s.total})</span>`;
+      for (const sel of SELS) {
+        const el = document.querySelector(sel);
+        if (el) { el.insertAdjacentElement('afterend', badge); break; }
+      }
+    });
+  }
+
   // Roda após SPA carregar o produto
+  const isProductPage = /[?&]id=/.test(location.search) || location.pathname.includes('/item');
   let attempts = 0;
   const tryInject = setInterval(() => {
     convertPrices();
     injectSizeGuide();
+    if (isProductPage) injectSellerRating();
     if (++attempts > 10) clearInterval(tryInject);
   }, 600);
 

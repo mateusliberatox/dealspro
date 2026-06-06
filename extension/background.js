@@ -57,6 +57,39 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === 'GET_SELLER') {
+    fetch(`${DEALSPRO_URL}/api/extension/seller?name=${encodeURIComponent(msg.name)}`)
+      .then((r) => r.json())
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'TRANSLATE') {
+    fetch(`${DEALSPRO_URL}/api/extension/translate`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ text: msg.text }),
+    })
+      .then((r) => r.json())
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (msg.type === 'GET_ORDERS') {
+    chrome.storage.local.get('dpToken').then(({ dpToken }) => {
+      if (!dpToken) { sendResponse({ ok: false, error: 'not_logged_in' }); return; }
+      fetch(`${DEALSPRO_URL}/api/extension/orders`, {
+        headers: { Authorization: `Bearer ${dpToken}` },
+      })
+        .then((r) => r.json())
+        .then((data) => sendResponse({ ok: true, data }))
+        .catch(() => sendResponse({ ok: false }));
+    });
+    return true;
+  }
+
   if (msg.type === 'CREATE_ALERT') {
     chrome.storage.local.get('dpToken').then(({ dpToken }) => {
       if (!dpToken) { sendResponse({ ok: false, error: 'not_logged_in' }); return; }

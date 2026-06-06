@@ -155,6 +155,78 @@ function toggleCard(card) {
   });
 }
 
+// ── Busca inteligente PT→ZH ───────────────────────────────────────────────────
+
+const SEARCH_URLS = {
+  taobao:  (q) => `https://s.taobao.com/search?q=${encodeURIComponent(q)}`,
+  goofish: (q) => `https://www.goofish.com/search?q=${encodeURIComponent(q)}`,
+  '1688':  (q) => `https://s.1688.com/selloffer/offerlist.htm?keywords=${encodeURIComponent(q)}`,
+};
+
+document.getElementById('searchBtn').addEventListener('click', async () => {
+  const text    = document.getElementById('searchInput').value.trim();
+  const site    = document.getElementById('searchSite').value;
+  const result  = document.getElementById('searchResult');
+  const errEl   = document.getElementById('searchError');
+  const transEl = document.getElementById('searchTranslated');
+  const btn     = document.getElementById('searchBtn');
+
+  if (!text) return;
+  errEl.style.display = 'none'; result.style.display = 'none';
+  btn.textContent = '…'; btn.disabled = true;
+
+  chrome.runtime.sendMessage({ type: 'TRANSLATE', text }, (res) => {
+    btn.textContent = 'Buscar'; btn.disabled = false;
+    if (!res?.ok || !res.data?.translated) {
+      errEl.textContent = 'Falha na tradução. Tente novamente.'; errEl.style.display = 'block'; return;
+    }
+    const zh  = res.data.translated;
+    transEl.textContent     = zh;
+    result.style.display    = 'block';
+    const url = SEARCH_URLS[site]?.(zh) ?? SEARCH_URLS.taobao(zh);
+    chrome.tabs.create({ url });
+  });
+});
+
+document.getElementById('searchInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+
+// ── Rastreamento — carrega ao abrir a página ──────────────────────────────────
+
+document.querySelectorAll('.nav-btn[data-page]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.page === 'orders') loadOrders();
+  });
+});
+
+function loadOrders() {
+  const wrap = document.getElementById('ordersWrap');
+  wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>';
+
+  chrome.runtime.sendMessage({ type: 'GET_ORDERS' }, (res) => {
+    if (!res?.ok) {
+      wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">Faça login para ver seus pedidos.</p>';
+      return;
+    }
+    const orders = res.data?.orders ?? [];
+    if (!orders.length) {
+      wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">Nenhuma encomenda em trânsito.</p>';
+      return;
+    }
+    wrap.innerHTML = orders.map((o) => `
+      <div style="padding:9px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:700;color:var(--text)">${o.description}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--accent-bg);color:var(--accent)">${o.statusLabel}</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">${o.code}</div>
+        ${o.lastEvent ? `<div style="font-size:10px;color:var(--text2);margin-top:4px">↳ ${o.lastEvent}</div>` : ''}
+      </div>
+    `).join('');
+  });
+}
+
 // ── Configurações de frete ────────────────────────────────────────────────────
 
 const agentSel  = document.getElementById('agentSelect');

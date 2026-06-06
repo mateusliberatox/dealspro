@@ -337,6 +337,36 @@
     </div>
   </div>
 
+  <!-- ── Página: Busca ── -->
+  <div class="page" id="page-search">
+    <div class="section-title">Busca inteligente PT → 中文</div>
+    <div style="padding:8px 14px 14px">
+      <p style="font-size:11px;color:var(--text3);margin-bottom:10px">Digite em português, a IA traduz e busca nos sites chineses.</p>
+      <input class="input-field" type="text" id="searchInput" placeholder="Ex: tênis Nike preto 42" />
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <select class="setting-select" id="searchSite" style="flex:1">
+          <option value="taobao">Taobao</option>
+          <option value="goofish">Goofish</option>
+          <option value="1688">1688</option>
+        </select>
+        <button class="btn-primary" id="searchBtn" style="width:auto;padding:7px 14px;flex-shrink:0">Buscar</button>
+      </div>
+      <div id="searchResult" style="display:none;padding:8px 10px;border-radius:8px;background:var(--accent-bg);border:1px solid var(--accent-border);font-size:11px">
+        <span style="color:var(--text3)">Traduzido: </span>
+        <span id="searchTranslated" style="color:var(--accent);font-weight:700"></span>
+      </div>
+      <p id="searchError" style="display:none;font-size:11px;color:#ef4444;margin-top:6px"></p>
+    </div>
+  </div>
+
+  <!-- ── Página: Pedidos ── -->
+  <div class="page" id="page-orders">
+    <div class="section-title">Rastreamento ativo</div>
+    <div style="padding:6px 12px 14px" id="ordersWrap">
+      <p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>
+    </div>
+  </div>
+
   <!-- ── Página: Configurações ── -->
   <div class="page" id="page-settings">
     <div class="section-title">Configurações de Frete</div>
@@ -395,7 +425,9 @@
       <button class="theme-toggle" id="themeBtn">☀️</button>
       <div class="footer-nav">
         <button class="nav-btn active" data-page="features">Módulos</button>
-        <button class="nav-btn" data-page="sizes">Tamanhos</button>
+        <button class="nav-btn" data-page="search">🔍</button>
+        <button class="nav-btn" data-page="orders">📦</button>
+        <button class="nav-btn" data-page="sizes">📏</button>
         <button class="nav-btn" data-page="settings">⚙️</button>
       </div>
     </div>

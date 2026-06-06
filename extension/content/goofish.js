@@ -140,6 +140,60 @@
     }
   }
 
+  // ── Avaliações de sellers ─────────────────────────────────────────────────────
+
+  function extractSellerName() {
+    const SELS = [
+      '[class*="seller"]', '[class*="Seller"]', '[class*="shop"]', '[class*="Shop"]',
+      '[class*="user"]',   '[class*="User"]',   '[class*="nick"]', '[class*="Nick"]',
+      '[class*="store"]',  '[class*="Store"]',
+    ];
+    for (const sel of SELS) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const text = el.textContent?.trim();
+      if (text && text.length > 1 && text.length < 60) return text;
+    }
+    return null;
+  }
+
+  function injectSellerRating() {
+    if (document.querySelector('.dp-seller-badge')) return;
+    const name = extractSellerName();
+    if (!name) return;
+
+    chrome.runtime.sendMessage({ type: 'GET_SELLER', name }, (res) => {
+      if (!res?.ok || !res.data?.found) return;
+      const s = res.data.seller;
+
+      const STARS = ['', '★', '★★', '★★★', '★★★★', '★★★★★'];
+      const color = s.avg >= 4 ? '#16a34a' : s.avg >= 3 ? '#d97706' : '#dc2626';
+
+      const badge = document.createElement('div');
+      badge.className = 'dp-seller-badge';
+      badge.style.cssText = [
+        'display:inline-flex', 'align-items:center', 'gap:6px',
+        'padding:5px 10px', 'border-radius:8px', 'margin-top:8px',
+        'background:rgba(15,23,42,0.85)', 'border:1px solid rgba(59,130,246,0.3)',
+        'font-family:-apple-system,sans-serif',
+      ].join(';');
+
+      badge.innerHTML = `
+        <span style="font-size:10px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:0.05em">DealsPro</span>
+        <span style="font-size:13px;color:${color}">${STARS[Math.round(s.avg)]}</span>
+        <span style="font-size:11px;font-weight:700;color:#f1f5f9">${s.avg}/5</span>
+        <span style="font-size:10px;color:#64748b">(${s.total} av.)</span>
+        ${s.recent?.[0]?.comentario
+          ? `<span style="font-size:10px;color:#94a3b8;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"${s.recent[0].comentario}"</span>`
+          : ''}
+      `;
+
+      // Injeta próximo ao nome do seller
+      const anchor = document.querySelector('[class*="seller"],[class*="shop"],[class*="user"],[class*="nick"]');
+      if (anchor) anchor.insertAdjacentElement('afterend', badge);
+    });
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   let attempts = 0;
@@ -149,7 +203,7 @@
   const interval = setInterval(() => {
     convertPrices();
     enhanceCards();
-    if (isProduct) injectCostPanel();
+    if (isProduct) { injectCostPanel(); injectSellerRating(); }
     if (++attempts > 20) clearInterval(interval);
   }, 700);
 
