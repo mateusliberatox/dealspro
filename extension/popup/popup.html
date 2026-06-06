@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DealsPro</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid rgba(59,130,246,0.18);
+      background: rgba(15,23,42,0.9);
+    }
+    .logo {
+      font-size: 15px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .logo b { color: #3b82f6; }
+    .rate-chip {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.3);
+      color: #4ade80;
+      font-weight: 600;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .tab {
+      flex: 1;
+      padding: 9px 4px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+    .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+    .tab:hover:not(.active) { color: #94a3b8; }
+
+    /* ── Tab content ── */
+    .tab-content { display: none; padding: 14px 16px; }
+    .tab-content.active { display: block; }
+
+    /* ── Módulos ── */
+    .module-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .module-row:last-child { border-bottom: none; }
+    .module-info { flex: 1; min-width: 0; }
+    .module-name { font-weight: 600; font-size: 12px; color: #e2e8f0; }
+    .module-desc { font-size: 10px; color: #64748b; margin-top: 1px; }
+
+    /* Toggle switch */
+    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #334155;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .slider:before {
+      position: absolute;
+      content: '';
+      height: 14px; width: 14px;
+      left: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    input:checked + .slider { background: #3b82f6; }
+    input:checked + .slider:before { transform: translateX(16px); }
+
+    /* ── Login / Account ── */
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #475569;
+      margin-bottom: 10px;
+    }
+    .input-field {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(59,130,246,0.2);
+      background: rgba(30,41,59,0.8);
+      color: #e2e8f0;
+      font-size: 12px;
+      margin-bottom: 8px;
+      outline: none;
+    }
+    .input-field:focus { border-color: #3b82f6; }
+    .btn {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.88; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #94a3b8;
+      margin-top: 6px;
+    }
+    .account-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(59,130,246,0.08);
+      border: 1px solid rgba(59,130,246,0.2);
+      margin-bottom: 12px;
+    }
+    .account-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      flex-shrink: 0;
+    }
+    .account-email { font-size: 11px; color: #94a3b8; }
+    .account-plan { font-size: 10px; font-weight: 700; color: #60a5fa; margin-top: 1px; }
+    .error-msg { font-size: 11px; color: #f87171; margin-top: 6px; text-align: center; }
+
+    /* ── Size guide ── */
+    .size-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .size-tab {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
+      color: #64748b;
+      transition: all 0.15s;
+    }
+    .size-tab.active {
+      background: rgba(59,130,246,0.15);
+      border-color: rgba(59,130,246,0.4);
+      color: #60a5fa;
+    }
+    .size-panel { display: none; }
+    .size-panel.active { display: block; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td {
+      padding: 4px 6px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    th { background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; }
+    td { color: #cbd5e1; }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 8px 16px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      font-size: 10px;
+      color: #334155;
+      text-align: center;
+    }
+    .footer a { color: #475569; text-decoration: none; }
+    .footer a:hover { color: #60a5fa; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <span class="logo">DEALS<b>PRO</b></span>
+    <span class="rate-chip" id="rateChip">Carregando…</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="modules">⚙️ Módulos</button>
+    <button class="tab" data-tab="account">👤 Conta</button>
+    <button class="tab" data-tab="sizes">📏 Tamanhos</button>
+  </div>
+
+  <!-- Módulos -->
+  <div class="tab-content active" id="tab-modules">
+    <div class="module-row">
+      <div class="module-info">
+        <div class="module-name">💱 Conversor CNY → BRL</div>
+        <div class="module-desc">Converte preços em yuan para reais em tempo real</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="mod-converter" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="module-row">
+      <div class="module-info">
+        <div class="module-name">📏 Guia de tamanhos</div>
+        <div class="module-desc">Tabela CN→BR em páginas de produto</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="mod-sizes" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="module-row">
+      <div class="module-info">
+        <div class="module-name">📦 Estimativa de importação</div>
+        <div class="module-desc">Calcula custo total com frete e imposto</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="mod-import" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="module-row">
+      <div class="module-info">
+        <div class="module-name">🔔 Alertas DealsPro</div>
+        <div class="module-desc">Botão de alerta no CSSDeals (requer conta)</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="mod-alerts" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Conta -->
+  <div class="tab-content" id="tab-account">
+    <div id="login-section">
+      <p class="section-title">Conectar ao DealsPro</p>
+      <input class="input-field" type="email" id="emailInput" placeholder="E-mail" autocomplete="email" />
+      <input class="input-field" type="password" id="passInput" placeholder="Senha" autocomplete="current-password" />
+      <button class="btn btn-primary" id="loginBtn">Entrar</button>
+      <p class="error-msg" id="loginError" style="display:none"></p>
+      <p style="font-size:10px;color:#475569;margin-top:10px;text-align:center">
+        Sem conta?
+        <a href="https://dealspro-chi.vercel.app/login" target="_blank" style="color:#60a5fa">Criar grátis</a>
+      </p>
+    </div>
+    <div id="account-section" style="display:none">
+      <div class="account-info">
+        <div class="account-dot"></div>
+        <div>
+          <div class="account-email" id="accountEmail">—</div>
+          <div class="account-plan" id="accountPlan">—</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" id="logoutBtn">Sair da conta</button>
+      <p style="font-size:10px;color:#475569;margin-top:10px;text-align:center">
+        <a href="https://dealspro-chi.vercel.app" target="_blank" style="color:#60a5fa">Abrir DealsPro ↗</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Tamanhos -->
+  <div class="tab-content" id="tab-sizes">
+    <div class="size-tabs">
+      <button class="size-tab active" data-size="roupas">Roupas</button>
+      <button class="size-tab" data-size="calcados">Calçados</button>
+    </div>
+    <div class="size-panel active" id="size-roupas">
+      <table>
+        <thead><tr><th>CN/INT</th><th>BR</th><th>Etiqueta</th><th>Altura</th></tr></thead>
+        <tbody>
+          <tr><td>XS</td><td>PP</td><td>155/80A</td><td>155–158cm</td></tr>
+          <tr><td>S</td><td>P</td><td>160/84A</td><td>159–162cm</td></tr>
+          <tr><td>M</td><td>M</td><td>165/88A</td><td>163–166cm</td></tr>
+          <tr><td>L</td><td>G</td><td>170/92A</td><td>167–170cm</td></tr>
+          <tr><td>XL</td><td>GG</td><td>175/96A</td><td>171–174cm</td></tr>
+          <tr><td>2XL</td><td>XGG</td><td>180/100A</td><td>175–178cm</td></tr>
+          <tr><td>3XL</td><td>3GG</td><td>185/108A</td><td>179+cm</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:10px;color:#475569;margin-top:8px">⚠️ Medidas variam por marca.</p>
+    </div>
+    <div class="size-panel" id="size-calcados">
+      <table>
+        <thead><tr><th>CN</th><th>EU/BR</th><th>US M</th><th>US F</th></tr></thead>
+        <tbody>
+          <tr><td>35</td><td>34–35</td><td>3</td><td>4.5</td></tr>
+          <tr><td>36</td><td>35–36</td><td>4</td><td>5.5</td></tr>
+          <tr><td>37</td><td>36–37</td><td>4.5</td><td>6</td></tr>
+          <tr><td>38</td><td>37–38</td><td>5.5</td><td>7</td></tr>
+          <tr><td>39</td><td>38–39</td><td>6.5</td><td>8</td></tr>
+          <tr><td>40</td><td>39–40</td><td>7</td><td>8.5</td></tr>
+          <tr><td>41</td><td>40–41</td><td>8</td><td>9.5</td></tr>
+          <tr><td>42</td><td>41–42</td><td>9</td><td>10.5</td></tr>
+          <tr><td>43</td><td>42–43</td><td>10</td><td>11</td></tr>
+          <tr><td>44</td><td>43–44</td><td>11</td><td>12</td></tr>
+          <tr><td>45</td><td>44–45</td><td>12</td><td>13</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:10px;color:#475569;margin-top:8px">EU = BR para adultos.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="https://dealspro-chi.vercel.app" target="_blank">dealspro-chi.vercel.app</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

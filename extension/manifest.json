@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "DealsPro",
+  "version": "1.0.0",
+  "description": "Ferramentas para compras em sites chineses — conversor CNY→BRL, guia de tamanhos BR, alertas CSSDeals.",
+
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "*://*.taobao.com/*",
+    "*://*.goofish.com/*",
+    "*://*.1688.com/*",
+    "*://*.weidian.com/*",
+    "*://cssdeals.com/*",
+    "*://*.cssdeals.com/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.taobao.com/*"],
+      "js": ["content/common.js", "content/taobao.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.goofish.com/*"],
+      "js": ["content/common.js", "content/goofish.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.1688.com/*"],
+      "js": ["content/common.js", "content/cn-common.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.weidian.com/*"],
+      "js": ["content/common.js", "content/cn-common.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://cssdeals.com/*", "*://*.cssdeals.com/*"],
+      "js": ["content/common.js", "content/cssdeals.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

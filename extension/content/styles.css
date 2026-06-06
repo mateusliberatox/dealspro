@@ -1,0 +1,176 @@
+/* ── DealsPro Extension Styles ────────────────────────────────────────────── */
+
+/* Badge BRL ao lado de preços CNY */
+.dp-brl-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #16a34a;
+  font-size: 0.78em;
+  font-weight: 700;
+  font-family: -apple-system, system-ui, sans-serif;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Toast de notificação */
+.dp-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #1e293b;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  animation: dp-slide-in 0.25s ease, dp-fade-out 0.3s ease 2.9s forwards;
+  pointer-events: none;
+}
+.dp-toast--success { background: #166534; border-color: rgba(34,197,94,0.4); }
+.dp-toast--error   { background: #7f1d1d; border-color: rgba(239,68,68,0.4); }
+
+@keyframes dp-slide-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dp-fade-out {
+  to { opacity: 0; }
+}
+
+/* Botão flutuante DealsPro */
+.dp-float-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: #fff !important;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  text-decoration: none !important;
+  transition: opacity 0.15s;
+}
+.dp-float-btn:hover { opacity: 0.88; }
+.dp-float-btn--success { background: #16a34a; }
+.dp-float-btn--small {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+/* Badge "Detectado no DealsPro" */
+.dp-detected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(59,130,246,0.12);
+  border: 1px solid rgba(59,130,246,0.3);
+  color: #60a5fa;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+/* Painel de estimativa de importação */
+.dp-import-panel {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid rgba(59,130,246,0.25);
+  font-family: -apple-system, system-ui, sans-serif;
+  color: #e2e8f0;
+  font-size: 13px;
+  min-width: 240px;
+  max-width: 340px;
+}
+.dp-import-panel h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #60a5fa;
+}
+.dp-import-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  color: #94a3b8;
+}
+.dp-import-row:last-child { border-bottom: none; }
+.dp-import-row--total {
+  font-weight: 700;
+  color: #e2e8f0;
+  font-size: 13px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(59,130,246,0.3) !important;
+}
+.dp-import-val { color: #f1f5f9; font-weight: 600; }
+.dp-import-warning {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #f59e0b;
+}
+
+/* Guia de tamanhos */
+.dp-size-guide {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid rgba(59,130,246,0.2);
+  font-family: -apple-system, system-ui, sans-serif;
+  color: #94a3b8;
+  font-size: 11px;
+}
+.dp-size-guide h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #60a5fa;
+}
+.dp-size-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.dp-size-table th,
+.dp-size-table td {
+  padding: 3px 8px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 11px;
+}
+.dp-size-table th { background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; }
+.dp-size-table td { color: #cbd5e1; }
+
+/* Logo DealsPro inline */
+.dp-logo-inline {
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.dp-logo-inline b { color: #3b82f6; }
