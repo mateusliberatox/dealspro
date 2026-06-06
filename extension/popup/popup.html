@@ -249,6 +249,10 @@
 
   <!-- Módulos -->
   <div class="tab-content active" id="tab-modules">
+    <p style="font-size:10px;color:#475569;margin-bottom:10px;padding:6px 8px;background:rgba(59,130,246,0.06);border-radius:6px;border-left:2px solid rgba(59,130,246,0.3)">
+      💱 Conversor e 📦 Estimativa funcionam em <strong style="color:#60a5fa">Taobao · Goofish · 1688 · Weidian</strong>
+    </p>
+
     <div class="module-row">
       <div class="module-info">
         <div class="module-name">💱 Conversor CNY → BRL</div>
@@ -307,6 +311,18 @@
       </button>
 
       <p class="error-msg" id="loginError" style="display:none"></p>
+
+      <!-- Email/senha como alternativa colapsável -->
+      <div class="divider">
+        <button id="toggleEmailBtn" style="background:none;border:none;cursor:pointer;font-size:10px;color:#475569;padding:0">
+          Entrar com e-mail ▾
+        </button>
+      </div>
+      <div id="emailSection" style="display:none">
+        <input class="input-field" type="email" id="emailInput" placeholder="E-mail" autocomplete="email" />
+        <input class="input-field" type="password" id="passInput" placeholder="Senha" autocomplete="current-password" />
+        <button class="btn btn-primary" id="loginBtn">Entrar</button>
+      </div>
 
       <p style="font-size:10px;color:#475569;margin-top:12px;text-align:center;line-height:1.5">
         Sem conta?

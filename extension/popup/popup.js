@@ -143,6 +143,40 @@ document.getElementById('discordBtn').addEventListener('click', () => {
   });
 });
 
+// ── Toggle email/senha ────────────────────────────────────────────────────────
+
+document.getElementById('toggleEmailBtn').addEventListener('click', () => {
+  const sec = document.getElementById('emailSection');
+  const btn = document.getElementById('toggleEmailBtn');
+  const open = sec.style.display === 'none';
+  sec.style.display = open ? 'block' : 'none';
+  btn.textContent   = open ? 'Entrar com e-mail ▴' : 'Entrar com e-mail ▾';
+});
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email = document.getElementById('emailInput').value.trim();
+  const pass  = document.getElementById('passInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.textContent = 'Preencha e-mail e senha.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('loginBtn');
+  btn.textContent = 'Entrando…'; btn.disabled = true;
+  try {
+    const res  = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON },
+      body: JSON.stringify({ email, password: pass }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error_description ?? 'E-mail ou senha incorretos.'; errEl.style.display = 'block'; return; }
+    await finishLogin(data.access_token);
+  } catch {
+    errEl.textContent = 'Erro de conexão.'; errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Entrar'; btn.disabled = false;
+  }
+});
+
 // ── Verifica sessão salva ─────────────────────────────────────────────────────
 
 // Verifica sessão salva

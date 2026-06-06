@@ -148,16 +148,26 @@
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   const isProduct = /[?&]itemid=/.test(location.href);
+
   if (isProduct) {
     setTimeout(handleProductPage, 800);
   } else {
     let attempts = 0;
     const interval = setInterval(() => {
       handleFeedCards();
-      if (++attempts > 10) clearInterval(interval);
+      if (++attempts > 15) clearInterval(interval);
     }, 600);
 
     new MutationObserver(handleFeedCards)
       .observe(document.body, { childList: true, subtree: true });
   }
+
+  // Re-tenta injetar botões quando o token muda (ex: usuário fez login no popup)
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.dpToken) {
+      document.querySelectorAll('[data-dp-done]').forEach((el) => delete el.dataset.dpDone);
+      if (isProduct) handleProductPage();
+      else handleFeedCards();
+    }
+  });
 })();
