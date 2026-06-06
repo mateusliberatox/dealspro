@@ -6,222 +6,200 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* ── Tokens ── */
+    :root {
+      --bg:       #f8fafc; --bg2:   #fff;    --bg3: #f1f5f9;
+      --border:   #e2e8f0; --text:  #1e293b; --text2: #475569;
+      --text3:    #94a3b8; --accent: #3b82f6;
+      --accent-bg: #eff6ff; --accent-border: #bfdbfe;
+      --success-bg: #f0fdf4; --success-border: #bbf7d0; --success: #16a34a;
+    }
+    body.dark {
+      --bg:       #0f172a; --bg2:   #1e293b; --bg3: #263144;
+      --border:   #334155; --text:  #f1f5f9; --text2: #94a3b8;
+      --text3:    #64748b; --accent-bg: rgba(59,130,246,0.12);
+      --accent-border: rgba(59,130,246,0.3);
+      --success-bg: rgba(21,128,61,0.1); --success-border: rgba(21,128,61,0.3);
+    }
+
     body {
-      width: 320px;
-      font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
-      background: #f8fafc;
-      color: #1e293b;
-      font-size: 13px;
-      user-select: none;
+      width: 320px; font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); font-size: 13px; user-select: none;
+      transition: background 0.2s, color 0.2s;
     }
 
     /* ── Header ── */
     .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px 12px;
-      background: #fff;
-      border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 16px 11px; background: var(--bg2); border-bottom: 1px solid var(--border);
     }
     .header-left { display: flex; align-items: center; gap: 10px; }
     .logo-box {
-      width: 36px; height: 36px;
-      border-radius: 9px;
-      background: #0f172a;
+      width: 34px; height: 34px; border-radius: 9px; background: #0f172a;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: 14px;
-      color: #3b82f6;
-      letter-spacing: -0.5px;
-      flex-shrink: 0;
+      font-weight: 900; font-size: 13px; color: #3b82f6; flex-shrink: 0;
     }
-    .header-name { font-weight: 800; font-size: 14px; color: #0f172a; }
-    .header-sub  { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+    .header-name { font-weight: 800; font-size: 14px; color: var(--text); }
+    .header-sub  { font-size: 10px; color: var(--text3); margin-top: 1px; }
     .rate-pill {
-      font-size: 10px; font-weight: 700;
-      padding: 3px 8px; border-radius: 20px;
-      background: #f0fdf4; border: 1px solid #bbf7d0;
-      color: #16a34a;
+      font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+      background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success);
     }
 
     /* ── Status bar ── */
     .status-bar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 9px 16px;
-      background: #fff;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 8px 16px; background: var(--bg2); border-bottom: 1px solid var(--border);
     }
-    .status-dot {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 11px; font-weight: 600;
-    }
-    .status-dot::before {
-      content: ''; width: 7px; height: 7px; border-radius: 50%;
-      background: #cbd5e1;
-    }
-    .status-dot.connected::before  { background: #22c55e; }
-    .status-dot.connected { color: #15803d; }
-    .status-dot.disconnected { color: #94a3b8; }
-
-    /* Toggle switch global */
+    .status-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; }
+    .status-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #cbd5e1; }
+    .status-dot.connected::before { background: #22c55e; }
+    .status-dot.connected    { color: var(--success); }
+    .status-dot.disconnected { color: var(--text3); }
     .toggle-wrap { display: flex; align-items: center; gap: 7px; }
-    .toggle-label { font-size: 11px; color: #64748b; }
+    .toggle-label { font-size: 11px; color: var(--text3); }
     .toggle { position: relative; width: 34px; height: 18px; }
     .toggle input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; inset: 0;
-      background: #cbd5e1; border-radius: 20px; cursor: pointer; transition: 0.2s;
-    }
-    .slider:before {
-      position: absolute; content: ''; height: 12px; width: 12px;
-      left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s;
-    }
-    input:checked + .slider { background: #3b82f6; }
+    .slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 20px; cursor: pointer; transition: 0.2s; }
+    .slider:before { position: absolute; content: ''; height: 12px; width: 12px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
+    input:checked + .slider { background: var(--accent); }
     input:checked + .slider:before { transform: translateX(16px); }
 
-    /* ── Páginas ── */
+    /* ── Pages ── */
     .page { display: none; }
     .page.active { display: block; }
 
     /* ── Feature cards ── */
     .section-title {
-      font-size: 11px; font-weight: 700; color: #64748b;
-      text-transform: uppercase; letter-spacing: 0.06em;
-      padding: 12px 16px 8px;
+      font-size: 10px; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.07em; padding: 11px 16px 7px;
     }
-    .cards-grid {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 8px; padding: 0 12px 12px;
-    }
+    .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 0 12px 10px; }
     .feature-card {
-      background: #fff; border: 1px solid #e2e8f0;
-      border-radius: 10px; padding: 11px 12px;
-      cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
-      position: relative;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; cursor: pointer; transition: border-color 0.15s;
+      position: relative; opacity: 0.55;
     }
-    .feature-card:hover { border-color: #bfdbfe; box-shadow: 0 2px 8px rgba(59,130,246,0.08); }
-    .feature-card.active { border-color: #3b82f6; background: #eff6ff; }
-    .feature-card.active .card-icon { color: #3b82f6; }
-    .card-icon { font-size: 18px; margin-bottom: 5px; display: block; }
-    .card-label { font-size: 11px; font-weight: 600; color: #334155; line-height: 1.3; }
-    .card-site  { font-size: 9px; color: #94a3b8; margin-top: 2px; }
+    .feature-card.active { opacity: 1; border-color: var(--accent-border); background: var(--accent-bg); }
+    .feature-card:hover { border-color: var(--accent-border); }
+    .card-icon  { font-size: 17px; margin-bottom: 4px; display: block; }
+    .card-label { font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.3; }
+    .card-site  { font-size: 9px; color: var(--text3); margin-top: 2px; }
     .badge {
-      position: absolute; top: 7px; right: 7px;
-      font-size: 8px; font-weight: 800; padding: 2px 5px;
-      border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em;
+      position: absolute; top: 6px; right: 6px; font-size: 8px; font-weight: 800;
+      padding: 2px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em;
     }
     .badge-free    { background: #dcfce7; color: #15803d; }
     .badge-premium { background: #ede9fe; color: #6d28d9; }
 
-    /* ── Login section ── */
-    .login-wrap { padding: 12px 16px 16px; }
-    .login-title { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-    .login-sub   { font-size: 11px; color: #64748b; margin-bottom: 14px; }
-
+    /* ── Auth ── */
+    .login-wrap { padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+    .login-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .login-sub   { font-size: 10px; color: var(--text3); margin-bottom: 12px; }
     .btn-discord {
-      width: 100%; padding: 10px; border-radius: 9px; border: none;
+      width: 100%; padding: 9px; border-radius: 9px; border: none;
       background: #5865F2; color: #fff; font-size: 12px; font-weight: 700;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
-      gap: 8px; transition: opacity 0.15s; margin-bottom: 8px;
+      gap: 8px; transition: opacity 0.15s; margin-bottom: 7px;
     }
     .btn-discord:hover { opacity: 0.9; }
     .btn-discord:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    .divider-line {
-      display: flex; align-items: center; gap: 8px;
-      margin: 10px 0; font-size: 10px; color: #cbd5e1;
-    }
-    .divider-line::before, .divider-line::after {
-      content: ''; flex: 1; height: 1px; background: #e2e8f0;
-    }
-
+    .divider-line { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 10px; color: var(--text3); }
+    .divider-line::before, .divider-line::after { content: ''; flex: 1; height: 1px; background: var(--border); }
     .toggle-email-btn {
-      width: 100%; background: none; border: 1px solid #e2e8f0;
-      border-radius: 8px; padding: 7px 12px; font-size: 11px;
-      color: #64748b; cursor: pointer; text-align: left;
-      transition: background 0.15s;
+      width: 100%; background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 12px; font-size: 11px; color: var(--text3); cursor: pointer; text-align: left; transition: background 0.15s;
     }
-    .toggle-email-btn:hover { background: #f1f5f9; }
-
-    .email-form { margin-top: 8px; display: none; }
+    .toggle-email-btn:hover { background: var(--bg3); }
+    .email-form { margin-top: 7px; display: none; }
     .input-field {
-      width: 100%; padding: 8px 10px; border-radius: 8px;
-      border: 1px solid #e2e8f0; background: #fff;
-      color: #0f172a; font-size: 12px; margin-bottom: 7px;
-      outline: none; transition: border-color 0.15s;
+      width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg2); color: var(--text); font-size: 12px; margin-bottom: 6px; outline: none; transition: border-color 0.15s;
     }
-    .input-field:focus { border-color: #3b82f6; }
+    .input-field:focus { border-color: var(--accent); }
     .btn-primary {
       width: 100%; padding: 9px; border-radius: 8px; border: none;
       background: #0f172a; color: #fff; font-size: 12px; font-weight: 700;
       cursor: pointer; transition: opacity 0.15s;
     }
+    body.dark .btn-primary { background: var(--accent); }
     .btn-primary:hover { opacity: 0.88; }
-    .error-msg { font-size: 11px; color: #ef4444; margin-top: 6px; text-align: center; }
-
-    /* ── Account section ── */
-    .account-wrap { padding: 14px 16px; }
+    .error-msg { font-size: 11px; color: #ef4444; margin-top: 5px; text-align: center; }
+    .account-wrap { padding: 10px 16px; border-top: 1px solid var(--border); }
     .account-card {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px; border-radius: 10px;
-      background: #f0f9ff; border: 1px solid #bae6fd;
-      margin-bottom: 10px;
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: 10px; background: var(--accent-bg); border: 1px solid var(--accent-border); margin-bottom: 8px;
     }
     .account-avatar {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: #0f172a; color: #3b82f6;
-      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 50%; background: #0f172a;
+      color: #3b82f6; display: flex; align-items: center; justify-content: center;
       font-weight: 900; font-size: 14px; flex-shrink: 0;
     }
-    .account-email { font-size: 11px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .account-plan  { font-size: 10px; font-weight: 700; color: #0369a1; margin-top: 2px; }
+    .account-email { font-size: 11px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-plan  { font-size: 10px; font-weight: 700; color: var(--accent); margin-top: 1px; }
     .btn-logout {
-      width: 100%; padding: 8px; border-radius: 8px;
-      border: 1px solid #e2e8f0; background: #fff;
-      color: #64748b; font-size: 12px; cursor: pointer; transition: background 0.15s;
+      width: 100%; padding: 7px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg2); color: var(--text3); font-size: 11px; cursor: pointer; transition: background 0.15s;
     }
-    .btn-logout:hover { background: #f8fafc; }
+    .btn-logout:hover { background: var(--bg3); }
 
-    /* ── Aba tamanhos ── */
-    .sizes-wrap { padding: 10px 12px 14px; }
-    .size-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    /* ── Tamanhos ── */
+    .sizes-wrap { padding: 8px 12px 12px; }
+    .size-tabs { display: flex; gap: 6px; margin-bottom: 9px; }
     .size-tab {
       padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
-      cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #64748b;
-      transition: all 0.15s;
+      cursor: pointer; border: 1px solid var(--border); background: var(--bg2); color: var(--text3); transition: all 0.15s;
     }
-    .size-tab.active { background: #eff6ff; border-color: #bfdbfe; color: #2563eb; }
+    .size-tab.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
     .size-panel { display: none; }
     .size-panel.active { display: block; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th, td { padding: 4px 6px; text-align: center; border: 1px solid #f1f5f9; }
-    th { background: #f8fafc; color: #475569; font-weight: 700; }
-    td { color: #334155; }
-    .size-note { font-size: 10px; color: #94a3b8; margin-top: 8px; }
+    th, td { padding: 4px 6px; text-align: center; border: 1px solid var(--border); }
+    th { background: var(--bg3); color: var(--text2); font-weight: 700; }
+    td { color: var(--text); }
+    .size-note { font-size: 10px; color: var(--text3); margin-top: 7px; }
 
-    /* ── Footer nav ── */
+    /* ── Configurações ── */
+    .settings-wrap { padding: 10px 14px 14px; }
+    .setting-group { margin-bottom: 14px; }
+    .setting-label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .setting-select, .setting-input {
+      width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg2); color: var(--text); font-size: 12px; outline: none;
+      transition: border-color 0.15s; appearance: none;
+    }
+    .setting-select:focus, .setting-input:focus { border-color: var(--accent); }
+    .shipping-preview {
+      margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+      background: var(--accent-bg); border: 1px solid var(--accent-border);
+    }
+    .shipping-preview-title { font-size: 10px; font-weight: 700; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .shipping-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; padding: 3px 0; border-bottom: 1px solid var(--border);
+    }
+    .shipping-row:last-child { border-bottom: none; font-weight: 700; font-size: 12px; color: var(--text); }
+    .shipping-row span:first-child { color: var(--text2); }
+    .shipping-row span:last-child  { color: var(--text); font-weight: 600; }
+    .agent-link { font-size: 10px; color: var(--accent); text-decoration: none; display: block; margin-top: 7px; text-align: right; }
+    .agent-link:hover { text-decoration: underline; }
+    .setting-note { font-size: 10px; color: var(--text3); margin-top: 5px; }
+
+    /* ── Footer ── */
     .footer {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 9px 14px;
-      background: #fff; border-top: 1px solid #e2e8f0;
+      padding: 8px 14px; background: var(--bg2); border-top: 1px solid var(--border);
     }
-    .footer-version { font-size: 10px; color: #cbd5e1; }
-    .footer-nav { display: flex; gap: 4px; }
+    .footer-version { font-size: 10px; color: var(--text3); }
+    .footer-nav { display: flex; gap: 2px; }
     .nav-btn {
       padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
-      cursor: pointer; border: none; background: none; color: #64748b;
-      transition: background 0.15s;
+      cursor: pointer; border: none; background: none; color: var(--text3); transition: background 0.15s;
     }
-    .nav-btn:hover { background: #f1f5f9; }
-    .nav-btn.active { background: #eff6ff; color: #2563eb; }
-
-    /* theme toggle no footer */
-    .theme-toggle {
-      font-size: 14px; cursor: pointer; padding: 3px 6px;
-      border-radius: 6px; border: none; background: none;
-      transition: background 0.15s;
-    }
-    .theme-toggle:hover { background: #f1f5f9; }
+    .nav-btn:hover  { background: var(--bg3); }
+    .nav-btn.active { background: var(--accent-bg); color: var(--accent); }
+    .theme-toggle { font-size: 14px; cursor: pointer; padding: 3px 6px; border-radius: 6px; border: none; background: none; transition: background 0.15s; }
+    .theme-toggle:hover { background: var(--bg3); }
   </style>
 </head>
 <body>
@@ -240,91 +218,73 @@
 
   <!-- ── Status bar ── -->
   <div class="status-bar">
-    <span class="status-dot" id="statusDot">Sem login</span>
+    <span class="status-dot disconnected" id="statusDot">Sem login</span>
     <div class="toggle-wrap">
       <span class="toggle-label">Extensão ligada</span>
-      <label class="toggle">
-        <input type="checkbox" id="globalToggle" checked />
-        <span class="slider"></span>
-      </label>
+      <label class="toggle"><input type="checkbox" id="globalToggle" checked /><span class="slider"></span></label>
     </div>
   </div>
 
-  <!-- ── Página: Funcionalidades ── -->
+  <!-- ── Página: Módulos ── -->
   <div class="page active" id="page-features">
     <div class="section-title">Funcionalidades</div>
     <div class="cards-grid">
-
       <div class="feature-card active" id="card-converter" data-mod="converter">
         <span class="badge badge-free">FREE</span>
         <span class="card-icon">💱</span>
         <div class="card-label">Preços em BRL</div>
         <div class="card-site">Taobao · Goofish · 1688</div>
       </div>
-
       <div class="feature-card active" id="card-sizes" data-mod="sizes">
         <span class="badge badge-free">FREE</span>
         <span class="card-icon">📏</span>
         <div class="card-label">Tamanhos CN→BR</div>
         <div class="card-site">Taobao · Weidian</div>
       </div>
-
       <div class="feature-card active" id="card-import" data-mod="import">
         <span class="badge badge-free">FREE</span>
         <span class="card-icon">📦</span>
         <div class="card-label">Estimativa de importação</div>
         <div class="card-site">Goofish · 1688</div>
       </div>
-
       <div class="feature-card active" id="card-alerts" data-mod="alerts">
         <span class="badge badge-premium">PREMIUM</span>
         <span class="card-icon">🔔</span>
         <div class="card-label">Alertas CSSDeals</div>
         <div class="card-site">CSSDeals</div>
       </div>
-
     </div>
 
-    <!-- Login ou conta -->
+    <!-- Login / Conta -->
     <div id="login-section">
-      <div style="margin: 0 12px 2px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      <div class="login-wrap">
         <div class="login-title">Conectar ao DealsPro</div>
         <div class="login-sub">Ative alertas e recursos Premium</div>
-      </div>
-      <div class="login-wrap" style="padding-top:0">
         <button class="btn-discord" id="discordBtn">
-          <svg width="15" height="15" viewBox="0 0 127.14 96.36" fill="white">
-            <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
-          </svg>
+          <svg width="15" height="15" viewBox="0 0 127.14 96.36" fill="white"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
           Entrar com Discord
         </button>
-
         <div class="divider-line">ou</div>
-
         <button class="toggle-email-btn" id="toggleEmailBtn">✉️ Entrar com e-mail ▾</button>
         <div class="email-form" id="emailForm">
           <input class="input-field" type="email" id="emailInput" placeholder="E-mail" autocomplete="email" />
           <input class="input-field" type="password" id="passInput" placeholder="Senha" autocomplete="current-password" />
           <button class="btn-primary" id="loginBtn">Entrar</button>
         </div>
-
         <p class="error-msg" id="loginError" style="display:none"></p>
-
-        <p style="font-size:10px;color:#94a3b8;margin-top:10px;text-align:center">
-          Sem conta?
-          <a href="https://dealspro-chi.vercel.app/login" target="_blank" style="color:#3b82f6;text-decoration:none">Criar grátis →</a>
+        <p style="font-size:10px;color:var(--text3);margin-top:10px;text-align:center">
+          Sem conta? <a href="https://dealspro-chi.vercel.app/login" target="_blank" style="color:var(--accent);text-decoration:none">Criar grátis →</a>
         </p>
       </div>
     </div>
 
     <div id="account-section" style="display:none">
-      <div style="margin: 0 12px; border-top: 1px solid #e2e8f0; padding-top: 12px;"></div>
       <div class="account-wrap">
         <div class="account-card">
-          <div class="account-avatar">DP</div>
+          <div class="account-avatar" id="accountAvatar">D</div>
           <div style="min-width:0;flex:1">
             <div class="account-email" id="accountEmail">—</div>
-            <div class="account-plan" id="accountPlan">—</div>
+            <div class="account-plan"  id="accountPlan">—</div>
           </div>
         </div>
         <button class="btn-logout" id="logoutBtn">Sair da conta</button>
@@ -377,14 +337,66 @@
     </div>
   </div>
 
-  <!-- ── Footer nav ── -->
+  <!-- ── Página: Configurações ── -->
+  <div class="page" id="page-settings">
+    <div class="section-title">Configurações de Frete</div>
+    <div class="settings-wrap">
+
+      <div class="setting-group">
+        <div class="setting-label">Agente de compras</div>
+        <select class="setting-select" id="agentSelect">
+          <option value="cssbuy">CSBuy</option>
+          <option value="pandabuy">Pandabuy</option>
+          <option value="sugargoo">Sugargoo</option>
+          <option value="superbuy">Superbuy</option>
+          <option value="wegobuy">Wegobuy</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-label">Método de envio</div>
+        <select class="setting-select" id="methodSelect"></select>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-label">Peso estimado do pacote</div>
+        <select class="setting-select" id="weightSelect">
+          <option value="200">Leve — até 200g (camiseta, acessório)</option>
+          <option value="500" selected>Médio — ~500g (tênis leve, 2 peças)</option>
+          <option value="1000">Pesado — ~1kg (tênis, 3-4 peças)</option>
+          <option value="2000">Muito pesado — ~2kg (6+ peças)</option>
+        </select>
+      </div>
+
+      <!-- Preview de custo -->
+      <div class="shipping-preview" id="shippingPreview">
+        <div class="shipping-preview-title">📦 Estimativa para o Brasil</div>
+        <div id="shippingRows"></div>
+        <a class="agent-link" id="agentCalcLink" href="#" target="_blank">Verificar no calculador do agente →</a>
+      </div>
+
+      <p class="setting-note" id="customNote" style="display:none">
+        * Valores personalizados usados na estimativa.
+      </p>
+
+      <div id="customGroup" style="display:none;margin-top:10px">
+        <div class="setting-label">Custo de frete fixo (R$)</div>
+        <input class="setting-input" type="number" id="customFreight" placeholder="Ex: 120" min="0" max="2000" />
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
   <div class="footer">
     <span class="footer-version">v1.0.0</span>
-    <div style="display:flex;align-items:center;gap:4px">
-      <button class="theme-toggle" id="themeBtn" title="Alternar tema">☀️</button>
+    <div style="display:flex;align-items:center;gap:3px">
+      <button class="theme-toggle" id="themeBtn">☀️</button>
       <div class="footer-nav">
         <button class="nav-btn active" data-page="features">Módulos</button>
         <button class="nav-btn" data-page="sizes">Tamanhos</button>
+        <button class="nav-btn" data-page="settings">⚙️</button>
       </div>
     </div>
   </div>

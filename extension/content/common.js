@@ -5,10 +5,26 @@ window.__dp = window.__dp || {};
 
 // ── Cotação CNY→BRL ──────────────────────────────────────────────────────────
 
-window.__dp.rate = 0.82; // fallback enquanto carrega
+window.__dp.rate       = 0.82; // fallback enquanto carrega
+window.__dp.freightBrl = 80;   // fallback de frete (R$)
 
 chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => {
   if (res?.rate) window.__dp.rate = res.rate;
+});
+
+// Carrega configuração de frete salva pelo usuário
+chrome.storage.local.get('dpShipping', ({ dpShipping }) => {
+  if (!dpShipping) return;
+  // Se agente personalizado, usa valor direto
+  if (dpShipping.agent === 'custom' && dpShipping.customBrl) {
+    window.__dp.freightBrl = dpShipping.customBrl;
+    return;
+  }
+  // Senão, recalcula com base na tabela (simplificado: guarda o brl calculado no popup)
+  // O popup salva o valor calculado como dpShippingBrl para uso aqui
+  chrome.storage.local.get('dpShippingBrl', ({ dpShippingBrl }) => {
+    if (dpShippingBrl) window.__dp.freightBrl = dpShippingBrl;
+  });
 });
 
 window.__dp.cnyToBrl = (cny) => {

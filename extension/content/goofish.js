@@ -103,7 +103,7 @@
         const cny = extractCny(text);
         if (!cny || cny < 5) continue;
 
-        const FRETE   = 80;
+        const FRETE   = window.__dp.freightBrl ?? 80;
         const brl     = parseFloat(window.__dp.cnyToBrl(cny));
         const usdApprox = cny * 0.14;
         const hasTax  = usdApprox > 50;

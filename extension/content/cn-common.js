@@ -57,7 +57,7 @@
     if (priceEl.dataset.dpPanel) return;
     priceEl.dataset.dpPanel = '1';
 
-    const FRETE_BRL = 80;    // frete estimado médio (China → BR)
+    const FRETE_BRL = window.__dp.freightBrl ?? 80; // atualizado por common.js
     const TAX_THRESHOLD_USD = 50;
     const USD_RATE  = window.__dp.rate / 7.1 * 6.9; // aproximação CNY→USD
 
