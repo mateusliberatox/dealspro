@@ -137,7 +137,7 @@ document.getElementById('discordBtn').addEventListener('click', () => {
       if (!token) throw new Error('Token não encontrado');
       await finishLogin(token);
     } catch (e) {
-      errEl.textContent = 'Erro no login com Discord. Tente pelo e-mail.';
+      errEl.textContent = 'Erro no login. Tente novamente.';
       errEl.style.display = 'block';
     }
   });
@@ -148,43 +148,6 @@ document.getElementById('discordBtn').addEventListener('click', () => {
 // Verifica sessão salva
 chrome.storage.local.get(['dpToken', 'dpEmail', 'dpPlan'], ({ dpToken, dpEmail, dpPlan }) => {
   if (dpToken && dpEmail) showAccount(dpEmail, dpPlan ?? 'free');
-});
-
-// Login
-document.getElementById('loginBtn').addEventListener('click', async () => {
-  const email = document.getElementById('emailInput').value.trim();
-  const pass  = document.getElementById('passInput').value;
-  const errEl = document.getElementById('loginError');
-  errEl.style.display = 'none';
-
-  if (!email || !pass) { errEl.textContent = 'Preencha e-mail e senha.'; errEl.style.display = 'block'; return; }
-
-  const btn = document.getElementById('loginBtn');
-  btn.textContent = 'Entrando…';
-  btn.disabled    = true;
-
-  try {
-    const res  = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON },
-      body:    JSON.stringify({ email, password: pass }),
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      errEl.textContent = data.error_description ?? 'E-mail ou senha incorretos.';
-      errEl.style.display = 'block';
-      return;
-    }
-
-    await finishLogin(data.access_token);
-  } catch (e) {
-    errEl.textContent = 'Erro de conexão. Tente novamente.';
-    errEl.style.display = 'block';
-  } finally {
-    btn.textContent = 'Entrar';
-    btn.disabled    = false;
-  }
 });
 
 // Logout
