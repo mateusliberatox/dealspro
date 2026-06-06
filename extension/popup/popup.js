@@ -72,15 +72,32 @@ chrome.storage.local.get('dpModules', ({ dpModules }) => {
 
 document.querySelectorAll('.feature-card[data-mod]').forEach((card) => {
   card.addEventListener('click', () => {
-    card.classList.toggle('active');
-    const mod = card.dataset.mod;
-    chrome.storage.local.get('dpModules', ({ dpModules }) => {
-      const curr = dpModules ?? {};
-      curr[mod] = card.classList.contains('active');
-      chrome.storage.local.set({ dpModules: curr });
-    });
+    const isPremiumCard = card.querySelector('.badge-premium') !== null;
+
+    // Se é card Premium e usuário não é Premium → abre página de upgrade
+    if (isPremiumCard) {
+      chrome.storage.local.get('dpPlan', ({ dpPlan }) => {
+        if (dpPlan !== 'premium') {
+          chrome.tabs.create({ url: 'https://dealspro-chi.vercel.app/upgrade' });
+          return;
+        }
+        toggleCard(card);
+      });
+      return;
+    }
+    toggleCard(card);
   });
 });
+
+function toggleCard(card) {
+  card.classList.toggle('active');
+  const mod = card.dataset.mod;
+  chrome.storage.local.get('dpModules', ({ dpModules }) => {
+    const curr = dpModules ?? {};
+    curr[mod] = card.classList.contains('active');
+    chrome.storage.local.set({ dpModules: curr });
+  });
+}
 
 // ── Auth helpers ─────────────────────────────────────────────────────────────
 

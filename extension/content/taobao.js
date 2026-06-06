@@ -5,22 +5,31 @@
 
   // ── Conversão de preços ──────────────────────────────────────────────────────
 
+  function directText(el) {
+    let t = '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) t += node.textContent;
+    }
+    return t.trim();
+  }
+
   function convertPrices() {
     if (!window.__dp.modulesEnabled.converter) return;
 
-    // Taobao usa classes geradas (ex: Price--priceText--Xs5oa), então buscamos
-    // por padrão de conteúdo: elemento com ¥/￥ ou só número dentro de span/em/strong
     const candidates = document.querySelectorAll(
       '[class*="price"], [class*="Price"], [class*="priceText"], [class*="priceWrap"], em, strong'
     );
 
     candidates.forEach((el) => {
-      if (el.dataset.dpDone || el.children.length > 2) return;
-      const text = el.textContent.trim();
-      if (!/[¥￥\d]/.test(text)) return;
+      if (el.dataset.dpDone) return;
+      if (el.nextElementSibling?.classList.contains('dp-brl-badge')) return;
+
+      // Usa apenas texto direto — evita herança de filhos gerando duplicatas
+      const text = directText(el);
+      if (!/[¥￥]/.test(text)) return;
 
       const num = parseFloat(text.replace(/[^0-9.]/g, ''));
-      if (isNaN(num) || num < 0.5 || num > 999999) return;
+      if (isNaN(num) || num < 1 || num > 999999) return;
 
       window.__dp.injectBrlBadge(el, num);
     });

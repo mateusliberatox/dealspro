@@ -1,114 +1,156 @@
 // ── Goofish / Xianyu ────────────────────────────────────────────────────────
-// Mercado de usados chinês — foco em conversão de preço e painel de custo total.
 
 (function () {
   if (!window.__dp) return;
+
+  // Retorna apenas o texto direto do nó (sem herdar de filhos)
+  function directText(el) {
+    let t = '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) t += node.textContent;
+    }
+    return t.trim();
+  }
+
+  // Extrai número válido de um texto (¥ ou só número)
+  function extractCny(text) {
+    const clean = text.replace(/[^\d.]/g, '');
+    const num   = parseFloat(clean);
+    return (!isNaN(num) && num >= 1 && num <= 999999) ? num : null;
+  }
 
   // ── Conversão de preços ──────────────────────────────────────────────────────
 
   function convertPrices() {
     if (!window.__dp.modulesEnabled.converter) return;
 
-    const PRICE_SELECTORS = [
+    const SELECTORS = [
       '[class*="price"]', '[class*="Price"]',
       '[class*="amount"]', '[class*="Amount"]',
-      '[class*="cost"]',   '[class*="Cost"]',
     ];
 
-    document.querySelectorAll(PRICE_SELECTORS.join(',')).forEach((el) => {
-      if (el.dataset.dpDone || el.children.length > 3) return;
-      const text = el.textContent.trim();
-      const num  = parseFloat(text.replace(/[^0-9.]/g, ''));
-      if (isNaN(num) || num < 1 || num > 500000) return;
-      if (!/[¥￥\d]/.test(text)) return;
-      window.__dp.injectBrlBadge(el, num);
+    document.querySelectorAll(SELECTORS.join(',')).forEach((el) => {
+      // Já processado ou já tem badge ao lado
+      if (el.dataset.dpDone) return;
+      if (el.nextElementSibling?.classList.contains('dp-brl-badge')) return;
+
+      // Usa apenas texto direto — ignora herança de filhos
+      const text = directText(el);
+
+      // Deve conter explicitamente ¥ ou ￥ no texto direto
+      if (!/[¥￥]/.test(text)) return;
+
+      const cny = extractCny(text);
+      if (!cny) return;
+
+      window.__dp.injectBrlBadge(el, cny);
     });
   }
 
-  // ── Melhoria visual nos cards de produto ─────────────────────────────────────
-  // Goofish tem uma UI densa — destacamos condição do item e preço.
+  // ── Chips de condição nos cards ──────────────────────────────────────────────
+
+  const COND_MAP = {
+    '全新':  { label: 'Novo',    color: '#15803d', bg: 'rgba(21,128,61,0.1)'  },
+    '近全新': { label: '~Novo',   color: '#15803d', bg: 'rgba(21,128,61,0.08)' },
+    '九成新': { label: '90%',     color: '#0369a1', bg: 'rgba(3,105,161,0.1)'  },
+    '八成新': { label: '80%',     color: '#d97706', bg: 'rgba(217,119,6,0.1)'  },
+    '七成新': { label: '70%',     color: '#d97706', bg: 'rgba(217,119,6,0.1)'  },
+    '6成新':  { label: '60%',     color: '#dc2626', bg: 'rgba(220,38,38,0.1)'  },
+  };
 
   function enhanceCards() {
     const cards = document.querySelectorAll(
-      '[class*="card"], [class*="Card"], [class*="item"], [class*="Item"]'
+      '[class*="card"],[class*="Card"],[class*="item"],[class*="Item"]'
     );
 
     cards.forEach((card) => {
       if (card.dataset.dpEnhanced) return;
       card.dataset.dpEnhanced = '1';
 
-      // Procura texto de condição do item (novo, usado, etc.)
-      const condText = card.textContent.match(/八|九|全新|近全新|7成新|6成新/);
-      if (condText) {
-        const chip = document.createElement('span');
-        chip.style.cssText = [
-          'display:inline-block',
-          'padding:1px 6px',
-          'border-radius:4px',
-          'font-size:10px',
-          'font-weight:700',
-          'font-family:-apple-system,sans-serif',
-          'background:rgba(245,158,11,0.15)',
-          'border:1px solid rgba(245,158,11,0.3)',
-          'color:#d97706',
-          'margin-left:4px',
-        ].join(';');
-        chip.textContent = condText[0];
-        const titleEl = card.querySelector('[class*="title"], [class*="Title"], h3, h4');
-        if (titleEl && !titleEl.querySelector('.dp-cond-chip')) {
+      const text = card.textContent;
+      for (const [key, cfg] of Object.entries(COND_MAP)) {
+        if (text.includes(key)) {
+          const chip = document.createElement('span');
           chip.className = 'dp-cond-chip';
-          titleEl.appendChild(chip);
+          chip.style.cssText = [
+            'display:inline-block', 'padding:1px 5px', 'border-radius:4px',
+            'font-size:9px', 'font-weight:700', `color:${cfg.color}`,
+            `background:${cfg.bg}`, 'margin-left:4px', 'vertical-align:middle',
+          ].join(';');
+          chip.textContent = cfg.label;
+
+          const titleEl = card.querySelector('[class*="title"],[class*="Title"],h3,h4');
+          if (titleEl && !titleEl.querySelector('.dp-cond-chip')) {
+            titleEl.appendChild(chip);
+          }
+          break;
         }
       }
     });
   }
 
-  // ── Estimativa de custo total na página do produto ───────────────────────────
+  // ── Painel de estimativa na página do produto ─────────────────────────────────
 
   function injectCostPanel() {
     if (document.querySelector('.dp-import-panel')) return;
 
-    const priceSelectors = ['[class*="price"]', '[class*="Price"]', '[class*="amount"]'];
-    for (const sel of priceSelectors) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
+    const SELECTORS = ['[class*="price"]','[class*="Price"]','[class*="amount"]'];
+    for (const sel of SELECTORS) {
+      for (const el of document.querySelectorAll(sel)) {
+        const text = directText(el);
+        if (!/[¥￥]/.test(text)) continue;
 
-      const num = parseFloat(el.textContent.replace(/[^0-9.]/g, ''));
-      if (isNaN(num) || num < 1) continue;
+        const cny = extractCny(text);
+        if (!cny || cny < 5) continue;
 
-      const FRETE = 80;
-      const brl   = parseFloat(window.__dp.cnyToBrl(num));
-      const usd   = num * 0.14; // aprox
-      const hasTax = usd > 50;
-      const tax    = hasTax ? brl * 0.6 : 0;
-      const total  = brl + FRETE + tax;
+        const FRETE   = 80;
+        const brl     = parseFloat(window.__dp.cnyToBrl(cny));
+        const usdApprox = cny * 0.14;
+        const hasTax  = usdApprox > 50;
+        const tax     = hasTax ? brl * 0.6 : 0;
+        const total   = brl + FRETE + tax;
 
-      const panel = document.createElement('div');
-      panel.className = 'dp-import-panel';
-      panel.innerHTML = `
-        <h4><span class="dp-logo-inline">DEALS<b>PRO</b></span> · Custo total estimado</h4>
-        <div class="dp-import-row"><span>Produto (usado)</span><span class="dp-import-val">${window.__dp.formatBrl(brl)}</span></div>
-        <div class="dp-import-row"><span>Frete China→BR</span><span class="dp-import-val">${window.__dp.formatBrl(FRETE)}</span></div>
-        ${hasTax ? `<div class="dp-import-row"><span>Imposto (60%)</span><span class="dp-import-val" style="color:#f87171">${window.__dp.formatBrl(tax)}</span></div>` : ''}
-        <div class="dp-import-row dp-import-row--total"><span>Total</span><span class="dp-import-val">${window.__dp.formatBrl(total)}</span></div>
-        ${hasTax ? '<p class="dp-import-warning">⚠️ Acima de US$50 — imposto de 60% aplicável.</p>' : ''}
-        <p class="dp-import-warning" style="color:#475569;margin-top:4px">Estimativa. Frete varia por agente.</p>
-      `;
-      el.insertAdjacentElement('afterend', panel);
-      break;
+        const panel = document.createElement('div');
+        panel.className = 'dp-import-panel';
+        panel.innerHTML = `
+          <h4><span class="dp-logo-inline">DEALS<b>PRO</b></span> · Custo total estimado</h4>
+          <div class="dp-import-row">
+            <span>Produto</span>
+            <span class="dp-import-val">${window.__dp.formatBrl(brl)}</span>
+          </div>
+          <div class="dp-import-row">
+            <span>Frete China→BR (estimado)</span>
+            <span class="dp-import-val">${window.__dp.formatBrl(FRETE)}</span>
+          </div>
+          ${hasTax ? `
+          <div class="dp-import-row">
+            <span>Imposto (60%)</span>
+            <span class="dp-import-val" style="color:#f87171">${window.__dp.formatBrl(tax)}</span>
+          </div>` : ''}
+          <div class="dp-import-row dp-import-row--total">
+            <span>Total estimado</span>
+            <span class="dp-import-val">${window.__dp.formatBrl(total)}</span>
+          </div>
+          ${hasTax ? '<p class="dp-import-warning">⚠️ Acima de US$50 — imposto de 60% provável.</p>' : ''}
+          <p class="dp-import-warning" style="color:#475569;margin-top:4px">Valores estimados. Frete e imposto podem variar.</p>
+        `;
+        el.insertAdjacentElement('afterend', panel);
+        return;
+      }
     }
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   let attempts = 0;
-  const tryInject = setInterval(() => {
+  const isProduct = /\/(item|detail|product)\//.test(location.pathname)
+    || /[?&]id=/.test(location.search);
+
+  const interval = setInterval(() => {
     convertPrices();
     enhanceCards();
-    if (window.location.pathname.includes('/item/') || window.location.pathname.includes('/detail/')) {
-      injectCostPanel();
-    }
-    if (++attempts > 15) clearInterval(tryInject);
+    if (isProduct) injectCostPanel();
+    if (++attempts > 20) clearInterval(interval);
   }, 700);
 
   new MutationObserver(() => { convertPrices(); enhanceCards(); })
