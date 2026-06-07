@@ -12,6 +12,14 @@ export async function getBrowser(): Promise<Browser> {
 
   if (browserInstance?.isConnected() && !tooOld) return browserInstance;
 
+  // Defer restart if scrape pages are still open to avoid aborting an active cycle.
+  if (tooOld && browserInstance?.isConnected()) {
+    const activePages = browserInstance.contexts().reduce((n, c) => n + c.pages().length, 0);
+    if (activePages > 0) {
+      return browserInstance;
+    }
+  }
+
   if (!launchPromise) {
     launchPromise = (async () => {
       if (browserInstance) {

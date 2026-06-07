@@ -241,17 +241,34 @@ async function postWebhook(
   { waitForMessage = false } = {},
 ): Promise<unknown> {
   const target = waitForMessage ? `${url}?wait=true` : url;
-  const res    = await fetch(target, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-    signal:  AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) {
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await fetch(target, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+      signal:  AbortSignal.timeout(10_000),
+    });
+
+    if (res.ok) return waitForMessage ? res.json() : null;
+
+    if (res.status === 429) {
+      const rb     = await res.json().catch(() => ({})) as { retry_after?: number };
+      const waitMs = Math.ceil((rb.retry_after ?? 1) * 1000) + 100;
+      await sleep(waitMs);
+      continue;
+    }
+
+    if (res.status >= 500 && attempt < 3) {
+      await sleep(1000 * attempt);
+      continue;
+    }
+
     const text = await res.text();
     throw new Error(`Webhook failed (${res.status}): ${text}`);
   }
-  return waitForMessage ? res.json() : null;
+
+  throw new Error('Webhook failed after 3 attempts');
 }
 
 function parseWebhookUrl(url: string | undefined): { id: string; token: string } | null {

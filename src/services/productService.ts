@@ -12,6 +12,19 @@ import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notificati
 import { supabase } from '../database/supabase.js';
 import type { Product } from '../types.js';
 
+async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 3): Promise<T> {
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      if (i === attempts - 1) throw e;
+      const delay = 2000 * (i + 1);
+      logger.warn(`${label} falhou (tentativa ${i + 1}/${attempts}) — retry em ${delay / 1000}s: ${(e as Error).message}`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error('unreachable');
+}
+
 const MAX_QC_FETCHES        = 100;
 const QC_BATCH_SIZE         = 3;
 const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
@@ -109,10 +122,10 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
 
   let existingMap: Awaited<ReturnType<typeof getExistingHashMap>>;
   try {
-    existingMap = await getExistingHashMap();
+    existingMap = await withRetry(() => getExistingHashMap(), 'getExistingHashMap');
     logger.info(`DB has ${existingMap.size} existing hashes`);
   } catch (e: unknown) {
-    logger.error(`getExistingHashMap failed — abortando ciclo: ${(e as Error).message}`);
+    logger.error(`getExistingHashMap failed após retries — abortando ciclo: ${(e as Error).message}`);
     return [];
   }
 
@@ -209,10 +222,10 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
 
   let inserted: Product[];
   try {
-    inserted = await insertProducts(rows);
+    inserted = await withRetry(() => insertProducts(rows), 'insertProducts');
     logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
   } catch (e: unknown) {
-    logger.error(`insertProducts failed — abortando notificações: ${(e as Error).message}`);
+    logger.error(`insertProducts failed após retries — abortando notificações: ${(e as Error).message}`);
     return [];
   }
 

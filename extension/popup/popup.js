@@ -434,9 +434,23 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 
 // ── Sessão salva + logout ─────────────────────────────────────────────────────
 
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch { return true; }
+}
+
 chrome.storage.local.get(['dpToken', 'dpEmail', 'dpPlan'], ({ dpToken, dpEmail, dpPlan }) => {
-  if (dpToken && dpEmail) showAccount(dpEmail, dpPlan ?? 'free');
-  else showLogin();
+  if (dpToken && dpEmail) {
+    if (isTokenExpired(dpToken)) {
+      chrome.storage.local.remove(['dpToken', 'dpEmail', 'dpPlan'], showLogin);
+    } else {
+      showAccount(dpEmail, dpPlan ?? 'free');
+    }
+  } else {
+    showLogin();
+  }
 });
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
