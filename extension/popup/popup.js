@@ -156,6 +156,9 @@ function toggleCard(card) {
 }
 
 // ── Busca inteligente PT→ZH ───────────────────────────────────────────────────
+// Chama a API direto do popup — evita depender do service worker (MV3 dorme)
+
+const DEALSPRO_API = 'https://dealspro-chi.vercel.app';
 
 const SEARCH_URLS = {
   taobao:  (q) => `https://s.taobao.com/search?q=${encodeURIComponent(q)}`,
@@ -175,24 +178,32 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
   errEl.style.display = 'none'; result.style.display = 'none';
   btn.textContent = '…'; btn.disabled = true;
 
-  chrome.runtime.sendMessage({ type: 'TRANSLATE', text }, (res) => {
+  try {
+    const res  = await fetch(`${DEALSPRO_API}/api/extension/translate`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ text }),
+      signal:  AbortSignal.timeout(10_000),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.translated) throw new Error('sem tradução');
+
+    transEl.textContent  = data.translated;
+    result.style.display = 'block';
+    chrome.tabs.create({ url: SEARCH_URLS[site]?.(data.translated) ?? SEARCH_URLS.taobao(data.translated) });
+  } catch {
+    errEl.textContent = 'Falha na tradução. Verifique sua conexão.';
+    errEl.style.display = 'block';
+  } finally {
     btn.textContent = 'Buscar'; btn.disabled = false;
-    if (!res?.ok || !res.data?.translated) {
-      errEl.textContent = 'Falha na tradução. Tente novamente.'; errEl.style.display = 'block'; return;
-    }
-    const zh  = res.data.translated;
-    transEl.textContent     = zh;
-    result.style.display    = 'block';
-    const url = SEARCH_URLS[site]?.(zh) ?? SEARCH_URLS.taobao(zh);
-    chrome.tabs.create({ url });
-  });
+  }
 });
 
 document.getElementById('searchInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('searchBtn').click();
 });
 
-// ── Rastreamento — carrega ao abrir a página ──────────────────────────────────
+// ── Rastreamento — chama a API diretamente do popup ───────────────────────────
 
 document.querySelectorAll('.nav-btn[data-page]').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -200,31 +211,42 @@ document.querySelectorAll('.nav-btn[data-page]').forEach((btn) => {
   });
 });
 
-function loadOrders() {
+async function loadOrders() {
   const wrap = document.getElementById('ordersWrap');
   wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>';
 
-  chrome.runtime.sendMessage({ type: 'GET_ORDERS' }, (res) => {
-    if (!res?.ok) {
-      wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">Faça login para ver seus pedidos.</p>';
-      return;
-    }
-    const orders = res.data?.orders ?? [];
+  const { dpToken } = await chrome.storage.local.get('dpToken');
+  if (!dpToken) {
+    wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">Faça login para ver seus pedidos.</p>';
+    return;
+  }
+
+  try {
+    const res    = await fetch(`${DEALSPRO_API}/api/extension/orders`, {
+      headers: { Authorization: `Bearer ${dpToken}` },
+      signal:  AbortSignal.timeout(8_000),
+    });
+    const data   = await res.json();
+    const orders = data?.orders ?? [];
+
     if (!orders.length) {
       wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">Nenhuma encomenda em trânsito.</p>';
       return;
     }
+
     wrap.innerHTML = orders.map((o) => `
       <div style="padding:9px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);margin-bottom:6px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;font-weight:700;color:var(--text)">${o.description}</span>
-          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--accent-bg);color:var(--accent)">${o.statusLabel}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <span style="font-size:11px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.description}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--accent-bg);color:var(--accent);white-space:nowrap;flex-shrink:0">${o.statusLabel}</span>
         </div>
         <div style="font-size:10px;color:var(--text3);margin-top:3px">${o.code}</div>
         ${o.lastEvent ? `<div style="font-size:10px;color:var(--text2);margin-top:4px">↳ ${o.lastEvent}</div>` : ''}
       </div>
     `).join('');
-  });
+  } catch {
+    wrap.innerHTML = '<p style="font-size:11px;color:#ef4444;text-align:center;padding:16px 0">Erro ao carregar. Tente novamente.</p>';
+  }
 }
 
 // ── Configurações de frete ────────────────────────────────────────────────────
