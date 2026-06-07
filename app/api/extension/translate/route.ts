@@ -1,6 +1,6 @@
 // POST /api/extension/translate
 // Traduz um termo de busca PT→ZH para uso no Taobao/Goofish.
-// Sem autenticação — custo mínimo (gpt-4o-mini, ~0.001 USD por busca).
+// Stack: DeepL Free (se configurado) → MyMemory (fallback gratuito, sem chave).
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -14,6 +14,34 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
+async function translateWithDeepL(text: string): Promise<string | null> {
+  const key = process.env.DEEPL_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch('https://api-free.deepl.com/v2/translate', {
+      method:  'POST',
+      headers: { Authorization: `DeepL-Auth-Key ${key}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ text: [text], source_lang: 'PT', target_lang: 'ZH' }),
+      signal:  AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json() as { translations?: Array<{ text: string }> };
+    return json?.translations?.[0]?.text?.trim() || null;
+  } catch { return null; }
+}
+
+async function translateWithMyMemory(text: string): Promise<string | null> {
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=pt-BR|zh-CN`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+    if (!res.ok) return null;
+    const json = await res.json() as { responseStatus?: number; responseData?: { translatedText?: string } };
+    if (json?.responseStatus !== 200) return null;
+    const translated = json?.responseData?.translatedText?.trim();
+    return translated && translated !== text ? translated : null;
+  } catch { return null; }
+}
+
 export async function POST(request: NextRequest) {
   const { text } = await request.json().catch(() => ({})) as { text?: string };
 
@@ -21,35 +49,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'text obrigatório' }, { status: 400, headers: CORS });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'OpenAI não configurado' }, { status: 500, headers: CORS });
-  }
+  const input = text.trim();
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      max_tokens: 80,
-      messages: [{
-        role:    'user',
-        content: `Translate this product search query from Portuguese to Simplified Chinese. Return ONLY the Chinese translation, no explanation, no quotes: "${text.trim()}"`,
-      }],
-    }),
-    signal: AbortSignal.timeout(8_000),
-  });
-
-  if (!res.ok) {
-    return NextResponse.json({ error: 'OpenAI falhou' }, { status: 502, headers: CORS });
-  }
-
-  const data  = await res.json() as { choices: Array<{ message: { content: string } }> };
-  const translated = data.choices?.[0]?.message?.content?.trim();
+  const translated =
+    (await translateWithDeepL(input)) ??
+    (await translateWithMyMemory(input));
 
   if (!translated) {
-    return NextResponse.json({ error: 'Tradução vazia' }, { status: 502, headers: CORS });
+    return NextResponse.json({ error: 'Tradução indisponível' }, { status: 502, headers: CORS });
   }
 
-  return NextResponse.json({ translated, original: text.trim() }, { headers: CORS });
+  return NextResponse.json({ translated, original: input }, { headers: CORS });
 }

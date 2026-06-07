@@ -185,23 +185,27 @@
     .agent-link:hover { text-decoration: underline; }
     .setting-note { font-size: 10px; color: var(--text3); margin-top: 5px; }
 
-    /* ── Footer ── */
+    /* ── Footer / Tab bar ── */
     .footer {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 6px 10px; background: var(--bg2); border-top: 1px solid var(--border);
+      background: var(--bg2); border-top: 1px solid var(--border);
+      display: flex; align-items: stretch;
     }
-    .footer-version { font-size: 10px; color: var(--text3); }
-    .footer-nav { display: flex; gap: 1px; }
+    .footer-nav { display: flex; flex: 1; }
     .nav-btn {
-      display: flex; flex-direction: column; align-items: center; gap: 2px;
-      padding: 4px 7px; border-radius: 7px; font-size: 9px; font-weight: 600;
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; padding: 6px 2px 5px; border-radius: 0;
+      font-size: 9px; font-weight: 600; line-height: 1;
       cursor: pointer; border: none; background: none; color: var(--text3);
-      transition: background 0.15s, color 0.15s; line-height: 1;
+      transition: background 0.15s, color 0.15s;
     }
-    .nav-btn .nav-icon { font-size: 14px; line-height: 1; }
+    .nav-btn .nav-icon { font-size: 15px; line-height: 1; }
     .nav-btn:hover  { background: var(--bg3); color: var(--text2); }
     .nav-btn.active { background: var(--accent-bg); color: var(--accent); }
-    .theme-toggle { font-size: 14px; cursor: pointer; padding: 3px 6px; border-radius: 6px; border: none; background: none; transition: background 0.15s; flex-shrink: 0; }
+    .theme-toggle {
+      flex-shrink: 0; padding: 6px 9px; border: none; background: none;
+      cursor: pointer; font-size: 15px; color: var(--text3);
+      border-left: 1px solid var(--border); transition: background 0.15s;
+    }
     .theme-toggle:hover { background: var(--bg3); }
 
     /* ── Orders refresh ── */
@@ -398,6 +402,8 @@
           <option value="sugargoo">Sugargoo</option>
           <option value="superbuy">Superbuy</option>
           <option value="wegobuy">Wegobuy</option>
+          <option value="hagobuy">Hagobuy</option>
+          <option value="allchinabuy">AllChinaBuy</option>
           <option value="custom">Personalizado</option>
         </select>
       </div>
@@ -436,9 +442,8 @@
     </div>
   </div>
 
-  <!-- ── Footer ── -->
+  <!-- ── Footer / Tab bar ── -->
   <div class="footer">
-    <button class="theme-toggle" id="themeBtn">☀️</button>
     <div class="footer-nav">
       <button class="nav-btn active" data-page="features">
         <span class="nav-icon">🏠</span>Módulos
@@ -456,6 +461,7 @@
         <span class="nav-icon">⚙️</span>Config
       </button>
     </div>
+    <button class="theme-toggle" id="themeBtn">☀️</button>
   </div>
 
   <script src="popup.js"></script>
