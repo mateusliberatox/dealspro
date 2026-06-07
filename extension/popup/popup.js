@@ -211,6 +211,8 @@ document.querySelectorAll('.nav-btn[data-page]').forEach((btn) => {
   });
 });
 
+document.getElementById('ordersRefreshBtn').addEventListener('click', loadOrders);
+
 async function loadOrders() {
   const wrap = document.getElementById('ordersWrap');
   wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>';

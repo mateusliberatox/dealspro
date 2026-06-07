@@ -165,6 +165,8 @@
   // Re-tenta injetar botões quando o token muda (ex: usuário fez login no popup)
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.dpToken) {
+      // Remove botões já injetados para evitar duplicatas antes de resetar o estado
+      document.querySelectorAll('.dp-float-btn').forEach((el) => el.remove());
       document.querySelectorAll('[data-dp-done]').forEach((el) => delete el.dataset.dpDone);
       if (isProduct) handleProductPage();
       else handleFeedCards();

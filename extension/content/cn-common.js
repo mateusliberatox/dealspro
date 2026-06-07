@@ -59,10 +59,10 @@
 
     const FRETE_BRL = window.__dp.freightBrl ?? 80; // atualizado por common.js
     const TAX_THRESHOLD_USD = 50;
-    const USD_RATE  = window.__dp.rate / 7.1 * 6.9; // aproximação CNY→USD
+    const CNY_TO_USD = 1 / 7.15; // taxa fixa aproximada CNY→USD
 
     const productBrl = parseFloat(window.__dp.cnyToBrl(cny));
-    const productUsd = cny * (window.__dp.rate / 7.1 * 6.9);
+    const productUsd = cny * CNY_TO_USD;
     const hasTax     = productUsd > TAX_THRESHOLD_USD;
     const taxBrl     = hasTax ? productBrl * 0.6 : 0;
     const totalBrl   = productBrl + FRETE_BRL + taxBrl;

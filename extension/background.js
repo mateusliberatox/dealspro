@@ -50,7 +50,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'CHECK_PRODUCT') {
-    fetch(`${DEALSPRO_URL}/api/extension/product?itemid=${msg.itemid}`)
+    fetch(`${DEALSPRO_URL}/api/extension/product?itemid=${msg.itemid}`, {
+      signal: AbortSignal.timeout(8_000),
+    })
       .then((r) => r.json())
       .then((data) => sendResponse({ ok: true, data }))
       .catch(() => sendResponse({ ok: false }));
@@ -58,7 +60,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'GET_SELLER') {
-    fetch(`${DEALSPRO_URL}/api/extension/seller?name=${encodeURIComponent(msg.name)}`)
+    fetch(`${DEALSPRO_URL}/api/extension/seller?name=${encodeURIComponent(msg.name)}`, {
+      signal: AbortSignal.timeout(8_000),
+    })
       .then((r) => r.json())
       .then((data) => sendResponse({ ok: true, data }))
       .catch(() => sendResponse({ ok: false }));

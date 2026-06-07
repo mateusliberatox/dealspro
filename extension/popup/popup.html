@@ -188,18 +188,33 @@
     /* ── Footer ── */
     .footer {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 14px; background: var(--bg2); border-top: 1px solid var(--border);
+      padding: 6px 10px; background: var(--bg2); border-top: 1px solid var(--border);
     }
     .footer-version { font-size: 10px; color: var(--text3); }
-    .footer-nav { display: flex; gap: 2px; }
+    .footer-nav { display: flex; gap: 1px; }
     .nav-btn {
-      padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
-      cursor: pointer; border: none; background: none; color: var(--text3); transition: background 0.15s;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 4px 7px; border-radius: 7px; font-size: 9px; font-weight: 600;
+      cursor: pointer; border: none; background: none; color: var(--text3);
+      transition: background 0.15s, color 0.15s; line-height: 1;
     }
-    .nav-btn:hover  { background: var(--bg3); }
+    .nav-btn .nav-icon { font-size: 14px; line-height: 1; }
+    .nav-btn:hover  { background: var(--bg3); color: var(--text2); }
     .nav-btn.active { background: var(--accent-bg); color: var(--accent); }
-    .theme-toggle { font-size: 14px; cursor: pointer; padding: 3px 6px; border-radius: 6px; border: none; background: none; transition: background 0.15s; }
+    .theme-toggle { font-size: 14px; cursor: pointer; padding: 3px 6px; border-radius: 6px; border: none; background: none; transition: background 0.15s; flex-shrink: 0; }
     .theme-toggle:hover { background: var(--bg3); }
+
+    /* ── Orders refresh ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 16px 7px;
+    }
+    .section-header .section-title { padding: 0; }
+    .refresh-btn {
+      font-size: 10px; color: var(--accent); background: none; border: none;
+      cursor: pointer; padding: 2px 6px; border-radius: 5px; font-weight: 600; transition: background 0.15s;
+    }
+    .refresh-btn:hover { background: var(--accent-bg); }
   </style>
 </head>
 <body>
@@ -361,8 +376,11 @@
 
   <!-- ── Página: Pedidos ── -->
   <div class="page" id="page-orders">
-    <div class="section-title">Rastreamento ativo</div>
-    <div style="padding:6px 12px 14px" id="ordersWrap">
+    <div class="section-header">
+      <span class="section-title">Rastreamento ativo</span>
+      <button class="refresh-btn" id="ordersRefreshBtn">↻ Atualizar</button>
+    </div>
+    <div style="padding:2px 12px 14px" id="ordersWrap">
       <p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>
     </div>
   </div>
@@ -420,16 +438,23 @@
 
   <!-- ── Footer ── -->
   <div class="footer">
-    <span class="footer-version">v1.0.0</span>
-    <div style="display:flex;align-items:center;gap:3px">
-      <button class="theme-toggle" id="themeBtn">☀️</button>
-      <div class="footer-nav">
-        <button class="nav-btn active" data-page="features">Módulos</button>
-        <button class="nav-btn" data-page="search">🔍</button>
-        <button class="nav-btn" data-page="orders">📦</button>
-        <button class="nav-btn" data-page="sizes">📏</button>
-        <button class="nav-btn" data-page="settings">⚙️</button>
-      </div>
+    <button class="theme-toggle" id="themeBtn">☀️</button>
+    <div class="footer-nav">
+      <button class="nav-btn active" data-page="features">
+        <span class="nav-icon">🏠</span>Módulos
+      </button>
+      <button class="nav-btn" data-page="search">
+        <span class="nav-icon">🔍</span>Busca
+      </button>
+      <button class="nav-btn" data-page="orders">
+        <span class="nav-icon">📦</span>Pedidos
+      </button>
+      <button class="nav-btn" data-page="sizes">
+        <span class="nav-icon">📏</span>Tamanhos
+      </button>
+      <button class="nav-btn" data-page="settings">
+        <span class="nav-icon">⚙️</span>Config
+      </button>
     </div>
   </div>
 
