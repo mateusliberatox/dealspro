@@ -151,6 +151,8 @@
     if (++attempts > 10) clearInterval(tryInject);
   }, 600);
 
-  new MutationObserver(() => convertPrices())
+  // Debounced: agrupa mutações em rajada (SPA carregando itens) numa só
+  // varredura por janela de 200ms.
+  new MutationObserver(window.__dp.debounce(convertPrices, 200))
     .observe(document.body, { childList: true, subtree: true });
 })();

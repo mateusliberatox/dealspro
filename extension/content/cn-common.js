@@ -27,6 +27,7 @@
 
     const cny = parsePriceNumber(el.textContent.trim());
     if (!cny) return;
+    el.dataset.dpCny = String(cny); // usado por window.__dp.refreshBadges()
 
     const brl = window.__dp.cnyToBrl(cny);
     if (!brl) return;
@@ -64,9 +65,11 @@
     });
   }
 
-  // Roda inicial + observa mudanças (SPAs)
+  // Roda inicial + observa mudanças (SPAs).
+  // Debounced: agrupa mutações em rajada numa só varredura por janela de
+  // 200ms (1688/Weidian disparam o observer constantemente em scroll).
   setTimeout(scanPrices, 800);
-  new MutationObserver(() => scanPrices())
+  new MutationObserver(window.__dp.debounce(scanPrices, 200))
     .observe(document.body, { childList: true, subtree: true });
 
   // ── Painel de estimativa de importação ──────────────────────────────────────

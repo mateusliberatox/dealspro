@@ -25,6 +25,10 @@ chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => {
       if (dpShipping || dpShippingBrl) return;
       window.__dp.freightBrl = parseFloat((36.8 * window.__dp.rate).toFixed(2));
     });
+    // GET_RATE é assíncrono — alguns badges já podem ter sido injetados com
+    // o câmbio de fallback (0.82) antes da cotação real chegar. Atualiza o
+    // texto deles para refletir o câmbio correto.
+    window.__dp.refreshBadges();
   }
 });
 
@@ -67,12 +71,25 @@ window.__dp.toast = (msg, type = 'info') => {
 window.__dp.injectBrlBadge = (el, cnyValue) => {
   if (el.dataset.dpDone) return;
   el.dataset.dpDone = '1';
+  el.dataset.dpCny = String(cnyValue); // usado por refreshBadges() ao atualizar o câmbio
   const brl = window.__dp.cnyToBrl(cnyValue);
   if (!brl) return;
   const badge = document.createElement('span');
   badge.className = 'dp-brl-badge';
   badge.textContent = window.__dp.formatBrl(brl);
   el.insertAdjacentElement('afterend', badge);
+};
+
+// Recalcula o texto de todos os badges BRL já injetados usando o câmbio
+// atual (window.__dp.rate). Chamado quando a cotação real chega depois de
+// badges já terem sido criados com o câmbio de fallback.
+window.__dp.refreshBadges = () => {
+  document.querySelectorAll('[data-dp-cny]').forEach((el) => {
+    const badge = el.nextElementSibling;
+    if (!badge?.classList.contains('dp-brl-badge')) return;
+    const brl = window.__dp.cnyToBrl(el.dataset.dpCny);
+    if (brl) badge.textContent = window.__dp.formatBrl(brl);
+  });
 };
 
 // ── Módulos habilitados ───────────────────────────────────────────────────────
@@ -89,4 +106,14 @@ window.__dp.observe = (selector, callback, root = document.body) => {
   const run = () => document.querySelectorAll(selector).forEach(callback);
   run();
   new MutationObserver(run).observe(root, { childList: true, subtree: true });
+};
+
+// Agrupa chamadas em rajada (ex.: MutationObserver disparando a cada item
+// inserido em scroll infinito) numa só, `wait`ms depois da última mutação.
+window.__dp.debounce = (fn, wait = 200) => {
+  let timer = null;
+  return (...args) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { timer = null; fn(...args); }, wait);
+  };
 };

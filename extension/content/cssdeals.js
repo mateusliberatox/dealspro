@@ -81,6 +81,13 @@
               window.__dp.toast('Alerta criado no DealsPro!', 'success');
             } else if (res2?.error === 'not_logged_in') {
               window.__dp.toast('Faça login no DealsPro para criar alertas.', 'error');
+            } else {
+              // Antes, qualquer erro silencioso (ex.: API recusou com 400/500)
+              // deixava o botão "Criar alerta" parado sem feedback nenhum.
+              window.__dp.toast(
+                res2?.data?.error || 'Não foi possível criar o alerta agora. Tente novamente.',
+                'error',
+              );
             }
           });
         });

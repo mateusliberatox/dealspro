@@ -254,6 +254,11 @@ async function loadOrders() {
   const wrap = document.getElementById('ordersWrap');
   wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>';
 
+  // Garante que a sessão já foi restaurada/renovada antes de ler o token —
+  // evita usar um dpToken expirado se o usuário clicar em "Pedidos" logo
+  // ao abrir o popup.
+  await sessionReady;
+
   const { dpToken } = await chrome.storage.local.get('dpToken');
   if (!dpToken) {
     wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:16px 0">Faça login para ver seus pedidos.</p>';
@@ -505,33 +510,39 @@ function isTokenExpired(token) {
   } catch { return true; }
 }
 
-chrome.storage.local.get(
-  ['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'],
-  async ({ dpToken, dpRefreshToken, dpEmail, dpPlan }) => {
-    if (!dpToken || !dpEmail) { showLogin(); return; }
+// Promise resolvida quando a sessão salva já foi restaurada/renovada (ou
+// confirmada como inválida). Outras partes do popup (ex.: loadOrders) que
+// dependem de `dpToken` no storage devem esperar por ela primeiro — sem
+// isso, um clique rápido em "Pedidos" logo após abrir o popup podia ler o
+// token antigo (já expirado) antes do refresh terminar.
+const sessionReady = (async () => {
+  const { dpToken, dpRefreshToken, dpEmail, dpPlan } =
+    await chrome.storage.local.get(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan']);
 
-    if (!isTokenExpired(dpToken)) {
+  if (!dpToken || !dpEmail) { showLogin(); return; }
+
+  if (!isTokenExpired(dpToken)) {
+    showAccount(dpEmail, dpPlan ?? 'free');
+    return;
+  }
+
+  // Token expirado — tenta renovar com o refresh token antes de exigir
+  // login novamente.
+  if (dpRefreshToken) {
+    const refreshed = await refreshSession(dpRefreshToken);
+    if (refreshed) {
+      await chrome.storage.local.set({
+        dpToken: refreshed.access_token,
+        dpRefreshToken: refreshed.refresh_token ?? dpRefreshToken,
+      });
       showAccount(dpEmail, dpPlan ?? 'free');
       return;
     }
+  }
 
-    // Token expirado — tenta renovar com o refresh token antes de exigir
-    // login novamente.
-    if (dpRefreshToken) {
-      const refreshed = await refreshSession(dpRefreshToken);
-      if (refreshed) {
-        await chrome.storage.local.set({
-          dpToken: refreshed.access_token,
-          dpRefreshToken: refreshed.refresh_token ?? dpRefreshToken,
-        });
-        showAccount(dpEmail, dpPlan ?? 'free');
-        return;
-      }
-    }
-
-    chrome.storage.local.remove(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'], showLogin);
-  },
-);
+  await chrome.storage.local.remove(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan']);
+  showLogin();
+})();
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
   chrome.storage.local.remove(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'], showLogin);

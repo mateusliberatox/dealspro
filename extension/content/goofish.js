@@ -244,6 +244,9 @@
     if (++attempts > 20) clearInterval(interval);
   }, 700);
 
-  new MutationObserver(() => { convertPrices(); enhanceCards(); })
+  // Debounced: scroll infinito dispara o callback do MutationObserver a cada
+  // item inserido — agrupa em uma única passada por janela de 200ms.
+  const onMutate = window.__dp.debounce(() => { convertPrices(); enhanceCards(); }, 200);
+  new MutationObserver(onMutate)
     .observe(document.body, { childList: true, subtree: true });
 })();

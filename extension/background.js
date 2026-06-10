@@ -78,9 +78,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     fetch(`${DEALSPRO_URL}/api/extension/product?itemid=${msg.itemid}`, {
       signal: AbortSignal.timeout(8_000),
     })
-      .then((r) => r.json())
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch(() => sendResponse({ ok: false }));
+      .then(async (r) => sendResponse({ ok: r.ok, data: await r.json() }))
+      .catch(() => sendResponse({ ok: false, error: 'network' }));
     return true;
   }
 
@@ -88,9 +87,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     fetch(`${DEALSPRO_URL}/api/extension/seller?name=${encodeURIComponent(msg.name)}`, {
       signal: AbortSignal.timeout(8_000),
     })
-      .then((r) => r.json())
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch(() => sendResponse({ ok: false }));
+      .then(async (r) => sendResponse({ ok: r.ok, data: await r.json() }))
+      .catch(() => sendResponse({ ok: false, error: 'network' }));
     return true;
   }
 
@@ -122,8 +120,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
         if (res.status === 401) { sendResponse({ ok: false, error: 'not_logged_in' }); return; }
 
-        const data = await res.json();
-        sendResponse({ ok: true, data });
+        const data = await res.json().catch(() => null);
+        // Antes, qualquer resposta (mesmo 400/500) virava `ok: true` e o
+        // popup mostrava "Alerta criado!" mesmo quando a API recusou o
+        // pedido (ex.: alerta duplicado, payload inválido).
+        sendResponse({ ok: res.ok, data });
       } catch {
         sendResponse({ ok: false, error: 'network' });
       }
