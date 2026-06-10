@@ -250,6 +250,15 @@ document.querySelectorAll('.nav-btn[data-page]').forEach((btn) => {
 
 document.getElementById('ordersRefreshBtn').addEventListener('click', loadOrders);
 
+// Escapa caracteres HTML especiais antes de interpolar strings vindas da API
+// (description/lastEvent podem conter texto livre — sem isso, um valor como
+// "<img src=x onerror=...>" seria executado dentro do innerHTML do popup).
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 async function loadOrders() {
   const wrap = document.getElementById('ordersWrap');
   wrap.innerHTML = '<p style="font-size:11px;color:var(--text3);text-align:center;padding:20px 0">Carregando…</p>';
@@ -281,11 +290,11 @@ async function loadOrders() {
     wrap.innerHTML = orders.map((o) => `
       <div style="padding:9px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-          <span style="font-size:11px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.description}</span>
-          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--accent-bg);color:var(--accent);white-space:nowrap;flex-shrink:0">${o.statusLabel}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(o.description)}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--accent-bg);color:var(--accent);white-space:nowrap;flex-shrink:0">${escapeHtml(o.statusLabel)}</span>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">${o.code}</div>
-        ${o.lastEvent ? `<div style="font-size:10px;color:var(--text2);margin-top:4px">↳ ${o.lastEvent}</div>` : ''}
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">${escapeHtml(o.code)}</div>
+        ${o.lastEvent ? `<div style="font-size:10px;color:var(--text2);margin-top:4px">↳ ${escapeHtml(o.lastEvent)}</div>` : ''}
       </div>
     `).join('');
   } catch {
@@ -336,6 +345,10 @@ function updatePreview() {
   const TAX_THRESH_USD = 50;
   // Produto fictício de R$ 150 para mostrar exemplo
   const prodBrl = 150;
+  // 5.8 é uma aproximação fixa do câmbio USD→BRL, usada só para estimar se o
+  // produto-exemplo passaria do limiar de imposto. Independente das taxas
+  // CNY→USD aproximadas usadas em goofish.js (cny*0.14) e cn-common.js
+  // (1/7.15) — aqui o ponto de partida já é BRL, não CNY.
   const prodUsd = prodBrl / 5.8;
   const hasTax  = prodUsd > TAX_THRESH_USD;
   const taxBrl  = hasTax ? prodBrl * 0.6 : 0;
@@ -361,7 +374,7 @@ function updatePreview() {
 
 // Carrega configuração salva
 chrome.storage.local.get('dpShipping', ({ dpShipping }) => {
-  const cfg = dpShipping ?? { agent: 'cssbuy', method: 'Economy (E-Packet BR)', weightG: 500, customBrl: 80 };
+  const cfg = dpShipping ?? { agent: 'cssbuy', method: 'E-Packet BR', weightG: 500, customBrl: 80 };
   agentSel.value  = cfg.agent  ?? 'cssbuy';
   weightSel.value = cfg.weightG ?? 500;
   customInp.value = cfg.customBrl ?? 80;
