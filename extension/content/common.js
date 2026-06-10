@@ -102,12 +102,6 @@ chrome.storage.local.get('dpModules', ({ dpModules }) => {
 
 // ── MutationObserver helper ───────────────────────────────────────────────────
 
-window.__dp.observe = (selector, callback, root = document.body) => {
-  const run = () => document.querySelectorAll(selector).forEach(callback);
-  run();
-  new MutationObserver(run).observe(root, { childList: true, subtree: true });
-};
-
 // Agrupa chamadas em rajada (ex.: MutationObserver disparando a cada item
 // inserido em scroll infinito) numa só, `wait`ms depois da última mutação.
 window.__dp.debounce = (fn, wait = 200) => {
