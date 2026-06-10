@@ -19,4 +19,9 @@ ENV SCRAPE_MAX_CATEGORIES=15
 ENV SCRAPE_PAGES=1
 ENV FAST_CATEGORY_IDS=18,11
 
+# Limita o heap V8 do processo Node principal — sem isso o heap cresce sem
+# pressão de GC até bem além de 1GB em processos longos, inflando o uso de
+# RAM (e custo) no Railway de forma contínua e sem releases periódicos.
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 CMD ["node", "dist/entry/start-monitor.js"]
