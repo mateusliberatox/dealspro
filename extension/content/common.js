@@ -94,7 +94,7 @@ window.__dp.refreshBadges = () => {
 
 // ── Módulos habilitados ───────────────────────────────────────────────────────
 
-window.__dp.modulesEnabled = { converter: true, sizes: true, alerts: true };
+window.__dp.modulesEnabled = { converter: true, sizes: true, import: true, alerts: true };
 
 chrome.storage.local.get('dpModules', ({ dpModules }) => {
   if (dpModules) window.__dp.modulesEnabled = { ...window.__dp.modulesEnabled, ...dpModules };

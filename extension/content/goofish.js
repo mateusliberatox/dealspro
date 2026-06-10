@@ -106,6 +106,9 @@
   // ── Painel de estimativa na página do produto ─────────────────────────────────
 
   function injectCostPanel() {
+    // Antes, este painel era injetado independente do toggle "Estimativa de
+    // importação" no popup — o módulo `import` não tinha nenhum efeito.
+    if (!window.__dp.modulesEnabled.import) return;
     if (document.querySelector('.dp-import-panel')) return;
 
     const SELECTORS = ['[class*="price"]','[class*="Price"]','[class*="amount"]'];

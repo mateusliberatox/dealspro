@@ -88,6 +88,20 @@ const AGENTS = {
       'DHL Express':           { base: 112, perKg: 70,  minKg: 0.5 },
     },
   },
+  // Um dos agentes mais usados pela comunidade BR atualmente (junto com
+  // CSBuy/Pandabuy). Valores aproximados — Hoobuy não publica uma
+  // calculadora pública detalhada por método como os demais agentes;
+  // ajustar quando houver dados mais precisos.
+  hoobuy: {
+    name: 'Hoobuy', url: 'https://hoobuy.com/',
+    methods: {
+      'Linha Padrão':          { base: 27,  perKg: 19,  minKg: 0.1 },
+      'Linha Brasil':          { base: 34,  perKg: 21,  minKg: 0.1 },
+      'YunExpress':            { base: 46,  perKg: 30,  minKg: 0.1 },
+      'EMS':                   { base: 70,  perKg: 47,  minKg: 0.1 },
+      'DHL Express':           { base: 118, perKg: 73,  minKg: 0.5 },
+    },
+  },
   custom: {
     name: 'Personalizado', url: '',
     methods: { 'Personalizado': { base: 0, perKg: 0, minKg: 0 } },
@@ -304,12 +318,14 @@ async function loadOrders() {
 
 // ── Configurações de frete ────────────────────────────────────────────────────
 
-const agentSel  = document.getElementById('agentSelect');
-const methodSel = document.getElementById('methodSelect');
-const weightSel = document.getElementById('weightSelect');
-const customGrp = document.getElementById('customGroup');
-const customInp = document.getElementById('customFreight');
-const calcLink  = document.getElementById('agentCalcLink');
+const agentSel    = document.getElementById('agentSelect');
+const methodSel   = document.getElementById('methodSelect');
+const weightInp   = document.getElementById('weightInput');
+const weightPresetsEl = document.getElementById('weightPresets');
+const customGrp   = document.getElementById('customGroup');
+const customInp   = document.getElementById('customFreight');
+const customPer100gInp = document.getElementById('customPer100g');
+const calcLink    = document.getElementById('agentCalcLink');
 
 function buildMethodOptions(agentKey) {
   const agent = AGENTS[agentKey];
@@ -326,6 +342,14 @@ function buildMethodOptions(agentKey) {
 
 function calcFreight(agentKey, methodName, weightGrams) {
   if (agentKey === 'custom') {
+    // Se o usuário preencheu "Valor por 100g", o frete é proporcional ao
+    // peso do pacote — útil quando o valor fixo de referência está
+    // desatualizado em relação à tarifa real do agente.
+    const per100g = parseFloat(customPer100gInp?.value);
+    if (per100g > 0) {
+      const brl = parseFloat(((weightGrams / 100) * per100g).toFixed(2));
+      return { cny: null, brl };
+    }
     const val = parseFloat(customInp.value) || 80;
     return { cny: null, brl: val };
   }
@@ -336,10 +360,19 @@ function calcFreight(agentKey, methodName, weightGrams) {
   return { cny: Math.round(cny), brl: parseFloat((cny * currentRate).toFixed(2)) };
 }
 
+// Marca o botão de peso pré-definido correspondente ao valor atual de
+// weightInp (se houver um exatamente igual) e desmarca os demais.
+function syncWeightPresets() {
+  const grams = parseInt(weightInp.value) || 0;
+  weightPresetsEl.querySelectorAll('.weight-preset').forEach((btn) => {
+    btn.classList.toggle('active', parseInt(btn.dataset.grams) === grams);
+  });
+}
+
 function updatePreview() {
   const agentKey  = agentSel.value;
   const method    = methodSel.value;
-  const weightG   = parseInt(weightSel.value);
+  const weightG   = Math.max(10, parseInt(weightInp.value) || 500);
   const freight   = calcFreight(agentKey, method, weightG);
 
   const TAX_THRESH_USD = 50;
@@ -367,29 +400,44 @@ function updatePreview() {
 
   // Salva configuração + valor calculado para uso nos content scripts
   chrome.storage.local.set({
-    dpShipping:   { agent: agentKey, method, weightG, customBrl: parseFloat(customInp.value) || 80 },
+    dpShipping: {
+      agent: agentKey, method, weightG,
+      customBrl: parseFloat(customInp.value) || 80,
+      customPer100g: parseFloat(customPer100gInp?.value) || 0,
+    },
     dpShippingBrl: freight.brl,
   });
 }
 
 // Carrega configuração salva
 chrome.storage.local.get('dpShipping', ({ dpShipping }) => {
-  const cfg = dpShipping ?? { agent: 'cssbuy', method: 'E-Packet BR', weightG: 500, customBrl: 80 };
+  const cfg = dpShipping ?? { agent: 'cssbuy', method: 'E-Packet BR', weightG: 500, customBrl: 80, customPer100g: 0 };
   agentSel.value  = cfg.agent  ?? 'cssbuy';
-  weightSel.value = cfg.weightG ?? 500;
+  weightInp.value = cfg.weightG ?? 500;
   customInp.value = cfg.customBrl ?? 80;
+  if (customPer100gInp) customPer100gInp.value = cfg.customPer100g || '';
   buildMethodOptions(agentSel.value);
   // Seleciona método salvo
   for (const opt of methodSel.options) {
     if (opt.value === cfg.method) { opt.selected = true; break; }
   }
+  syncWeightPresets();
   updatePreview();
 });
 
 agentSel.addEventListener('change',  () => { buildMethodOptions(agentSel.value); updatePreview(); });
 methodSel.addEventListener('change', updatePreview);
-weightSel.addEventListener('change', updatePreview);
+weightInp.addEventListener('input',  () => { syncWeightPresets(); updatePreview(); });
 customInp.addEventListener('input',  updatePreview);
+customPer100gInp?.addEventListener('input', updatePreview);
+
+weightPresetsEl.querySelectorAll('.weight-preset').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    weightInp.value = btn.dataset.grams;
+    syncWeightPresets();
+    updatePreview();
+  });
+});
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 

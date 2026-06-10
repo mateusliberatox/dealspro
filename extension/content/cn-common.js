@@ -2,7 +2,7 @@
 // Injeta conversão BRL nos preços e painel de estimativa de importação.
 
 (function () {
-  if (!window.__dp?.modulesEnabled?.converter) return;
+  if (!window.__dp) return;
 
   // Casa um texto que é EXATAMENTE "¥123.45" (ou "￥1,234"): símbolo + número,
   // nada mais. Em sites como o 1688, o preço costuma ser renderizado como
@@ -50,6 +50,12 @@
   ].join(',');
 
   function scanPrices() {
+    // Checagem feita aqui (e não no topo do arquivo) porque
+    // window.__dp.modulesEnabled só reflete a config salva pelo usuário
+    // depois que a leitura assíncrona de chrome.storage.local em common.js
+    // resolve — no topo do IIFE ainda valeria o default.
+    if (!window.__dp.modulesEnabled.converter) return;
+
     document.querySelectorAll(PRICE_SELECTORS).forEach((el) => {
       const text = el.textContent.trim();
       if (!PRICE_FULL_RE.test(text)) return;
@@ -104,6 +110,8 @@
 
   // Injeta painel no primeiro preço de destaque após 1s
   setTimeout(() => {
+    if (!window.__dp.modulesEnabled.import) return;
+
     const els = document.querySelectorAll(PRICE_SELECTORS);
     for (const el of els) {
       const text = el.textContent.trim();

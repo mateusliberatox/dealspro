@@ -85,6 +85,7 @@
     .card-icon  { font-size: 17px; margin-bottom: 4px; display: block; }
     .card-label { font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.3; }
     .card-site  { font-size: 9px; color: var(--text3); margin-top: 2px; }
+    .card-desc  { font-size: 8px; color: var(--text3); margin-top: 3px; line-height: 1.3; }
     .badge {
       position: absolute; top: 6px; right: 6px; font-size: 8px; font-weight: 800;
       padding: 2px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em;
@@ -184,6 +185,17 @@
     .agent-link { font-size: 10px; color: var(--accent); text-decoration: none; display: block; margin-top: 7px; text-align: right; }
     .agent-link:hover { text-decoration: underline; }
     .setting-note { font-size: 10px; color: var(--text3); margin-top: 5px; }
+    .weight-input-row { display: flex; align-items: center; gap: 8px; }
+    .weight-input-row input { flex: 1; }
+    .weight-unit { font-size: 11px; color: var(--text3); font-weight: 600; }
+    .weight-presets { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+    .weight-preset {
+      flex: 1; min-width: 38px; padding: 5px 4px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg2); color: var(--text2); font-size: 10px; cursor: pointer;
+      text-align: center; transition: all 0.15s;
+    }
+    .weight-preset:hover { border-color: var(--accent-border); }
+    .weight-preset.active { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); font-weight: 700; }
 
     /* ── Footer / Tab bar ── */
     .footer {
@@ -248,25 +260,26 @@
   <div class="page active" id="page-features">
     <div class="section-title">Funcionalidades</div>
     <div class="cards-grid">
-      <div class="feature-card active" id="card-converter" data-mod="converter">
+      <div class="feature-card active" id="card-converter" data-mod="converter" title="Mostra um valor em R$ ao lado de cada preço em ¥ (yuan) nas páginas dos sites chineses.">
         <span class="badge badge-free">FREE</span>
         <span class="card-icon">💱</span>
         <div class="card-label">Preços em BRL</div>
-        <div class="card-site">Taobao · Goofish · 1688</div>
+        <div class="card-site">Taobao · Goofish · 1688 · Weidian</div>
       </div>
-      <div class="feature-card active" id="card-sizes" data-mod="sizes">
+      <div class="feature-card active" id="card-sizes" data-mod="sizes" title="Adiciona uma tabela de conversão de tamanhos chineses (roupas e calçados) para o equivalente BR na página do produto.">
         <span class="badge badge-free">FREE</span>
         <span class="card-icon">📏</span>
         <div class="card-label">Tamanhos CN→BR</div>
-        <div class="card-site">Taobao · Weidian</div>
+        <div class="card-site">Taobao</div>
       </div>
-      <div class="feature-card active" id="card-import" data-mod="import">
+      <div class="feature-card active" id="card-import" data-mod="import" title="Mostra um painel na página do produto com produto + frete + imposto somados, dando o custo total estimado de importar aquele item.">
         <span class="badge badge-free">FREE</span>
         <span class="card-icon">📦</span>
-        <div class="card-label">Estimativa de importação</div>
-        <div class="card-site">Goofish · 1688</div>
+        <div class="card-label">Custo total estimado</div>
+        <div class="card-site">Goofish · 1688 · Weidian</div>
+        <div class="card-desc">Painel com produto + frete + imposto na página do item</div>
       </div>
-      <div class="feature-card active" id="card-alerts" data-mod="alerts">
+      <div class="feature-card active" id="card-alerts" data-mod="alerts" title="Recebe no Discord alertas de novos cupons e promoções do CSSDeals.">
         <span class="badge badge-premium">PREMIUM</span>
         <span class="card-icon">🔔</span>
         <div class="card-label">Alertas CSSDeals</div>
@@ -404,6 +417,7 @@
           <option value="wegobuy">Wegobuy</option>
           <option value="hagobuy">Hagobuy</option>
           <option value="allchinabuy">AllChinaBuy</option>
+          <option value="hoobuy">Hoobuy</option>
           <option value="custom">Personalizado</option>
         </select>
       </div>
@@ -414,13 +428,19 @@
       </div>
 
       <div class="setting-group">
-        <div class="setting-label">Peso estimado do pacote</div>
-        <select class="setting-select" id="weightSelect">
-          <option value="200">Leve — até 200g (camiseta, acessório)</option>
-          <option value="500" selected>Médio — ~500g (tênis leve, 2 peças)</option>
-          <option value="1000">Pesado — ~1kg (tênis, 3-4 peças)</option>
-          <option value="2000">Muito pesado — ~2kg (6+ peças)</option>
-        </select>
+        <div class="setting-label">Peso do pacote</div>
+        <div class="weight-input-row">
+          <input class="setting-input" type="number" id="weightInput" min="10" max="50000" step="10" value="500" />
+          <span class="weight-unit">gramas</span>
+        </div>
+        <div class="weight-presets" id="weightPresets">
+          <div class="weight-preset" data-grams="200">200g</div>
+          <div class="weight-preset active" data-grams="500">500g</div>
+          <div class="weight-preset" data-grams="1000">1kg</div>
+          <div class="weight-preset" data-grams="2000">2kg</div>
+          <div class="weight-preset" data-grams="3000">3kg</div>
+        </div>
+        <p class="setting-note">Edite o peso real do pacote — o valor por kg é recalculado automaticamente conforme a tarifa do agente/método escolhido.</p>
       </div>
 
       <!-- Preview de custo -->
@@ -437,6 +457,9 @@
       <div id="customGroup" style="display:none;margin-top:10px">
         <div class="setting-label">Custo de frete fixo (R$)</div>
         <input class="setting-input" type="number" id="customFreight" placeholder="Ex: 120" min="0" max="2000" />
+        <div class="setting-label" style="margin-top:8px">Valor por 100g (R$) — opcional</div>
+        <input class="setting-input" type="number" id="customPer100g" placeholder="Ex: 8" min="0" max="500" step="0.5" />
+        <p class="setting-note">Se preenchido, o frete é calculado proporcionalmente ao peso do pacote (R$ por 100g × peso), em vez do valor fixo acima. Útil como referência rápida quando os valores do site do agente demoram para atualizar.</p>
       </div>
 
     </div>
