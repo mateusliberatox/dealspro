@@ -5,11 +5,27 @@ window.__dp = window.__dp || {};
 
 // ── Cotação CNY→BRL ──────────────────────────────────────────────────────────
 
-window.__dp.rate       = 0.82; // fallback enquanto carrega
-window.__dp.freightBrl = 80;   // fallback de frete (R$)
+// NOTA: 0.82 é o câmbio de fallback CNY→BRL usado em 3 lugares (este arquivo,
+// background.js e popup/popup.js) porque content scripts/service worker/popup
+// rodam em contextos isolados e não compartilham módulos. Se o câmbio
+// "fallback" mudar, atualize os 3 — todos têm este mesmo comentário.
+window.__dp.rate = 0.82; // fallback enquanto carrega o câmbio real (GET_RATE)
+
+// Fallback de frete (R$) até o usuário configurar/abrir "Config": equivalente
+// ao agente padrão (CSBuy, E-Packet BR, ~500g) calculado em popup.js
+// → AGENTS.cssbuy: 28 + 22*(0.5-0.1) = 36.8 CNY × 0.82 ≈ R$ 30.
+window.__dp.freightBrl = 30;
 
 chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => {
-  if (res?.rate) window.__dp.rate = res.rate;
+  if (res?.rate) {
+    window.__dp.rate = res.rate;
+    // Recalcula o fallback de frete com o câmbio real, caso o usuário ainda
+    // não tenha configurado/aberto "Config" (dpShippingBrl não definido).
+    chrome.storage.local.get(['dpShipping', 'dpShippingBrl'], ({ dpShipping, dpShippingBrl }) => {
+      if (dpShipping || dpShippingBrl) return;
+      window.__dp.freightBrl = parseFloat((36.8 * window.__dp.rate).toFixed(2));
+    });
+  }
 });
 
 // Carrega configuração de frete salva pelo usuário

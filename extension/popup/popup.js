@@ -96,6 +96,9 @@ const AGENTS = {
 
 // ── Cotação ──────────────────────────────────────────────────────────────────
 
+// NOTA: 0.82 é o câmbio de fallback CNY→BRL — duplicado em
+// content/common.js e background.js (contextos isolados, sem módulos
+// compartilhados). Mantenha os 3 sincronizados se este valor mudar.
 let currentRate = 0.82;
 chrome.storage.local.get(['cnyToBrl', 'rateUpdatedAt'], ({ cnyToBrl }) => {
   const chip = document.getElementById('rateChip');
@@ -392,7 +395,7 @@ function showLogin() {
   dot.textContent = 'Sem login'; dot.className = 'status-dot disconnected';
 }
 
-async function finishLogin(accessToken) {
+async function finishLogin(accessToken, refreshToken) {
   const errEl = document.getElementById('loginError');
   try {
     const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -405,11 +408,35 @@ async function finishLogin(accessToken) {
       { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${accessToken}` } },
     );
     const plan = (await profRes.json())?.[0]?.plan ?? 'free';
-    await chrome.storage.local.set({ dpToken: accessToken, dpEmail: user.email, dpPlan: plan });
+    await chrome.storage.local.set({
+      dpToken: accessToken,
+      dpRefreshToken: refreshToken ?? null,
+      dpEmail: user.email,
+      dpPlan: plan,
+    });
     showAccount(user.email, plan);
   } catch {
     errEl.textContent = 'Erro ao obter dados. Tente novamente.';
     errEl.style.display = 'block';
+  }
+}
+
+// Troca um refresh token por um novo access token via Supabase Auth.
+// Retorna { access_token, refresh_token, ... } em sucesso, ou null se o
+// refresh token também estiver inválido/expirado (força novo login).
+async function refreshSession(refreshToken) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON },
+      body:    JSON.stringify({ refresh_token: refreshToken }),
+      signal:  AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.access_token ? data : null;
+  } catch {
+    return null;
   }
 }
 
@@ -431,9 +458,10 @@ document.getElementById('discordBtn').addEventListener('click', () => {
       const url   = new URL(responseUrl);
       const hash  = new URLSearchParams(url.hash.slice(1));
       const query = new URLSearchParams(url.search);
-      const token = hash.get('access_token') || query.get('access_token');
+      const token        = hash.get('access_token') || query.get('access_token');
+      const refreshToken = hash.get('refresh_token') || query.get('refresh_token');
       if (!token) throw new Error('Token não encontrado');
-      await finishLogin(token);
+      await finishLogin(token, refreshToken);
     } catch { errEl.textContent = 'Erro no login. Tente novamente.'; errEl.style.display = 'block'; }
   });
 });
@@ -463,7 +491,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (!res.ok) { errEl.textContent = data.error_description ?? 'E-mail ou senha incorretos.'; errEl.style.display = 'block'; return; }
-    await finishLogin(data.access_token);
+    await finishLogin(data.access_token, data.refresh_token);
   } catch { errEl.textContent = 'Erro de conexão.'; errEl.style.display = 'block'; }
   finally { btn.textContent = 'Entrar'; btn.disabled = false; }
 });
@@ -477,18 +505,34 @@ function isTokenExpired(token) {
   } catch { return true; }
 }
 
-chrome.storage.local.get(['dpToken', 'dpEmail', 'dpPlan'], ({ dpToken, dpEmail, dpPlan }) => {
-  if (dpToken && dpEmail) {
-    if (isTokenExpired(dpToken)) {
-      chrome.storage.local.remove(['dpToken', 'dpEmail', 'dpPlan'], showLogin);
-    } else {
+chrome.storage.local.get(
+  ['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'],
+  async ({ dpToken, dpRefreshToken, dpEmail, dpPlan }) => {
+    if (!dpToken || !dpEmail) { showLogin(); return; }
+
+    if (!isTokenExpired(dpToken)) {
       showAccount(dpEmail, dpPlan ?? 'free');
+      return;
     }
-  } else {
-    showLogin();
-  }
-});
+
+    // Token expirado — tenta renovar com o refresh token antes de exigir
+    // login novamente.
+    if (dpRefreshToken) {
+      const refreshed = await refreshSession(dpRefreshToken);
+      if (refreshed) {
+        await chrome.storage.local.set({
+          dpToken: refreshed.access_token,
+          dpRefreshToken: refreshed.refresh_token ?? dpRefreshToken,
+        });
+        showAccount(dpEmail, dpPlan ?? 'free');
+        return;
+      }
+    }
+
+    chrome.storage.local.remove(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'], showLogin);
+  },
+);
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
-  chrome.storage.local.remove(['dpToken', 'dpEmail', 'dpPlan'], showLogin);
+  chrome.storage.local.remove(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'], showLogin);
 });

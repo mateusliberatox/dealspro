@@ -4,18 +4,29 @@
 (function () {
   if (!window.__dp?.modulesEnabled?.converter) return;
 
-  const YUAN_RE = /[¥￥]\s*([\d,]+(?:\.\d+)?)/g;
+  // Casa um texto que é EXATAMENTE "¥123.45" (ou "￥1,234"): símbolo + número,
+  // nada mais. Em sites como o 1688, o preço costuma ser renderizado como
+  // <div class="price--XXX">¥ 189<span class="priceText--YYY">¥ 189</span></div>
+  // — tanto o wrapper quanto o filho batem no PRICE_SELECTORS e têm o mesmo
+  // textContent, então sem a checagem de "filho candidato" os dois geravam
+  // badges duplicados.
+  const PRICE_FULL_RE = /^[¥￥]\s*[\d,]+(?:\.\d+)?$/;
+
+  function parsePriceNumber(text) {
+    const match = text.match(/[\d,]+(?:\.\d+)?/);
+    if (!match) return null;
+    // Remove TODAS as vírgulas (separador de milhar) — não apenas a primeira,
+    // senão "1,234.56" virava "1.234.56" → parseFloat = 1.234 (errado).
+    const cny = parseFloat(match[0].replace(/,/g, ''));
+    return (!isNaN(cny) && cny > 0) ? cny : null;
+  }
 
   function convertPriceEl(el) {
     if (el.dataset.dpDone) return;
     el.dataset.dpDone = '1';
 
-    const text = el.textContent.trim();
-    const match = text.match(/[\d,]+(?:\.\d+)?/);
-    if (!match) return;
-
-    const cny = parseFloat(match[0].replace(',', '.'));
-    if (isNaN(cny) || cny <= 0) return;
+    const cny = parsePriceNumber(el.textContent.trim());
+    if (!cny) return;
 
     const brl = window.__dp.cnyToBrl(cny);
     if (!brl) return;
@@ -40,9 +51,16 @@
   function scanPrices() {
     document.querySelectorAll(PRICE_SELECTORS).forEach((el) => {
       const text = el.textContent.trim();
-      if (/[¥￥]/.test(text) || /^\d{1,6}(\.\d{1,2})?$/.test(text.replace(/,/g, ''))) {
-        convertPriceEl(el);
-      }
+      if (!PRICE_FULL_RE.test(text)) return;
+
+      // Se um filho também é candidato (mesmo seletor) e tem o mesmo texto,
+      // deixa o filho — mais específico — ser processado e pula este wrapper.
+      const childCandidate = [...el.children].some((c) =>
+        c.matches(PRICE_SELECTORS) && c.textContent.trim() === text,
+      );
+      if (childCandidate) return;
+
+      convertPriceEl(el);
     });
   }
 
@@ -57,7 +75,7 @@
     if (priceEl.dataset.dpPanel) return;
     priceEl.dataset.dpPanel = '1';
 
-    const FRETE_BRL = window.__dp.freightBrl ?? 80; // atualizado por common.js
+    const FRETE_BRL = window.__dp.freightBrl ?? 30; // atualizado por common.js
     const TAX_THRESHOLD_USD = 50;
     const CNY_TO_USD = 1 / 7.15; // taxa fixa aproximada CNY→USD
 
@@ -86,10 +104,17 @@
     const els = document.querySelectorAll(PRICE_SELECTORS);
     for (const el of els) {
       const text = el.textContent.trim();
-      const m    = text.match(/[\d,]+(?:\.\d+)?/);
-      if (!m) continue;
-      const cny = parseFloat(m[0].replace(',', '.'));
-      if (cny > 5 && cny < 50000) {
+      if (!PRICE_FULL_RE.test(text)) continue;
+
+      // Mesma checagem de dedup do scanPrices(): pula wrappers cujo filho
+      // tem o mesmo texto (o filho será avaliado em outra iteração).
+      const childCandidate = [...el.children].some((c) =>
+        c.matches(PRICE_SELECTORS) && c.textContent.trim() === text,
+      );
+      if (childCandidate) continue;
+
+      const cny = parsePriceNumber(text);
+      if (cny && cny > 5 && cny < 50000) {
         injectImportPanel(el, cny);
         break;
       }

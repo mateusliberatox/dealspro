@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DealsPro",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ferramentas para compras em sites chineses — conversor CNY→BRL, guia de tamanhos BR, alertas CSSDeals.",
 
   "permissions": ["storage", "activeTab", "identity"],

@@ -40,8 +40,13 @@
         </a>
       `;
 
-      // Injeta após o título ou preço
+      // Injeta após o título ou preço.
+      // `.mn-single-title`/`.mn-single-price` são os seletores atuais da
+      // página de produto do CSSDeals; os demais ficam como fallback caso o
+      // layout mude novamente.
       const anchor =
+        document.querySelector('.mn-single-title') ||
+        document.querySelector('.mn-single-price') ||
         document.querySelector('.mn-product-detail h4') ||
         document.querySelector('.mn-product-detail h5') ||
         document.querySelector('.mn-price') ||

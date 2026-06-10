@@ -5,28 +5,32 @@
 
   // ── Conversão de preços ──────────────────────────────────────────────────────
 
-  function directText(el) {
-    let t = '';
-    for (const node of el.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE) t += node.textContent;
-    }
-    return t.trim();
-  }
+  // Casa um texto que é EXATAMENTE "¥123.45" (símbolo + número, nada mais).
+  // Mesmo padrão usado em goofish.js / cn-common.js: o preço pode estar todo
+  // num nó de texto direto OU dividido em spans (símbolo/número separados),
+  // então comparamos o textContent inteiro do elemento contra o regex em vez
+  // de só os nós de texto diretos.
+  const PRICE_FULL_RE = /^[¥￥]\s*[\d,]+(?:\.\d+)?$/;
 
   function convertPrices() {
     if (!window.__dp.modulesEnabled.converter) return;
 
-    const candidates = document.querySelectorAll(
-      '[class*="price"], [class*="Price"], [class*="priceText"], [class*="priceWrap"], em, strong'
-    );
+    const SELECTORS = '[class*="price"], [class*="Price"], [class*="priceText"], [class*="priceWrap"], em, strong';
 
-    candidates.forEach((el) => {
+    document.querySelectorAll(SELECTORS).forEach((el) => {
       if (el.dataset.dpDone) return;
       if (el.nextElementSibling?.classList.contains('dp-brl-badge')) return;
 
-      // Usa apenas texto direto — evita herança de filhos gerando duplicatas
-      const text = directText(el);
-      if (!/[¥￥]/.test(text)) return;
+      const text = el.textContent.trim();
+      if (!PRICE_FULL_RE.test(text)) return;
+
+      // Se um filho também é candidato e tem o mesmo texto, deixa o filho —
+      // mais específico — ser processado e pula este wrapper (evita badge
+      // duplicado no pai E no filho).
+      const childCandidate = [...el.children].some((c) =>
+        c.matches(SELECTORS) && c.textContent.trim() === text,
+      );
+      if (childCandidate) return;
 
       const num = parseFloat(text.replace(/[^0-9.]/g, ''));
       if (isNaN(num) || num < 1 || num > 999999) return;

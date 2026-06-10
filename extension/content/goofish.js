@@ -3,21 +3,19 @@
 (function () {
   if (!window.__dp) return;
 
-  // Retorna apenas o texto direto do nó (sem herdar de filhos)
-  function directText(el) {
-    let t = '';
-    for (const node of el.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE) t += node.textContent;
-    }
-    return t.trim();
-  }
-
   // Extrai número válido de um texto (¥ ou só número)
   function extractCny(text) {
     const clean = text.replace(/[^\d.]/g, '');
     const num   = parseFloat(clean);
     return (!isNaN(num) && num >= 1 && num <= 999999) ? num : null;
   }
+
+  // Casa um texto que é EXATAMENTE "¥123.45" (símbolo + número, nada mais).
+  // O Goofish costuma renderizar o preço como
+  // <div class="...price..."><span class="...symbol">¥</span><span class="...number">50</span></div>
+  // — o textContent do wrapper bate com este regex, mas nem o span do símbolo
+  // (sem dígitos) nem o do número (sem ¥) batem isoladamente.
+  const PRICE_FULL_RE = /^[¥￥]\s*[\d,]+(?:\.\d+)?$/;
 
   // ── Conversão de preços ──────────────────────────────────────────────────────
 
@@ -28,17 +26,23 @@
       '[class*="price"]', '[class*="Price"]',
       '[class*="amount"]', '[class*="Amount"]',
     ];
+    const selectorStr = SELECTORS.join(',');
 
-    document.querySelectorAll(SELECTORS.join(',')).forEach((el) => {
+    document.querySelectorAll(selectorStr).forEach((el) => {
       // Já processado ou já tem badge ao lado
       if (el.dataset.dpDone) return;
       if (el.nextElementSibling?.classList.contains('dp-brl-badge')) return;
 
-      // Usa apenas texto direto — ignora herança de filhos
-      const text = directText(el);
+      const text = el.textContent.trim();
+      if (!PRICE_FULL_RE.test(text)) return;
 
-      // Deve conter explicitamente ¥ ou ￥ no texto direto
-      if (!/[¥￥]/.test(text)) return;
+      // Se um filho também é candidato (ex.: span do número) e tem o mesmo
+      // valor, deixa o filho — mais específico — ser processado e pula este
+      // wrapper. Evita badge duplicado no pai E no filho.
+      const childCandidate = [...el.children].some((c) =>
+        c.matches(selectorStr) && PRICE_FULL_RE.test(c.textContent.trim()),
+      );
+      if (childCandidate) return;
 
       const cny = extractCny(text);
       if (!cny) return;
@@ -65,7 +69,17 @@
 
     cards.forEach((card) => {
       if (card.dataset.dpEnhanced) return;
+      // Marca como visto imediatamente — o seletor acima bate com ~25% dos
+      // elementos da página (incluindo wrappers/seções grandes), e em sites
+      // de scroll infinito o MutationObserver dispara o tempo todo. Marcar
+      // antes de qualquer trabalho garante que cada elemento seja inspecionado
+      // no máximo uma vez.
       card.dataset.dpEnhanced = '1';
+
+      // Contêineres com muitos filhos diretos costumam ser seções/listas
+      // inteiras, não um "card" individual — pula antes do textContent
+      // (que percorre toda a subárvore e é caro nesses casos).
+      if (card.children.length > 12) return;
 
       const text = card.textContent;
       for (const [key, cfg] of Object.entries(COND_MAP)) {
@@ -95,15 +109,23 @@
     if (document.querySelector('.dp-import-panel')) return;
 
     const SELECTORS = ['[class*="price"]','[class*="Price"]','[class*="amount"]'];
+    const selectorStr = SELECTORS.join(',');
     for (const sel of SELECTORS) {
       for (const el of document.querySelectorAll(sel)) {
-        const text = directText(el);
-        if (!/[¥￥]/.test(text)) continue;
+        const text = el.textContent.trim();
+        if (!PRICE_FULL_RE.test(text)) continue;
+
+        // Mesma checagem de convertPrices(): se um filho também bate com o
+        // padrão "¥123" e é candidato pelo seletor, deixa o filho ser usado.
+        const childCandidate = [...el.children].some((c) =>
+          c.matches(selectorStr) && PRICE_FULL_RE.test(c.textContent.trim()),
+        );
+        if (childCandidate) continue;
 
         const cny = extractCny(text);
         if (!cny || cny < 5) continue;
 
-        const FRETE   = window.__dp.freightBrl ?? 80;
+        const FRETE   = window.__dp.freightBrl ?? 30;
         const brl     = parseFloat(window.__dp.cnyToBrl(cny));
         const usdApprox = cny * 0.14;
         const hasTax  = usdApprox > 50;
@@ -143,10 +165,19 @@
   // ── Avaliações de sellers ─────────────────────────────────────────────────────
 
   function extractSellerName() {
+    // Mais específico primeiro: classes "...Name" são quase sempre o nome da
+    // loja/vendedor. Os genéricos "user"/"nick" ficam por último porque
+    // também batem em ícones de usuário/menu de navegação no topo da página
+    // e podiam acabar pegando o nome/avatar do PRÓPRIO usuário logado.
     const SELS = [
-      '[class*="seller"]', '[class*="Seller"]', '[class*="shop"]', '[class*="Shop"]',
-      '[class*="user"]',   '[class*="User"]',   '[class*="nick"]', '[class*="Nick"]',
-      '[class*="store"]',  '[class*="Store"]',
+      '[class*="shopName"]',  '[class*="ShopName"]',
+      '[class*="sellerName"]','[class*="SellerName"]',
+      '[class*="storeName"]', '[class*="StoreName"]',
+      '[class*="shop"]',  '[class*="Shop"]',
+      '[class*="seller"]','[class*="Seller"]',
+      '[class*="store"]', '[class*="Store"]',
+      '[class*="nick"]',  '[class*="Nick"]',
+      '[class*="user"]',  '[class*="User"]',
     ];
     for (const sel of SELS) {
       const el = document.querySelector(sel);
@@ -188,8 +219,14 @@
           : ''}
       `;
 
-      // Injeta próximo ao nome do seller
-      const anchor = document.querySelector('[class*="seller"],[class*="shop"],[class*="user"],[class*="nick"]');
+      // Injeta próximo ao nome do seller (mesma ordem de prioridade do
+      // extractSellerName — específico antes de genérico)
+      const anchor = document.querySelector(
+        '[class*="shopName"],[class*="ShopName"],[class*="sellerName"],[class*="SellerName"],' +
+        '[class*="storeName"],[class*="StoreName"],[class*="shop"],[class*="Shop"],' +
+        '[class*="seller"],[class*="Seller"],[class*="store"],[class*="Store"],' +
+        '[class*="nick"],[class*="Nick"],[class*="user"],[class*="User"]',
+      );
       if (anchor) anchor.insertAdjacentElement('afterend', badge);
     });
   }
