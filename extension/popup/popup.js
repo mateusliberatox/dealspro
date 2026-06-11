@@ -125,7 +125,7 @@ function renderRateChip(cnyToBrl, isManual) {
   }
 }
 
-chrome.storage.local.get(['cnyToBrl', 'rateUpdatedAt', 'rateIsManual'], ({ cnyToBrl, rateIsManual }) => {
+chrome.storage.local.get(['cnyToBrl', 'rateIsManual'], ({ cnyToBrl, rateIsManual }) => {
   renderRateChip(cnyToBrl, rateIsManual);
 });
 

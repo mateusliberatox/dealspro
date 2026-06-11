@@ -596,4 +596,3 @@ export async function getTrackingUpdates(codes: string[]): Promise<TrackingInfo[
 
 export function getActiveProvider(): Provider { return getProvider(); }
 export function trackingConfigured(): boolean  { return true; }
-export function hasApiTracking(): boolean      { return getProvider() !== 'correios'; }

@@ -4,7 +4,7 @@
   "version": "1.0.4",
   "description": "Ferramentas para compras em sites chineses — conversor CNY→BRL, guia de tamanhos BR, alertas CSSDeals.",
 
-  "permissions": ["storage", "identity"],
+  "permissions": ["storage", "identity", "alarms"],
   "host_permissions": [
     "*://*.taobao.com/*",
     "*://*.goofish.com/*",

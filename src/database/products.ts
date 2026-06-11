@@ -65,11 +65,6 @@ export async function mergeSizes(id: string | number, existingSizes: string[], n
   if (error) throw new Error(`Failed to merge sizes for id ${id}: ${error.message}`);
 }
 
-export async function updateCategoria(id: string | number, categoria: string): Promise<void> {
-  const { error } = await supabase.from(TABLE).update({ categoria }).eq('id', id);
-  if (error) throw new Error(`Failed to update categoria: ${error.message}`);
-}
-
 export async function deleteOldProducts(): Promise<number> {
   const cutoffUnavailable = new Date();
   cutoffUnavailable.setDate(cutoffUnavailable.getDate() - OLD_DAYS);
@@ -155,11 +150,4 @@ export async function syncAvailability(
   if (toRestore.length)         await supabase.from(TABLE).update({ disponivel: true }).in('id', toRestore);
 
   return { markedUnavailable: toMarkUnavailable.length, restored: toRestore.length, restoredIds: toRestore, lastSeenUpdated: seenStale.length };
-}
-
-export async function getLatestProducts(limit = 20): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from(TABLE).select('*').order('criado_em', { ascending: false }).limit(limit);
-  if (error) throw new Error(`Failed to fetch latest products: ${error.message}`);
-  return (data ?? []) as Product[];
 }

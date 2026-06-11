@@ -45,17 +45,6 @@ export interface UserAlert {
   created_at: string;
 }
 
-export interface NotificationLog {
-  id: string;
-  user_id: string;
-  product_id: number;
-  alert_id: string | null;
-  channel: string;
-  status: 'pending' | 'sent' | 'failed';
-  error: string | null;
-  created_at: string;
-}
-
 export const CATEGORIES = [
   'Todos',
   'Roupas',
