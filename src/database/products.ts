@@ -6,7 +6,7 @@ const OLD_DAYS           = 5;
 const OLD_DAYS_AVAILABLE = 30;
 const NOTIF_LOG_DAYS     = 60;
 
-interface HashEntry { id: string | number; sizes: string[]; cssdeals_item_id: string | bigint | number | null }
+interface HashEntry { id: string | number; sizes: string[]; cssdeals_item_id: string | null }
 interface SyncResult { markedUnavailable: number; restored: number; restoredIds: (string | number)[]; lastSeenUpdated?: number }
 
 export async function getExistingHashMap(): Promise<Map<string, HashEntry>> {
@@ -25,7 +25,7 @@ export async function getExistingHashMap(): Promise<Map<string, HashEntry>> {
     if (error) throw new Error(`Failed to fetch hashes: ${error.message}`);
     if (!data?.length) break;
 
-    for (const r of data as Array<{ id: string | number; hash: string; sizes?: string[]; cssdeals_item_id?: string | bigint | number | null }>) {
+    for (const r of data as Array<{ id: string | number; hash: string; sizes?: string[]; cssdeals_item_id?: string | null }>) {
       map.set(r.hash, { id: r.id, sizes: r.sizes ?? [], cssdeals_item_id: r.cssdeals_item_id ?? null });
     }
     if (data.length < PAGE) break;

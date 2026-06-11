@@ -13,7 +13,7 @@ export interface ScrapedProduct {
   imagem:           string;
   isSoldOut?:       boolean;
   sizes:            string[];
-  cssdeals_item_id: string | bigint | number | null;
+  cssdeals_item_id: string | null;
 }
 
 /** Full product shape after insertion / enrichment. */

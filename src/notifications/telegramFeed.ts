@@ -46,7 +46,7 @@ async function buildSentSet(userIds: string[], products: Product[], channel: str
     .or(conditions.join(','));
 
   const set = new Set<string>();
-  for (const l of (logs ?? []) as Array<{ user_id: string; product_id?: string | number; cssdeals_item_id?: number | bigint }>) {
+  for (const l of (logs ?? []) as Array<{ user_id: string; product_id?: string | number; cssdeals_item_id?: string | null }>) {
     if (l.cssdeals_item_id) set.add(`${l.user_id}:${l.cssdeals_item_id}`);
     if (l.product_id)       set.add(`${l.user_id}:pid${l.product_id}`);
   }

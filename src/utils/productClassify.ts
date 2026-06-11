@@ -1,6 +1,6 @@
 import type { ScrapedProduct } from '../types.js';
 
-type ItemId = string | number | bigint;
+type ItemId = string;
 interface ExistingEntry { id: string | number }
 interface PriceChange { item: ScrapedProduct; existingId: string | number }
 interface ClassifyResult { newItems: ScrapedProduct[]; priceChanged: PriceChange[] }

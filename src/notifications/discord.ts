@@ -24,7 +24,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function logSent(
   channel: string,
   productId: string | number | null | undefined,
-  itemId: string | bigint | number | null | undefined,
+  itemId: string | null | undefined,
   discordMessageId: string | null = null,
 ): Promise<void> {
   const { error } = await getDb().from('notification_logs').insert({
@@ -80,7 +80,7 @@ export async function sendToDiscord(products: Product[]): Promise<void> {
       .select('product_id, cssdeals_item_id')
       .eq('channel', 'discord_premium')
       .or(conditions.join(','));
-    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | bigint | number }>) {
+    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | null }>) {
       if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
       if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
     }
@@ -146,7 +146,7 @@ export async function sendFreeDelayedNotifications(): Promise<void> {
     const { data: logs } = await db
       .from('notification_logs').select('product_id, cssdeals_item_id')
       .eq('channel', 'discord_free').or(conditions.join(','));
-    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | bigint | number }>) {
+    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | null }>) {
       if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
       if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
     }

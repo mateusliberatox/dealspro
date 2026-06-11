@@ -159,7 +159,7 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   const candidateNew  = withHashes.filter((p) => !existingMap.has(p.hash) && !p.isSoldOut);
   const existingItems = withHashes.filter((p) =>  existingMap.has(p.hash));
 
-  const existingItemIdMap = new Map<string | number | bigint, { id: string | number }>();
+  const existingItemIdMap = new Map<string, { id: string | number }>();
   for (const [, val] of existingMap) {
     if (val.cssdeals_item_id != null) existingItemIdMap.set(val.cssdeals_item_id, val);
   }
