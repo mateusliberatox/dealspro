@@ -32,6 +32,22 @@ function IconTruck() {
     </svg>
   );
 }
+function IconStore() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l1-5h16l1 5"/><path d="M3 9a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/>
+      <path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 21v-5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5"/>
+    </svg>
+  );
+}
+function IconBulb() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18h6"/><path d="M10 22h4"/>
+      <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.79.79 1.23 1.46 1.41 2.5"/>
+    </svg>
+  );
+}
 function IconBox() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -295,6 +311,14 @@ export function Header() {
 
           <SideLink href="/frete" active={pathname === '/frete'} onClick={closeNav} icon={<IconTruck />}>
             Calculadora de Frete
+          </SideLink>
+
+          <SideLink href="/vendedores" active={pathname === '/vendedores'} onClick={closeNav} icon={<IconStore />}>
+            Vendedores Confiáveis
+          </SideLink>
+
+          <SideLink href="/sugestoes" active={pathname === '/sugestoes'} onClick={closeNav} icon={<IconBulb />}>
+            Sugestões &amp; Roadmap
           </SideLink>
 
           <a
