@@ -404,6 +404,30 @@
 
   <!-- ── Página: Configurações ── -->
   <div class="page" id="page-settings">
+    <div class="section-title">Geral</div>
+    <div class="settings-wrap" style="padding-bottom:0">
+      <div class="setting-group">
+        <div class="setting-label">Cotação manual CNY → BRL (opcional)</div>
+        <input class="setting-input" type="number" id="manualRateInput" placeholder="Ex: 0.80" min="0" max="5" step="0.0001" />
+        <p class="setting-note">Deixe em branco para usar a cotação automática (atualizada a cada hora). Se preenchido, esse valor passa a valer em todas as conversões e estimativas da extensão.</p>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-label">Preço convertido (BRL)</div>
+        <select class="setting-select" id="displayModeSelect">
+          <option value="add">Mostrar junto ao preço original</option>
+          <option value="replace">Substituir o preço original</option>
+        </select>
+        <p class="setting-note">"Substituir" esconde o valor em ¥ e deixa só o valor já convertido em R$ nos sites suportados.</p>
+      </div>
+
+      <div class="setting-group">
+        <a class="agent-link" id="suggestionsLink" href="#" style="text-align:left;font-weight:700">
+          💡 Sugestões e roadmap do DealsPro →
+        </a>
+      </div>
+    </div>
+
     <div class="section-title">Configurações de Frete</div>
     <div class="settings-wrap">
 

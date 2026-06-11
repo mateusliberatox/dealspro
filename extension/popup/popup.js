@@ -114,14 +114,65 @@ const AGENTS = {
 // content/common.js e background.js (contextos isolados, sem módulos
 // compartilhados). Mantenha os 3 sincronizados se este valor mudar.
 let currentRate = 0.82;
-chrome.storage.local.get(['cnyToBrl', 'rateUpdatedAt'], ({ cnyToBrl }) => {
+
+function renderRateChip(cnyToBrl, isManual) {
   const chip = document.getElementById('rateChip');
   if (cnyToBrl) {
     currentRate = cnyToBrl;
-    chip.textContent = `1 ¥ = R$ ${cnyToBrl.toFixed(4)}`;
+    chip.textContent = `1 ¥ = R$ ${cnyToBrl.toFixed(4)}${isManual ? ' (manual)' : ''}`;
   } else {
     chip.textContent = 'Sem cotação';
   }
+}
+
+chrome.storage.local.get(['cnyToBrl', 'rateUpdatedAt', 'rateIsManual'], ({ cnyToBrl, rateIsManual }) => {
+  renderRateChip(cnyToBrl, rateIsManual);
+});
+
+// ── Cotação manual (Config) ───────────────────────────────────────────────────
+
+const manualRateInp = document.getElementById('manualRateInput');
+
+chrome.storage.local.get('dpManualRate', ({ dpManualRate }) => {
+  if (dpManualRate) manualRateInp.value = dpManualRate;
+});
+
+let manualRateTimer = null;
+manualRateInp.addEventListener('input', () => {
+  clearTimeout(manualRateTimer);
+  manualRateTimer = setTimeout(() => {
+    const val = parseFloat(manualRateInp.value);
+    const update = (val > 0) ? { dpManualRate: val } : { dpManualRate: null };
+    chrome.storage.local.set(update, () => {
+      // Pede ao service worker para reavaliar a cotação imediatamente
+      // (respeitando dpManualRate, ver background.js).
+      chrome.runtime.sendMessage({ type: 'REFRESH_RATE' }, (res) => {
+        if (res?.rate) {
+          renderRateChip(res.rate, res.manual);
+          updatePreview();
+        }
+      });
+    });
+  }, 400); // debounce — evita disparar a cada dígito digitado
+});
+
+// ── Modo de exibição do preço convertido (Config) ─────────────────────────────
+
+const displayModeSel = document.getElementById('displayModeSelect');
+
+chrome.storage.local.get('dpDisplayMode', ({ dpDisplayMode }) => {
+  displayModeSel.value = (dpDisplayMode === 'replace') ? 'replace' : 'add';
+});
+
+displayModeSel.addEventListener('change', () => {
+  chrome.storage.local.set({ dpDisplayMode: displayModeSel.value });
+});
+
+// ── Link "Sugestões e roadmap" ────────────────────────────────────────────────
+
+document.getElementById('suggestionsLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  chrome.tabs.create({ url: 'https://dealspro-chi.vercel.app/sugestoes' });
 });
 
 // ── Tema ─────────────────────────────────────────────────────────────────────

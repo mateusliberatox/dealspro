@@ -31,6 +31,20 @@ async function refreshDpToken(refreshToken) {
 }
 
 async function fetchRate() {
+  // Se o usuário definiu uma cotação manual (ver popup/popup.js, página
+  // Config), ela tem prioridade sobre a cotação automática — útil quando a
+  // API está fora do ar ou o usuário quer ser conservador. Os content
+  // scripts e o popup continuam lendo apenas `cnyToBrl`, sem mudanças.
+  const { dpManualRate } = await chrome.storage.local.get('dpManualRate');
+  if (dpManualRate) {
+    await chrome.storage.local.set({
+      cnyToBrl:      dpManualRate,
+      rateUpdatedAt: Date.now(),
+      rateIsManual:  true,
+    });
+    return;
+  }
+
   try {
     const res  = await fetch('https://open.er-api.com/v6/latest/CNY');
     const data = await res.json();
@@ -40,6 +54,7 @@ async function fetchRate() {
     await chrome.storage.local.set({
       cnyToBrl:     brl,
       rateUpdatedAt: Date.now(),
+      rateIsManual: false,
     });
     console.log('[DealsPro] Cotação atualizada: 1 CNY = R$', brl.toFixed(4));
   } catch (e) {
@@ -72,6 +87,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ rate: cnyToBrl ?? 0.82 }); // fallback razoável
     });
     return true; // mantém canal aberto para resposta async
+  }
+
+  // Força a reavaliação imediata da cotação (ignora o TTL de 1h) — usado
+  // pelo popup quando o usuário define/remove a cotação manual em Config.
+  if (msg.type === 'REFRESH_RATE') {
+    fetchRate().then(async () => {
+      const { cnyToBrl, rateIsManual } = await chrome.storage.local.get(['cnyToBrl', 'rateIsManual']);
+      sendResponse({ rate: cnyToBrl ?? 0.82, manual: !!rateIsManual });
+    });
+    return true;
   }
 
   if (msg.type === 'CHECK_PRODUCT') {

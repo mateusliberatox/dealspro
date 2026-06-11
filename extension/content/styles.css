@@ -16,6 +16,24 @@
   white-space: nowrap;
 }
 
+/* Modo "substituir preço" (configurável no popup → Geral): esconde o preço
+   original em CNY (marcado com data-dp-done pelos content scripts) e faz o
+   badge BRL herdar a aparência do texto original, no lugar dele. */
+html.dp-replace-price [data-dp-done="1"] {
+  display: none !important;
+}
+html.dp-replace-price [data-dp-done="1"] + .dp-brl-badge {
+  display: inline;
+  margin-left: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: normal;
+}
+
 /* Toast de notificação */
 .dp-toast {
   position: fixed;

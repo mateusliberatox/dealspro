@@ -100,6 +100,23 @@ chrome.storage.local.get('dpModules', ({ dpModules }) => {
   if (dpModules) window.__dp.modulesEnabled = { ...window.__dp.modulesEnabled, ...dpModules };
 });
 
+// ── Modo de exibição do preço convertido ────────────────────────────────────
+// 'add' (padrão): mostra o badge BRL ao lado do preço CNY original.
+// 'replace': esconde o preço CNY original e deixa só o valor em BRL — ver
+// regra `.dp-replace-price` em styles.css. Aplicado via classe no <html> para
+// não exigir mudanças nos scripts de conversão de cada site.
+function applyDisplayMode(mode) {
+  document.documentElement.classList.toggle('dp-replace-price', mode === 'replace');
+}
+
+chrome.storage.local.get('dpDisplayMode', ({ dpDisplayMode }) => applyDisplayMode(dpDisplayMode));
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.dpDisplayMode) {
+    applyDisplayMode(changes.dpDisplayMode.newValue);
+  }
+});
+
 // ── MutationObserver helper ───────────────────────────────────────────────────
 
 // Agrupa chamadas em rajada (ex.: MutationObserver disparando a cada item
