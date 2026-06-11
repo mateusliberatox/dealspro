@@ -2,17 +2,16 @@
 // Busca a cotação CNY→BRL a cada hora e armazena no chrome.storage.local.
 // Os content scripts leem daqui sem precisar fazer chamadas externas.
 
+importScripts('shared/config.js');
+
 const RATE_TTL_MS  = 60 * 60 * 1000; // 1 hora
 const DEALSPRO_URL = 'https://dealspro-chi.vercel.app';
 
 // Mesmas credenciais públicas (anon key) usadas em popup/popup.js — necessárias
 // aqui para renovar a sessão (refresh token) quando uma chamada autenticada
 // (CREATE_ALERT) recebe 401 com o popup fechado.
-const SUPABASE_URL  = 'https://ktgypsgwxumdobakyebn.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0Z3lwc2d3eHVtZG9iYWt5ZWJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDczNDQsImV4cCI6MjA5MDEyMzM0NH0.ySFLxVz5bII76bu2TTrnNOc0LbmjmT_WI974zvqjO9o';
-
-// NOTA: 0.82 (linha do fallback de GET_RATE abaixo) também aparece em
-// content/common.js e popup/popup.js. Mantenha os 3 sincronizados.
+const SUPABASE_URL  = DP_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON = DP_CONFIG.SUPABASE_ANON;
 
 async function refreshDpToken(refreshToken) {
   try {
@@ -84,7 +83,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'GET_RATE') {
     maybeRefreshRate().then(async () => {
       const { cnyToBrl } = await chrome.storage.local.get('cnyToBrl');
-      sendResponse({ rate: cnyToBrl ?? 0.82 }); // fallback razoável
+      sendResponse({ rate: cnyToBrl ?? DP_CONFIG.FALLBACK_RATE });
     });
     return true; // mantém canal aberto para resposta async
   }
@@ -94,7 +93,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'REFRESH_RATE') {
     fetchRate().then(async () => {
       const { cnyToBrl, rateIsManual } = await chrome.storage.local.get(['cnyToBrl', 'rateIsManual']);
-      sendResponse({ rate: cnyToBrl ?? 0.82, manual: !!rateIsManual });
+      sendResponse({ rate: cnyToBrl ?? DP_CONFIG.FALLBACK_RATE, manual: !!rateIsManual });
     });
     return true;
   }

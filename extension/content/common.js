@@ -5,15 +5,12 @@ window.__dp = window.__dp || {};
 
 // ── Cotação CNY→BRL ──────────────────────────────────────────────────────────
 
-// NOTA: 0.82 é o câmbio de fallback CNY→BRL usado em 3 lugares (este arquivo,
-// background.js e popup/popup.js) porque content scripts/service worker/popup
-// rodam em contextos isolados e não compartilham módulos. Se o câmbio
-// "fallback" mudar, atualize os 3 — todos têm este mesmo comentário.
-window.__dp.rate = 0.82; // fallback enquanto carrega o câmbio real (GET_RATE)
+// Fallback enquanto carrega o câmbio real (GET_RATE) — ver shared/config.js
+window.__dp.rate = DP_CONFIG.FALLBACK_RATE;
 
 // Fallback de frete (R$) até o usuário configurar/abrir "Config": equivalente
 // ao agente padrão (CSBuy, E-Packet BR, ~500g) calculado em popup.js
-// → AGENTS.cssbuy: 28 + 22*(0.5-0.1) = 36.8 CNY × 0.82 ≈ R$ 30.
+// → AGENTS.cssbuy: 28 + 22*(0.5-0.1) = 36.8 CNY × fallback ≈ R$ 30.
 window.__dp.freightBrl = 30;
 
 chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => {
@@ -96,8 +93,13 @@ window.__dp.refreshBadges = () => {
 
 window.__dp.modulesEnabled = { converter: true, sizes: true, import: true, alerts: true };
 
-chrome.storage.local.get('dpModules', ({ dpModules }) => {
+// O toggle "Extensão ligada" (dpEnabled) desliga todos os módulos de uma vez,
+// sem mexer nas preferências individuais salvas em dpModules.
+chrome.storage.local.get(['dpModules', 'dpEnabled'], ({ dpModules, dpEnabled }) => {
   if (dpModules) window.__dp.modulesEnabled = { ...window.__dp.modulesEnabled, ...dpModules };
+  if (dpEnabled === false) {
+    for (const key of Object.keys(window.__dp.modulesEnabled)) window.__dp.modulesEnabled[key] = false;
+  }
 });
 
 // ── Modo de exibição do preço convertido ────────────────────────────────────

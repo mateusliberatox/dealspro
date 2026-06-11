@@ -1,7 +1,7 @@
 // ── DealsPro Extension Popup ─────────────────────────────────────────────────
 
-const SUPABASE_URL  = 'https://ktgypsgwxumdobakyebn.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0Z3lwc2d3eHVtZG9iYWt5ZWJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDczNDQsImV4cCI6MjA5MDEyMzM0NH0.ySFLxVz5bII76bu2TTrnNOc0LbmjmT_WI974zvqjO9o';
+const SUPABASE_URL  = DP_CONFIG.SUPABASE_URL;
+const SUPABASE_ANON = DP_CONFIG.SUPABASE_ANON;
 
 // ── Tabela de tarifas de frete por agente (CNY por pacote, destino: Brasil) ──
 // base: taxa fixa de envio (CNY)
@@ -110,10 +110,7 @@ const AGENTS = {
 
 // ── Cotação ──────────────────────────────────────────────────────────────────
 
-// NOTA: 0.82 é o câmbio de fallback CNY→BRL — duplicado em
-// content/common.js e background.js (contextos isolados, sem módulos
-// compartilhados). Mantenha os 3 sincronizados se este valor mudar.
-let currentRate = 0.82;
+let currentRate = DP_CONFIG.FALLBACK_RATE;
 
 function renderRateChip(cnyToBrl, isManual) {
   const chip = document.getElementById('rateChip');

@@ -21,31 +21,31 @@
   "content_scripts": [
     {
       "matches": ["*://*.taobao.com/*"],
-      "js": ["content/common.js", "content/taobao.js"],
+      "js": ["shared/config.js", "content/common.js", "content/taobao.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://*.goofish.com/*"],
-      "js": ["content/common.js", "content/goofish.js"],
+      "js": ["shared/config.js", "content/common.js", "content/goofish.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://*.1688.com/*"],
-      "js": ["content/common.js", "content/cn-common.js"],
+      "js": ["shared/config.js", "content/common.js", "content/cn-common.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://*.weidian.com/*"],
-      "js": ["content/common.js", "content/cn-common.js"],
+      "js": ["shared/config.js", "content/common.js", "content/cn-common.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
     },
     {
       "matches": ["*://cssdeals.com/*", "*://*.cssdeals.com/*"],
-      "js": ["content/common.js", "content/cssdeals.js"],
+      "js": ["shared/config.js", "content/common.js", "content/cssdeals.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
     }

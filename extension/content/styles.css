@@ -54,6 +54,7 @@ html.dp-replace-price [data-dp-done="1"] + .dp-brl-badge {
 }
 .dp-toast--success { background: #166534; border-color: rgba(34,197,94,0.4); }
 .dp-toast--error   { background: #7f1d1d; border-color: rgba(239,68,68,0.4); }
+.dp-toast--info    { background: #1e3a5f; border-color: rgba(59,130,246,0.4); }
 
 @keyframes dp-slide-in {
   from { opacity: 0; transform: translateY(12px); }
