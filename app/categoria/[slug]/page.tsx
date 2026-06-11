@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/header';
 import { ProductCard } from '@/components/product-card';
@@ -144,13 +145,13 @@ export default async function CategoriaPage(
             <p className="text-sm" style={{ color: 'var(--text-3)' }}>
               Nenhum produto disponível agora nesta categoria. Novos deals chegam a cada minuto.
             </p>
-            <a
+            <Link
               href="/"
               className="mt-4 inline-flex rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
               style={{ background: 'var(--accent)' }}
             >
               Ver todos os deals
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

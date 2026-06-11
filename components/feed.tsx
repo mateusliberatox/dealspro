@@ -288,7 +288,7 @@ export function Feed({ produtos: initial, isPremium = false }: { produtos: Produ
                       <ProductCard produto={featured} featured index={0} />
                     </div>
                   )}
-                  {items.map((p, i) => (
+                  {items.map((p) => (
                     <ProductCard
                       key={p.id}
                       produto={p}

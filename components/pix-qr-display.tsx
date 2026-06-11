@@ -9,7 +9,6 @@ type State = 'loading' | 'ready' | 'paid' | 'expired' | 'error';
 
 export function PixQRDisplay() {
   const [state,     setState]     = useState<State>('loading');
-  const [paymentId, setPaymentId] = useState<string | null>(null);
   const [qrBase64,  setQrBase64]  = useState<string | null>(null);
   const [qrCode,    setQrCode]    = useState<string | null>(null);
   const [copied,    setCopied]    = useState(false);
@@ -52,7 +51,6 @@ export function PixQRDisplay() {
       .then(r => r.json())
       .then((data: { error?: string; payment_id?: string; qr_code_base64?: string; qr_code?: string }) => {
         if (data.error) { setErrorMsg(data.error); setState('error'); return; }
-        setPaymentId(data.payment_id ?? null);
         setQrBase64(data.qr_code_base64 ?? null);
         setQrCode(data.qr_code ?? null);
         setState('ready');

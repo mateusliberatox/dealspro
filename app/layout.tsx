@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
@@ -87,11 +88,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto max-w-4xl px-4 flex flex-col items-center gap-3">
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
               <a href="/ranking" className="hover:text-white/60 transition-colors">Ranking</a>
-              <a href="/categoria/roupas" className="hover:text-white/60 transition-colors">Roupas</a>
-              <a href="/categoria/calcados" className="hover:text-white/60 transition-colors">Calçados</a>
-              <a href="/categoria/bolsas" className="hover:text-white/60 transition-colors">Bolsas</a>
-              <a href="/categoria/acessorios" className="hover:text-white/60 transition-colors">Acessórios</a>
-              <a href="/categoria/eletronicos" className="hover:text-white/60 transition-colors">Eletrônicos</a>
+              <Link href="/categoria/roupas" className="hover:text-white/60 transition-colors">Roupas</Link>
+              <Link href="/categoria/calcados" className="hover:text-white/60 transition-colors">Calçados</Link>
+              <Link href="/categoria/bolsas" className="hover:text-white/60 transition-colors">Bolsas</Link>
+              <Link href="/categoria/acessorios" className="hover:text-white/60 transition-colors">Acessórios</Link>
+              <Link href="/categoria/eletronicos" className="hover:text-white/60 transition-colors">Eletrônicos</Link>
               <a href="/faq" className="hover:text-white/60 transition-colors">FAQ</a>
               <a href="/sobre" className="hover:text-white/60 transition-colors">Sobre</a>
               <a href="/politica-de-privacidade" className="hover:text-white/60 transition-colors">Privacidade</a>

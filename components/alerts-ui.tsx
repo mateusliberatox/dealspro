@@ -37,20 +37,7 @@ export function AlertsUI({ profile, alerts: initial, userId }: Props) {
   const [error, setError]         = useState('');
   const [pending, startTrans] = useTransition();
 
-  const isPremium  = profile?.plan === 'premium';
-  const hasDiscord = !!profile?.discord_user_id;
-
-  const connectDiscord = async () => {
-    const supabase = createClient();
-    const { error } = await supabase.auth.linkIdentity({
-      provider: 'discord',
-      options: {
-        redirectTo: `${location.origin}/auth/callback?next=/alerts`,
-        scopes: 'identify email',
-      },
-    });
-    if (error) setError(`Erro ao conectar Discord: ${error.message}`);
-  };
+  const isPremium = profile?.plan === 'premium';
 
   const addAlert = () => {
     if (!keyword.trim() && !categoria) { setError('Informe ao menos uma palavra-chave ou categoria.'); return; }

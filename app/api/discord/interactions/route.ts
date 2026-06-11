@@ -570,14 +570,6 @@ async function handleDeclGenerate(sessionId: string, discordUserId: string) {
   const s = { ...session, moeda: session.moeda as Moeda, total_value_usd: Number(session.total_value_usd), original_value: Number(session.original_value) } as never;
   const text = buildDeclarationText(s);
 
-  // Posta no canal público com reactions
-  const shareEmbed = {
-    color:       0x3b82f6,
-    title:       '📋 Declaração para avaliação',
-    description: `<@${discordUserId}> quer saber se essa declaração faz sentido:\n\n${text}`,
-    footer:      { text: 'Sugestão da comunidade — não é garantia de liberação' },
-  };
-
   // Responde com o texto + botão de compartilhar
   const components = [{
     type: 1,

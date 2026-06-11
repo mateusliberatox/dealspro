@@ -34,8 +34,6 @@ export default async function AlertsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const now = new Date().toISOString();
-
   const [profileRes, alertsRes] = await Promise.all([
     supabase
       .from('dealspro_profiles')

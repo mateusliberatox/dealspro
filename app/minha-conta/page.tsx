@@ -10,7 +10,6 @@ import { PortalButton } from '@/components/portal-button';
 import { ReferralCopy } from '@/components/referral-copy';
 import { UpgradeButton } from '@/components/upgrade-button';
 import { DiscordConnectButton } from '@/components/discord-connect-button';
-import { TelegramConnectButton } from '@/components/telegram-connect-button';
 
 export async function generateMetadata(): Promise<Metadata> {
   const supabase = await createClient();

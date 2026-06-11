@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   handleStart,
   handleStatus,
-  handleAlertas,
   handleCancelar,
   handleFeed,
   type TelegramCtx,
