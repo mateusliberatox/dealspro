@@ -3,6 +3,7 @@
 // Stack: DeepL Free (se configurado) → MyMemory (fallback gratuito, sem chave).
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isRateLimited } from '@/lib/ratelimit';
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -43,6 +44,14 @@ async function translateWithMyMemory(text: string): Promise<string | null> {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+  if (await isRateLimited(ip, 'extension')) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { ...CORS, 'Retry-After': '60' } },
+    );
+  }
+
   const { text } = await request.json().catch(() => ({})) as { text?: string };
 
   if (!text?.trim()) {

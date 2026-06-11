@@ -4,6 +4,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { isRateLimited } from '@/lib/ratelimit';
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +14,11 @@ const db = createClient(
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET', 'Cache-Control': 'public, max-age=120' };
 
 export async function GET(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+  if (await isRateLimited(ip, 'extension')) {
+    return NextResponse.json({ found: false }, { status: 429, headers: { ...CORS, 'Retry-After': '60' } });
+  }
+
   const name = request.nextUrl.searchParams.get('name')?.trim();
   if (!name || name.length < 2) return NextResponse.json({ found: false }, { headers: CORS });
 

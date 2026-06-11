@@ -14,11 +14,11 @@ setInterval(() => {
   for (const [ip, e] of ipHits) if (now > e.resetAt) ipHits.delete(ip);
 }, 5 * 60_000).unref();
 
-function inMemoryLimit(ip: string): boolean {
+function inMemoryLimit(key: string): boolean {
   const now   = Date.now();
-  const entry = ipHits.get(ip);
+  const entry = ipHits.get(key);
   if (!entry || now > entry.resetAt) {
-    ipHits.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+    ipHits.set(key, { count: 1, resetAt: now + WINDOW_MS });
     return false;
   }
   entry.count++;
@@ -27,9 +27,9 @@ function inMemoryLimit(ip: string): boolean {
 
 // ── Upstash Redis ─────────────────────────────────────────────────────────────
 
-let _upstashLimiter: ((ip: string) => Promise<boolean>) | null = null;
+let _upstashLimiter: ((key: string) => Promise<boolean>) | null = null;
 
-async function getUpstashLimiter(): Promise<((ip: string) => Promise<boolean>) | null> {
+async function getUpstashLimiter(): Promise<((key: string) => Promise<boolean>) | null> {
   if (_upstashLimiter) return _upstashLimiter;
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null;
 
@@ -41,8 +41,8 @@ async function getUpstashLimiter(): Promise<((ip: string) => Promise<boolean>) |
       limiter: Ratelimit.slidingWindow(MAX_REQ, '1 m'),
       prefix:  'dealspro:rl',
     });
-    _upstashLimiter = async (ip: string) => {
-      const { success } = await limiter.limit(`products:${ip}`);
+    _upstashLimiter = async (key: string) => {
+      const { success } = await limiter.limit(key);
       return !success;
     };
     return _upstashLimiter;
@@ -53,8 +53,12 @@ async function getUpstashLimiter(): Promise<((ip: string) => Promise<boolean>) |
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export async function isRateLimited(ip: string): Promise<boolean> {
+/**
+ * @param scope Identifica o bucket de rate limit (cada scope tem sua própria janela por IP).
+ */
+export async function isRateLimited(ip: string, scope = 'products'): Promise<boolean> {
+  const key = `${scope}:${ip}`;
   const upstash = await getUpstashLimiter();
-  if (upstash) return upstash(ip);
-  return inMemoryLimit(ip);
+  if (upstash) return upstash(key);
+  return inMemoryLimit(key);
 }
