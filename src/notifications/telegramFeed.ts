@@ -59,7 +59,7 @@ function sentKey(userId: string, product: Product): string {
     : `${userId}:pid${product.id}`;
 }
 
-async function dispatchFeed(users: TelegramUser[], products: Product[], channel: string): Promise<number> {
+async function dispatchFeed(users: TelegramUser[], products: Product[], channel: string, { isRestock = false } = {}): Promise<number> {
   if (!users.length || !products.length) return 0;
 
   const userIds = users.map((u) => u.user_id);
@@ -69,7 +69,7 @@ async function dispatchFeed(users: TelegramUser[], products: Product[], channel:
 
   for (let i = 0; i < products.length; i++) {
     const product  = products[i];
-    const text     = buildTelegramMessage(product);
+    const text     = buildTelegramMessage(product, { isRestock });
     const imageUrl = isValidImageUrl(product.imagem) ? product.imagem : null;
     const eligible = users.filter((u) => !sentSet.has(sentKey(u.user_id, product)));
 
@@ -121,6 +121,23 @@ export async function notifyTelegramPremiumFeed(products: Product[]): Promise<vo
 
   const sent = await dispatchFeed(users as TelegramUser[], products, 'telegram_feed');
   if (sent > 0) logger.success(`Telegram premium feed: ${sent} mensagem(ns) enviada(s)`);
+}
+
+// ── Restock: anuncia para premium e free de uma vez ──────────────────────────
+
+export async function notifyTelegramRestock(products: Product[]): Promise<void> {
+  if (!process.env.TELEGRAM_BOT_TOKEN || !products.length) return;
+
+  const { data: users } = await supabase
+    .from('dealspro_profiles')
+    .select('user_id, telegram_chat_id')
+    .in('telegram_notify_mode', MODES)
+    .not('telegram_chat_id', 'is', null);
+
+  if (!users?.length) return;
+
+  const sent = await dispatchFeed(users as TelegramUser[], products, 'telegram_restock', { isRestock: true });
+  if (sent > 0) logger.success(`Telegram restock feed: ${sent} mensagem(ns) enviada(s)`);
 }
 
 // ── Free: envia quando visible_at passou ─────────────────────────────────────

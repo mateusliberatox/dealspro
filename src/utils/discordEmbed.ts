@@ -24,16 +24,18 @@ export function isValidImageUrl(url: string | null | undefined): boolean {
   } catch { return false; }
 }
 
-export function buildDiscordEmbed(p: Product): DiscordEmbed {
+const RESTOCK_COLOR = 0x22c55e;
+
+export function buildDiscordEmbed(p: Product, { isRestock = false } = {}): DiscordEmbed {
   const nome      = p.nome_traduzido || p.nome;
   const original  = p.nome_traduzido && p.nome_traduzido !== p.nome ? p.nome : null;
   const emoji     = CATEGORY_EMOJI[p.categoria ?? ''] ?? '📦';
   const categoria = p.categoria ?? 'Outros';
 
   const embed: DiscordEmbed = {
-    color:  COLOR,
+    color:  isRestock ? RESTOCK_COLOR : COLOR,
     author: { name: `${emoji}  ${categoria.toUpperCase()}  •  cssdeals.com` },
-    title:  truncate(nome, 200),
+    title:  (isRestock ? '🔄 RESTOCADO — ' : '') + truncate(nome, isRestock ? 180 : 200),
     url:    p.link,
     fields: [
       { name: '💰 Preço',   value: `**${p.preco || 'Ver no site'}**`, inline: true },

@@ -187,6 +187,64 @@ export async function sendFreeDelayedNotifications(): Promise<void> {
   if (sent > 0) logger.success(`Discord free: ${sent} notificação(ões) enviada(s)`);
 }
 
+// ── Restock: anuncia nos feeds premium e free ────────────────────────────────
+
+export async function announceRestock(products: Product[]): Promise<void> {
+  if (!products.length) return;
+  await postRestockToChannel(products, WEBHOOK_URL, 'discord_restock_premium');
+  await postRestockToChannel(products, FREE_WEBHOOK_URL, 'discord_restock_free');
+}
+
+async function postRestockToChannel(products: Product[], webhookUrl: string | undefined, channel: string): Promise<void> {
+  if (!webhookUrl || !products.length) return;
+
+  const db = getDb();
+
+  const itemIds    = products.map((p) => p.cssdeals_item_id).filter(Boolean);
+  const productIds = products.map((p) => p.id).filter(Boolean);
+  const conditions: string[] = [];
+  if (itemIds.length)    conditions.push(`cssdeals_item_id.in.(${itemIds.join(',')})`);
+  if (productIds.length) conditions.push(`product_id.in.(${productIds.join(',')})`);
+
+  const sentSet = new Set<string>();
+  if (conditions.length) {
+    const { data: logs } = await db
+      .from('notification_logs')
+      .select('product_id, cssdeals_item_id')
+      .eq('channel', channel)
+      .or(conditions.join(','));
+    for (const l of (logs ?? []) as Array<{ product_id?: string | number; cssdeals_item_id?: string | null }>) {
+      if (l.cssdeals_item_id) sentSet.add(`item:${l.cssdeals_item_id}`);
+      if (l.product_id)       sentSet.add(`pid:${l.product_id}`);
+    }
+  }
+
+  let sent = 0;
+  for (const product of products) {
+    const itemId      = product.cssdeals_item_id ?? null;
+    const alreadySent = (itemId && sentSet.has(`item:${itemId}`)) ||
+                        (!itemId && sentSet.has(`pid:${product.id}`));
+
+    if (alreadySent) continue;
+
+    try {
+      await postWebhook(webhookUrl, {
+        content: '🔄 **Produto restocado!**',
+        embeds:  [buildDiscordEmbed(product, { isRestock: true })],
+      });
+      await logSent(channel, product.id, itemId);
+      sentSet.add(itemId ? `item:${itemId}` : `pid:${product.id}`);
+      sent++;
+    } catch (err: unknown) {
+      logger.warn(`Restock webhook [${channel}] failed for ${product.id}: ${(err as Error).message}`);
+    }
+
+    if (products.length > 1) await sleep(500);
+  }
+
+  if (sent > 0) logger.success(`Discord restock [${channel}]: ${sent}/${products.length} produto(s)`);
+}
+
 // ── DM de alerta (premium) ────────────────────────────────────────────────────
 
 export async function sendDiscordDM(discordUserId: string, product: Product, isRestock = false): Promise<void> {

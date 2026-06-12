@@ -1,11 +1,12 @@
 import type { Product } from '../types.js';
 
 /** Formata a mensagem HTML de um produto para o feed do Telegram. */
-export function buildTelegramMessage(product: Product): string {
-  const nome = product.nome_traduzido || product.nome;
-  const cat  = product.categoria ? `📂 <b>${product.categoria}</b>\n` : '';
+export function buildTelegramMessage(product: Product, { isRestock = false } = {}): string {
+  const nome   = product.nome_traduzido || product.nome;
+  const cat    = product.categoria ? `📂 <b>${product.categoria}</b>\n` : '';
+  const header = isRestock ? '🔄 <b>Restocado!</b>' : '🛍️ <b>Novo deal!</b>';
   return (
-    `🛍️ <b>Novo deal!</b>\n\n` +
+    `${header}\n\n` +
     cat +
     `📦 ${nome}\n` +
     `💰 <b>${product.preco || 'Ver no site'}</b>\n\n` +

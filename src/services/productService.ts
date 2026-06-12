@@ -7,8 +7,8 @@ import { classifyProducts } from '../utils/productClassify.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
-import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord } from '../notifications/discord.js';
-import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notifications/telegramFeed.js';
+import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord, announceRestock } from '../notifications/discord.js';
+import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed, notifyTelegramRestock } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 import type { Product } from '../types.js';
 
@@ -152,7 +152,11 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
         .from('produtos_dealspro')
         .select('*')
         .in('id', restoredIds);
-      if (restocked?.length) await matchAndNotify(restocked as Product[], { isRestock: true });
+      if (restocked?.length) {
+        await matchAndNotify(restocked as Product[], { isRestock: true });
+        await announceRestock(restocked as Product[]).catch((e: Error) => logger.warn(`announceRestock falhou: ${e.message}`));
+        await notifyTelegramRestock(restocked as Product[]).catch((e: Error) => logger.warn(`notifyTelegramRestock falhou: ${e.message}`));
+      }
     }
   }
 
