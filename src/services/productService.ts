@@ -34,6 +34,7 @@ const MIN_SCRAPE_QUALITY = parseInt(process.env.MIN_SCRAPE_QUALITY ?? '200', 10)
 const TRANSLATE_CONCURRENCY = 16;
 
 let _qcEnrichmentInProgress = false;
+let hashMapCache: Awaited<ReturnType<typeof getExistingHashMap>> | null = null;
 
 /**
  * Fetches QC photos and silently updates the DB after notifications are already sent.
@@ -77,14 +78,14 @@ async function enrichWithQcImages(products: Product[]): Promise<void> {
 export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): Promise<Product[]> {
   logger.info(homepageOnly ? 'Starting fast cycle (homepage only)' : 'Starting full detection cycle');
 
-  try {
-    const deleted = await deleteOldProducts();
-    if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
-  } catch (e: unknown) {
-    logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
-  }
-
   if (!homepageOnly) {
+    try {
+      const deleted = await deleteOldProducts();
+      if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
+    } catch (e: unknown) {
+      logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
+    }
+
     try {
       await sendFreeDelayedNotifications();
       await notifyTelegramFreeFeed();
@@ -120,14 +121,20 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
     hash: generateProductHash(p.nome, p.preco, p.link),
   }));
 
-  let existingMap: Awaited<ReturnType<typeof getExistingHashMap>>;
-  try {
-    existingMap = await withRetry(() => getExistingHashMap(), 'getExistingHashMap');
-    logger.info(`DB has ${existingMap.size} existing hashes`);
-  } catch (e: unknown) {
-    logger.error(`getExistingHashMap failed após retries — abortando ciclo: ${(e as Error).message}`);
-    return [];
+  if (!homepageOnly || !hashMapCache) {
+    try {
+      hashMapCache = await withRetry(() => getExistingHashMap(), 'getExistingHashMap');
+      logger.info(`DB has ${hashMapCache.size} existing hashes`);
+    } catch (e: unknown) {
+      if (hashMapCache) {
+        logger.warn(`getExistingHashMap failed após retries — usando cache em memória: ${(e as Error).message}`);
+      } else {
+        logger.error(`getExistingHashMap failed após retries — abortando ciclo: ${(e as Error).message}`);
+        return [];
+      }
+    }
   }
+  const existingMap = hashMapCache;
 
   const soldOutLinks = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
   const scrapedLinks = new Set(withHashes.map((p) => p.link));
@@ -188,9 +195,10 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
       .filter((p) => p.sizes?.length)
       .map((p) => {
         const existing = existingMap.get(p.hash)!;
-        return mergeSizes(existing.id, existing.sizes, p.sizes).catch(
-          (e: Error) => logger.warn(`Size merge skipped: ${e.message}`),
-        );
+        const merged   = [...new Set([...(existing.sizes ?? []), ...(p.sizes ?? [])])];
+        return mergeSizes(existing.id, existing.sizes, p.sizes)
+          .then(() => { existing.sizes = merged; })
+          .catch((e: Error) => logger.warn(`Size merge skipped: ${e.message}`));
       }),
   );
 
@@ -231,6 +239,14 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   } catch (e: unknown) {
     logger.error(`insertProducts failed após retries — abortando notificações: ${(e as Error).message}`);
     return [];
+  }
+
+  if (hashMapCache) {
+    for (const p of inserted) {
+      if (p.hash && p.id != null) {
+        hashMapCache.set(p.hash, { id: p.id, sizes: p.sizes ?? [], cssdeals_item_id: p.cssdeals_item_id ?? null });
+      }
+    }
   }
 
   await dispatchNotifications(inserted).catch((e: Error) => logger.warn(`dispatchNotifications falhou: ${e.message}`));
