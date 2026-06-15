@@ -1,5 +1,5 @@
 import { scrapeCssDeals, fetchQcImage } from '../scraper/index.js';
-import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, updateProductPrice } from '../database/products.js';
+import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, updateProductPrice, cacheNewHashes } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
 import { categorize } from '../utils/categorize.js';
@@ -28,6 +28,10 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 3): 
 const MAX_QC_FETCHES        = 100;
 const QC_BATCH_SIZE         = 3;
 const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
+// Housekeeping (deleteOldProducts) faz 5 DELETEs no Supabase — caro em IO se
+// rodado todo ciclo (60s). Limita a execução a no máximo 1×/30min.
+const HOUSEKEEPING_INTERVAL_MS = 30 * 60 * 1000;
+let _lastHousekeepingAt = 0;
 // Com MAX_PAGES=1 e 20 categorias, um scrape saudável retorna ~350-380 produtos.
 // Threshold deve detectar scrapes genuinamente ruins (<50% do esperado), não o normal.
 const MIN_SCRAPE_QUALITY = parseInt(process.env.MIN_SCRAPE_QUALITY ?? '200', 10);
@@ -77,11 +81,14 @@ async function enrichWithQcImages(products: Product[]): Promise<void> {
 export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): Promise<Product[]> {
   logger.info(homepageOnly ? 'Starting fast cycle (homepage only)' : 'Starting full detection cycle');
 
-  try {
-    const deleted = await deleteOldProducts();
-    if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
-  } catch (e: unknown) {
-    logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
+  if (Date.now() - _lastHousekeepingAt >= HOUSEKEEPING_INTERVAL_MS) {
+    try {
+      const deleted = await deleteOldProducts();
+      if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
+      _lastHousekeepingAt = Date.now();
+    } catch (e: unknown) {
+      logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
+    }
   }
 
   if (!homepageOnly) {
@@ -224,6 +231,7 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   try {
     inserted = await withRetry(() => insertProducts(rows), 'insertProducts');
     logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
+    cacheNewHashes(inserted);
   } catch (e: unknown) {
     logger.error(`insertProducts failed após retries — abortando notificações: ${(e as Error).message}`);
     return [];

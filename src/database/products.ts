@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { logger } from '../utils/logger.js';
 import type { Product } from '../types.js';
 
 const TABLE = 'produtos_dealspro';
@@ -9,7 +10,13 @@ const NOTIF_LOG_DAYS     = 60;
 interface HashEntry { id: string | number; sizes: string[]; cssdeals_item_id: string | null }
 interface SyncResult { markedUnavailable: number; restored: number; restoredIds: (string | number)[]; lastSeenUpdated?: number }
 
-export async function getExistingHashMap(): Promise<Map<string, HashEntry>> {
+// Cache em memória do hash-map: evita varrer produtos_dealspro a cada ciclo
+// (a cada ~60s) e, se o Supabase estiver lento/fora, usa o último snapshot
+// conhecido em vez de abortar o ciclo inteiro.
+const HASHMAP_CACHE_TTL_MS = 10 * 60 * 1000;
+let _hashMapCache: { map: Map<string, HashEntry>; ts: number } | null = null;
+
+async function fetchHashMap(): Promise<Map<string, HashEntry>> {
   const map  = new Map<string, HashEntry>();
   const PAGE = 1000;
   let   from = 0;
@@ -32,6 +39,35 @@ export async function getExistingHashMap(): Promise<Map<string, HashEntry>> {
     from += PAGE;
   }
   return map;
+}
+
+export async function getExistingHashMap(): Promise<Map<string, HashEntry>> {
+  const now = Date.now();
+  if (_hashMapCache && (now - _hashMapCache.ts) < HASHMAP_CACHE_TTL_MS) {
+    return _hashMapCache.map;
+  }
+
+  try {
+    const map = await fetchHashMap();
+    _hashMapCache = { map, ts: now };
+    return map;
+  } catch (e) {
+    if (_hashMapCache) {
+      const ageMin = Math.round((now - _hashMapCache.ts) / 60_000);
+      logger.warn(`getExistingHashMap: usando cache de ${ageMin}min atrás (DB indisponível): ${(e as Error).message}`);
+      return _hashMapCache.map;
+    }
+    throw e;
+  }
+}
+
+/** Mantém o cache em memória sincronizado após inserts feitos por este processo. */
+export function cacheNewHashes(entries: Array<{ hash?: string; id?: string | number; sizes?: string[]; cssdeals_item_id?: string | null }>): void {
+  if (!_hashMapCache) return;
+  for (const e of entries) {
+    if (!e.hash || e.id == null) continue;
+    _hashMapCache.map.set(e.hash, { id: e.id, sizes: e.sizes ?? [], cssdeals_item_id: e.cssdeals_item_id ?? null });
+  }
 }
 
 export async function insertProducts(products: Record<string, unknown>[]): Promise<Product[]> {
