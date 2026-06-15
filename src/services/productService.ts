@@ -82,12 +82,12 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   logger.info(homepageOnly ? 'Starting fast cycle (homepage only)' : 'Starting full detection cycle');
 
   if (Date.now() - _lastHousekeepingAt >= HOUSEKEEPING_INTERVAL_MS) {
+    _lastHousekeepingAt = Date.now();
     try {
       const deleted = await deleteOldProducts();
       if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
-      _lastHousekeepingAt = Date.now();
     } catch (e: unknown) {
-      logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
+      logger.warn(`Housekeeping skipped (próxima tentativa em ${HOUSEKEEPING_INTERVAL_MS / 60_000}min): ${(e as Error).message}`);
     }
   }
 
@@ -120,7 +120,9 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
 
   let existingMap: Awaited<ReturnType<typeof getExistingHashMap>>;
   try {
-    existingMap = await withRetry(() => getExistingHashMap(), 'getExistingHashMap');
+    // 2 tentativas (não 3): com Supabase fora do ar, cada tentativa custa ~30s
+    // (timeout do client) — 3 tentativas + housekeeping excederiam o FAST_TIMEOUT_MS (2min).
+    existingMap = await withRetry(() => getExistingHashMap(), 'getExistingHashMap', 2);
     logger.info(`DB has ${existingMap.size} existing hashes`);
   } catch (e: unknown) {
     logger.error(`getExistingHashMap failed após retries — abortando ciclo: ${(e as Error).message}`);
