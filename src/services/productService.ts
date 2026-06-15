@@ -7,7 +7,7 @@ import { classifyProducts } from '../utils/productClassify.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
-import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord } from '../notifications/discord.js';
+import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord, sendAdminAlert } from '../notifications/discord.js';
 import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 import type { Product } from '../types.js';
@@ -109,17 +109,8 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   const MIN_HOMEPAGE_PRODUCTS = 5;
   if (homepageOnly && scraped.length < MIN_HOMEPAGE_PRODUCTS) {
     logger.warn(`Homepage retornou apenas ${scraped.length} produto(s) — possível quebra de seletor CSS ou bloqueio`);
-    const adminWebhook = process.env.DISCORD_ADMIN_WEBHOOK_URL;
-    if (adminWebhook) {
-      fetch(adminWebhook, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          content: `⚠️ **DealsPro — Seletor CSS degradado**: homepage retornou apenas **${scraped.length}** produto(s). Possível mudança de layout no CSSDeals ou bloqueio Cloudflare.`,
-        }),
-        signal: AbortSignal.timeout(8_000),
-      }).catch(() => {});
-    }
+    sendAdminAlert(`⚠️ **DealsPro — Seletor CSS degradado**: homepage retornou apenas **${scraped.length}** produto(s). Possível mudança de layout no CSSDeals ou bloqueio Cloudflare.`)
+      .catch(() => {});
   }
 
   const withHashes = scraped.map((p) => ({

@@ -6,6 +6,7 @@ import type { Product } from '../types.js';
 const WEBHOOK_URL     = process.env.DISCORD_WEBHOOK_URL;
 const FREE_WEBHOOK_URL = process.env.DISCORD_FREE_WEBHOOK_URL;
 const BOT_TOKEN       = process.env.DISCORD_BOT_TOKEN;
+const ADMIN_CHANNEL_ID = process.env.DISCORD_ADMIN_CHANNEL_ID ?? '1507101668259659919';
 const DISCORD_API     = 'https://discord.com/api/v10';
 
 const BATCH_ANNOUNCE_THRESHOLD = 8;
@@ -232,6 +233,27 @@ export async function sendDiscordDM(discordUserId: string, product: Product, isR
 
     const err = await msgRes.text();
     throw new Error(`DM send failed (${msgRes.status}): ${err}`);
+  }
+}
+
+// ── Canal admin (alertas de problema do bot) ──────────────────────────────────
+
+export async function sendAdminAlert(content: string): Promise<void> {
+  if (!BOT_TOKEN) { logger.warn('sendAdminAlert: DISCORD_BOT_TOKEN não configurado — alerta não enviado'); return; }
+
+  try {
+    const res = await fetch(`${DISCORD_API}/channels/${ADMIN_CHANNEL_ID}/messages`, {
+      method:  'POST',
+      headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ content }),
+      signal:  AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      logger.warn(`sendAdminAlert failed (${res.status}): ${text}`);
+    }
+  } catch (err: unknown) {
+    logger.warn(`sendAdminAlert failed: ${(err as Error).message}`);
   }
 }
 

@@ -1,6 +1,7 @@
 import { detectAndSaveNewProducts, enrichMissingQcImages } from '../services/productService.js';
 import { closeBrowser } from '../scraper/browser.js';
 import { logger } from '../utils/logger.js';
+import { sendAdminAlert } from '../notifications/discord.js';
 import 'dotenv/config';
 
 const FAST_INTERVAL = parseInt(process.env.FAST_SCRAPE_INTERVAL_SECONDS ?? '60',  10);
@@ -61,15 +62,7 @@ export function getHealthStatus(): HealthStatus {
 }
 
 async function sendDegradationAlert(message: string): Promise<void> {
-  const url = process.env.DISCORD_ADMIN_WEBHOOK_URL ?? process.env.DISCORD_WEBHOOK_URL;
-  if (!url) return;
-  try {
-    await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ content: `🚨 **DealsPro Monitor** — ${message}` }),
-    });
-  } catch { /* best-effort */ }
+  await sendAdminAlert(`🚨 **DealsPro Monitor** — ${message}`);
 }
 
 async function runFastCycle(): Promise<void> {
