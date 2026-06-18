@@ -1,19 +1,25 @@
 /**
- * Tracking de encomendas — suporta 4 providers com detecção automática:
+ * Tracking de encomendas — suporta 5 providers com detecção automática:
  *
- * 1. WONCA      (WONCA_API_KEY)           — primário, gratuito (1000 req/mês c/ link no rodapé)
+ * 1. 17Track    (SEVENTEEN_TRACK_API_KEY) — primário, gratuito, melhor cobertura internacional
+ *    Cadastro: https://www.17track.net/en/api (100 registros grátis/mês; tracking
+ *    contínuo de números já registrados não consome cota)
+ *    API ref:  POST https://api.17track.net/track/v1/register | /gettrackinfo
+ *    Auth:     17token: YOUR_KEY
+ *
+ * 2. WONCA      (WONCA_API_KEY)           — gratuito (1000 req/mês c/ link no rodapé)
  *    Cadastro: https://wonca.com.br → Dashboard → Configurar API Keys
  *    API ref:  POST https://api-labs.wonca.com.br/wonca.labs.v1.LabsService/Track
  *    Auth:     Authorization: Apikey YOUR_KEY
  *    Body:     {"code": "TRACKING_CODE"}
  *
- * 2. AfterShip  (AFTERSHIP_API_KEY)       — requer plano pago
+ * 3. TrackingMore (TRACKINGMORE_API_KEY)  — 50 tracks/mês grátis
+ *    Cadastro: https://www.trackingmore.com → Dashboard → API Keys
+ *
+ * 4. AfterShip  (AFTERSHIP_API_KEY)       — requer plano pago
  *    Cadastro: https://www.aftership.com → Settings → API Keys
  *
- * 3. 17Track    (SEVENTEEN_TRACK_API_KEY) — requer e-mail empresarial
- *    Cadastro: https://www.17track.net/en/api
- *
- * 4. Correios   (sem variável)            — fallback gratuito, sem cadastro, só códigos BR*
+ * 5. Correios   (sem variável)            — fallback gratuito, sem cadastro, só códigos BR*
  *    Scraping do site público dos Correios, best-effort.
  *
  * O sistema detecta o provider automaticamente e expõe a mesma interface pública.
@@ -67,16 +73,16 @@ export interface TrackingInfo {
 export type Provider = 'wonca' | 'trackingmore' | 'aftership' | '17track' | 'correios';
 
 function getProvider(): Provider {
+  if (process.env.SEVENTEEN_TRACK_API_KEY) return '17track';
   if (process.env.WONCA_API_KEY)           return 'wonca';
   if (process.env.TRACKINGMORE_API_KEY)    return 'trackingmore';
   if (process.env.AFTERSHIP_API_KEY)       return 'aftership';
-  if (process.env.SEVENTEEN_TRACK_API_KEY) return '17track';
   return 'correios';
 }
 
 const CORREIOS_RE = /^[A-Z]{2}\d{9}BR$/i;
 
-// ── Provider 1: WONCA (primário gratuito) ────────────────────────────────────
+// ── Provider 1: WONCA ─────────────────────────────────────────────────────────
 //
 // API WONCA Labs — https://wonca.com.br
 //
@@ -428,54 +434,100 @@ async function asGetUpdates(codes: string[]): Promise<TrackingInfo[]> {
   });
 }
 
-// ── Provider 4: 17Track (secundário) ─────────────────────────────────────────
+// ── Provider 4: 17Track (primário internacional) ─────────────────────────────
+//
+// API v1 — documentação: https://www.17track.net/en/api
+//
+// Autenticação: header  17token: YOUR_KEY
+// Base URL:     https://api.17track.net/track/v1
+//
+// Endpoints utilizados:
+//   POST /register     — registra até 40 números por chamada (consome cota mensal)
+//   POST /gettrackinfo — busca status em batch, até 40 por chamada (não consome cota
+//                        para números já registrados)
+//
+// Resposta de /gettrackinfo: data.accepted[].track = {
+//   e:  number   — código de status (ver T17_EVENT)
+//   w1: number   — código da transportadora principal
+//   z0: { a: "YYYY-MM-DD HH:mm", c: location, z: descrição } — evento mais recente
+//   z1, z2: arrays de eventos por transportadora (mais recente primeiro)
+// }
 
 const T17_KEY  = () => process.env.SEVENTEEN_TRACK_API_KEY ?? '';
-const T17_BASE = 'https://api.17track.net/track/v2.2';
+const T17_BASE = 'https://api.17track.net/track/v1';
 
+// Códigos oficiais do campo "e" (package status)
 const T17_EVENT: Record<number, TrackingStatus> = {
-  0: 'pending', 10: 'pending', 20: 'in_transit', 25: 'in_transit',
-  30: 'failed', 35: 'returned', 40: 'delivered', 50: 'failed', 60: 'customs',
+  0:  'pending',          // Not found
+  10: 'in_transit',       // In transit
+  20: 'in_transit',       // Expired (sem updates recentes — mantém em trânsito)
+  30: 'out_for_delivery', // Pick up (disponível para retirada)
+  35: 'failed',           // Undelivered (tentativa falhou)
+  40: 'delivered',        // Delivered
+  50: 'failed',           // Alert (problema/exceção)
 };
 
 async function t17Register(codes: string[]): Promise<void> {
-  await fetch(`${T17_BASE}/register`, {
-    method:  'POST',
-    headers: { '17token': T17_KEY(), 'Content-Type': 'application/json' },
-    body:    JSON.stringify(codes.map((number) => ({ number, carrier: 0 }))),
-    signal:  AbortSignal.timeout(10_000),
-  }).catch(() => {});
+  for (let i = 0; i < codes.length; i += 40) {
+    const batch = codes.slice(i, i + 40);
+    await fetch(`${T17_BASE}/register`, {
+      method:  'POST',
+      headers: { '17token': T17_KEY(), 'Content-Type': 'application/json' },
+      body:    JSON.stringify(batch.map((number) => ({ number }))),
+      signal:  AbortSignal.timeout(10_000),
+    }).catch(() => {});
+  }
 }
 
 async function t17GetUpdates(codes: string[]): Promise<TrackingInfo[]> {
-  const res = await fetch(`${T17_BASE}/gettrackinfo`, {
-    method:  'POST',
-    headers: { '17token': T17_KEY(), 'Content-Type': 'application/json' },
-    body:    JSON.stringify(codes.map((number) => ({ number }))),
-    signal:  AbortSignal.timeout(20_000),
-  }).catch(() => null);
-  if (!res?.ok) return [];
+  if (!codes.length) return [];
 
-  const body     = await res.json().catch(() => null) as Record<string, unknown> | null;
-  const accepted = (((body?.data as Record<string, unknown>)?.accepted) as unknown[]) ?? [];
+  const results: TrackingInfo[] = [];
 
-  return (accepted as Array<Record<string, unknown>>).map((item) => {
-    const w1        = ((item.track as Record<string, unknown>)?.w1) as Record<string, unknown> | null;
-    const eventCode = (w1?.e as number) ?? 0;
-    let   status    = T17_EVENT[eventCode] ?? 'in_transit';
-    const eventText = `${w1?.z ?? ''} ${w1?.v ?? ''}`.toLowerCase();
-    if (status === 'in_transit' && /customs|alfândega|receita|tributad|fisco/i.test(eventText)) {
-      status = 'customs';
+  for (let i = 0; i < codes.length; i += 40) {
+    const batch = codes.slice(i, i + 40);
+    const res   = await fetch(`${T17_BASE}/gettrackinfo`, {
+      method:  'POST',
+      headers: { '17token': T17_KEY(), 'Content-Type': 'application/json' },
+      body:    JSON.stringify(batch.map((number) => ({ number }))),
+      signal:  AbortSignal.timeout(20_000),
+    }).catch(() => null);
+
+    if (!res?.ok) continue;
+
+    const body     = await res.json().catch(() => null) as Record<string, unknown> | null;
+    const accepted = (((body?.data as Record<string, unknown>)?.accepted) as unknown[]) ?? [];
+
+    for (const item of accepted as Array<Record<string, unknown>>) {
+      const track = (item.track as Record<string, unknown>) ?? {};
+      const z0     = track.z0 as Record<string, unknown> | undefined;
+      const descr  = (z0?.z as string) ?? '';
+      const local  = (z0?.c as string) || null;
+
+      let status = T17_EVENT[(track.e as number) ?? 0] ?? 'in_transit';
+      const eventText = `${descr} ${local ?? ''}`.toLowerCase();
+      if (status === 'in_transit' && /customs|alfândega|receita federal|tributad|fisco|retenid/i.test(eventText)) {
+        status = 'customs';
+      }
+      if (/devolvid|retornad|return to sender/i.test(eventText)) {
+        status = 'returned';
+      }
+
+      const rawDate = z0?.a as string | undefined;
+      const lastAt  = rawDate ? new Date(rawDate.replace(' ', 'T')).toISOString() : null;
+
+      results.push({
+        code:      item.number as string,
+        carrier:   (track.w1 as number) ?? 0,
+        status,
+        lastEvent: local ? `${descr} — ${local}` : (descr || null),
+        lastAt,
+        provider:  '17track',
+      });
     }
-    return {
-      code:      item.number as string,
-      carrier:   (item.carrier as number) ?? 0,
-      status,
-      lastEvent: (w1?.z as string) || (w1?.v as string) || null,
-      lastAt:    (w1?.t as string) || null,
-      provider:  '17track',
-    };
-  });
+  }
+
+  return results;
 }
 
 // ── Provider 5: Correios direto (fallback gratuito) ───────────────────────────
