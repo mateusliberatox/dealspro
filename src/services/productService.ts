@@ -1,5 +1,5 @@
 import { scrapeCssDeals, fetchQcImage } from '../scraper/index.js';
-import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, updateProductPrice } from '../database/products.js';
+import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, updateProductPrice, cacheNewHashes } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
 import { categorize } from '../utils/categorize.js';
@@ -7,7 +7,7 @@ import { classifyProducts } from '../utils/productClassify.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
-import { sendFreeDelayedNotifications, recoverPremiumNotifications, announceNewBatch, updateQcImagesInDiscord, announceRestock } from '../notifications/discord.js';
+import { sendFreeDelayedNotifications, recoverPremiumNotifications, announceNewBatch, updateQcImagesInDiscord, sendAdminAlert, announceRestock } from '../notifications/discord.js';
 import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed, notifyTelegramRestock } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 import type { Product } from '../types.js';
@@ -28,13 +28,16 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, attempts = 3): 
 const MAX_QC_FETCHES        = 100;
 const QC_BATCH_SIZE         = 3;
 const FREE_DELAY_MS         = parseInt(process.env.FREE_DELAY_MINUTES ?? '30', 10) * 60 * 1000;
+// Housekeeping (deleteOldProducts) faz 5 DELETEs no Supabase — caro em IO se
+// rodado todo ciclo (60s). Limita a execução a no máximo 1×/30min.
+const HOUSEKEEPING_INTERVAL_MS = 30 * 60 * 1000;
+let _lastHousekeepingAt = 0;
 // Com MAX_PAGES=1 e 20 categorias, um scrape saudável retorna ~350-380 produtos.
 // Threshold deve detectar scrapes genuinamente ruins (<50% do esperado), não o normal.
 const MIN_SCRAPE_QUALITY = parseInt(process.env.MIN_SCRAPE_QUALITY ?? '200', 10);
 const TRANSLATE_CONCURRENCY = 16;
 
 let _qcEnrichmentInProgress = false;
-let hashMapCache: Awaited<ReturnType<typeof getExistingHashMap>> | null = null;
 
 /**
  * Fetches QC photos and silently updates the DB after notifications are already sent.
@@ -78,14 +81,17 @@ async function enrichWithQcImages(products: Product[]): Promise<void> {
 export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): Promise<Product[]> {
   logger.info(homepageOnly ? 'Starting fast cycle (homepage only)' : 'Starting full detection cycle');
 
-  if (!homepageOnly) {
+  if (Date.now() - _lastHousekeepingAt >= HOUSEKEEPING_INTERVAL_MS) {
+    _lastHousekeepingAt = Date.now();
     try {
       const deleted = await deleteOldProducts();
       if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
     } catch (e: unknown) {
-      logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
+      logger.warn(`Housekeeping skipped (próxima tentativa em ${HOUSEKEEPING_INTERVAL_MS / 60_000}min): ${(e as Error).message}`);
     }
+  }
 
+  if (!homepageOnly) {
     try {
       await recoverPremiumNotifications();
     } catch (e: unknown) {
@@ -109,17 +115,8 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   const MIN_HOMEPAGE_PRODUCTS = 5;
   if (homepageOnly && scraped.length < MIN_HOMEPAGE_PRODUCTS) {
     logger.warn(`Homepage retornou apenas ${scraped.length} produto(s) — possível quebra de seletor CSS ou bloqueio`);
-    const adminWebhook = process.env.DISCORD_ADMIN_WEBHOOK_URL;
-    if (adminWebhook) {
-      fetch(adminWebhook, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          content: `⚠️ **DealsPro — Seletor CSS degradado**: homepage retornou apenas **${scraped.length}** produto(s). Possível mudança de layout no CSSDeals ou bloqueio Cloudflare.`,
-        }),
-        signal: AbortSignal.timeout(8_000),
-      }).catch(() => {});
-    }
+    sendAdminAlert(`⚠️ **DealsPro — Seletor CSS degradado**: homepage retornou apenas **${scraped.length}** produto(s). Possível mudança de layout no CSSDeals ou bloqueio Cloudflare.`)
+      .catch(() => {});
   }
 
   const withHashes = scraped.map((p) => ({
@@ -127,20 +124,16 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
     hash: generateProductHash(p.nome, p.preco, p.link),
   }));
 
-  if (!homepageOnly || !hashMapCache) {
-    try {
-      hashMapCache = await withRetry(() => getExistingHashMap(), 'getExistingHashMap');
-      logger.info(`DB has ${hashMapCache.size} existing hashes`);
-    } catch (e: unknown) {
-      if (hashMapCache) {
-        logger.warn(`getExistingHashMap failed após retries — usando cache em memória: ${(e as Error).message}`);
-      } else {
-        logger.error(`getExistingHashMap failed após retries — abortando ciclo: ${(e as Error).message}`);
-        return [];
-      }
-    }
+  let existingMap: Awaited<ReturnType<typeof getExistingHashMap>>;
+  try {
+    // 2 tentativas (não 3): com Supabase fora do ar, cada tentativa custa ~30s
+    // (timeout do client) — 3 tentativas + housekeeping excederiam o FAST_TIMEOUT_MS (2min).
+    existingMap = await withRetry(() => getExistingHashMap(), 'getExistingHashMap', 2);
+    logger.info(`DB has ${existingMap.size} existing hashes`);
+  } catch (e: unknown) {
+    logger.error(`getExistingHashMap failed após retries — abortando ciclo: ${(e as Error).message}`);
+    return [];
   }
-  const existingMap = hashMapCache;
 
   const soldOutLinks = new Set(scraped.filter((p) => p.isSoldOut).map((p) => p.link));
   const scrapedLinks = new Set(withHashes.map((p) => p.link));
@@ -201,10 +194,9 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
       .filter((p) => p.sizes?.length)
       .map((p) => {
         const existing = existingMap.get(p.hash)!;
-        const merged   = [...new Set([...(existing.sizes ?? []), ...(p.sizes ?? [])])];
-        return mergeSizes(existing.id, existing.sizes, p.sizes)
-          .then(() => { existing.sizes = merged; })
-          .catch((e: Error) => logger.warn(`Size merge skipped: ${e.message}`));
+        return mergeSizes(existing.id, existing.sizes, p.sizes).catch(
+          (e: Error) => logger.warn(`Size merge skipped: ${e.message}`),
+        );
       }),
   );
 
@@ -242,17 +234,10 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
   try {
     inserted = await withRetry(() => insertProducts(rows), 'insertProducts');
     logger.success(`Saved ${inserted.length} new product(s) (visible to free at ${visibleAt})`);
+    cacheNewHashes(inserted);
   } catch (e: unknown) {
     logger.error(`insertProducts failed após retries — abortando notificações: ${(e as Error).message}`);
     return [];
-  }
-
-  if (hashMapCache) {
-    for (const p of inserted) {
-      if (p.hash && p.id != null) {
-        hashMapCache.set(p.hash, { id: p.id, sizes: p.sizes ?? [], cssdeals_item_id: p.cssdeals_item_id ?? null });
-      }
-    }
   }
 
   await dispatchNotifications(inserted).catch((e: Error) => logger.warn(`dispatchNotifications falhou: ${e.message}`));
