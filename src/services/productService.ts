@@ -7,7 +7,7 @@ import { classifyProducts } from '../utils/productClassify.js';
 import { logger } from '../utils/logger.js';
 import { dispatchNotifications } from '../notifications/index.js';
 import { matchAndNotify } from '../notifications/alertService.js';
-import { sendFreeDelayedNotifications, announceNewBatch, updateQcImagesInDiscord, announceRestock } from '../notifications/discord.js';
+import { sendFreeDelayedNotifications, recoverPremiumNotifications, announceNewBatch, updateQcImagesInDiscord, announceRestock } from '../notifications/discord.js';
 import { notifyTelegramPremiumFeed, notifyTelegramFreeFeed, notifyTelegramRestock } from '../notifications/telegramFeed.js';
 import { supabase } from '../database/supabase.js';
 import type { Product } from '../types.js';
@@ -84,6 +84,12 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
       if (deleted > 0) logger.info(`Deleted ${deleted} expired product(s)`);
     } catch (e: unknown) {
       logger.warn(`Housekeeping skipped (será refeito no próximo ciclo): ${(e as Error).message}`);
+    }
+
+    try {
+      await recoverPremiumNotifications();
+    } catch (e: unknown) {
+      logger.warn(`Premium recovery skipped: ${(e as Error).message}`);
     }
 
     try {

@@ -187,6 +187,33 @@ export async function sendFreeDelayedNotifications(): Promise<void> {
   if (sent > 0) logger.success(`Discord free: ${sent} notificação(ões) enviada(s)`);
 }
 
+// ── Recuperação de notificações premium perdidas ──────────────────────────────
+//
+// Roda no ciclo completo (a cada 3 min). Caso um ciclo tenha travado após o
+// INSERT mas antes do dispatchNotifications, o produto fica no banco sem
+// registro em notification_logs[discord_premium]. Essa função detecta esses
+// casos nas últimas 2h e reenvía para o canal premium imediatamente.
+
+export async function recoverPremiumNotifications(): Promise<void> {
+  if (!WEBHOOK_URL) return;
+  const db     = getDb();
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+  const { data: candidates } = await db
+    .from('produtos_dealspro')
+    .select('*')
+    .gte('criado_em', cutoff)
+    .eq('disponivel', true)
+    .order('criado_em', { ascending: true })
+    .limit(FREE_NOTIFY_BATCH_SIZE);
+
+  if (!candidates?.length) return;
+
+  // sendToDiscord já filtra pelo notification_logs[discord_premium] internamente
+  // → só envia os que ainda não foram notificados, sem duplicatas
+  await sendToDiscord(candidates as Product[]);
+}
+
 // ── Restock: anuncia nos feeds premium e free ────────────────────────────────
 
 export async function announceRestock(products: Product[]): Promise<void> {
