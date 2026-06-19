@@ -107,36 +107,33 @@ export async function deleteOldProducts(): Promise<number> {
   const cutoffAvailable = new Date();
   cutoffAvailable.setDate(cutoffAvailable.getDate() - OLD_DAYS_AVAILABLE);
 
-  const { data: d1, error: e1 } = await supabase
-    .from(TABLE).delete()
-    .lt('criado_em', cutoffUnavailable.toISOString()).eq('disponivel', false).select('id');
+  const [{ data: d1, error: e1 }, { data: d2, error: e2 }] = await Promise.all([
+    supabase.from(TABLE).delete()
+      .lt('criado_em', cutoffUnavailable.toISOString()).eq('disponivel', false).select('id'),
+    supabase.from(TABLE).delete()
+      .lt('criado_em', cutoffAvailable.toISOString()).eq('disponivel', true).select('id'),
+  ]);
   if (e1) throw new Error(`Failed to delete unavailable products: ${e1.message}`);
-
-  const { data: d2, error: e2 } = await supabase
-    .from(TABLE).delete()
-    .lt('criado_em', cutoffAvailable.toISOString()).eq('disponivel', true).select('id');
   if (e2) throw new Error(`Failed to delete old available products: ${e2.message}`);
 
   const cutoffLogs = new Date();
   cutoffLogs.setDate(cutoffLogs.getDate() - NOTIF_LOG_DAYS);
-  const { error: e3 } = await supabase
-    .from('notification_logs').delete()
-    .lt('created_at', cutoffLogs.toISOString())
-    .in('channel', ['discord_premium', 'discord_free', 'telegram_feed']);
-  if (e3) throw new Error(`Failed to delete old notification logs: ${e3.message}`);
-
   const cutoffDmLogs = new Date();
   cutoffDmLogs.setMonth(cutoffDmLogs.getMonth() - 6);
-  const { error: e4 } = await supabase
-    .from('notification_logs').delete()
-    .lt('created_at', cutoffDmLogs.toISOString())
-    .in('channel', ['discord_dm', 'telegram_dm']);
-  if (e4) throw new Error(`Failed to delete old DM logs: ${e4.message}`);
-
   const cutoffTranslations = new Date();
   cutoffTranslations.setDate(cutoffTranslations.getDate() - 90);
-  const { error: e5 } = await supabase
-    .from('translation_cache').delete().lt('criado_em', cutoffTranslations.toISOString());
+
+  const [{ error: e3 }, { error: e4 }, { error: e5 }] = await Promise.all([
+    supabase.from('notification_logs').delete()
+      .lt('created_at', cutoffLogs.toISOString())
+      .in('channel', ['discord_premium', 'discord_free', 'telegram_feed']),
+    supabase.from('notification_logs').delete()
+      .lt('created_at', cutoffDmLogs.toISOString())
+      .in('channel', ['discord_dm', 'telegram_dm']),
+    supabase.from('translation_cache').delete().lt('criado_em', cutoffTranslations.toISOString()),
+  ]);
+  if (e3) throw new Error(`Failed to delete old notification logs: ${e3.message}`);
+  if (e4) throw new Error(`Failed to delete old DM logs: ${e4.message}`);
   if (e5) throw new Error(`Failed to delete old translation cache: ${e5.message}`);
 
   return (d1?.length ?? 0) + (d2?.length ?? 0);
