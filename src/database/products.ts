@@ -191,3 +191,38 @@ export async function syncAvailability(
 
   return { markedUnavailable: toMarkUnavailable.length, restored: toRestore.length, restoredIds: toRestore, lastSeenUpdated: seenStale.length };
 }
+
+/**
+ * Detecção de restock leve para o fast cycle (a cada 60s). Consulta apenas os
+ * itens atualmente indisponíveis (subconjunto pequeno) e restaura os que
+ * reapareceram no scrape parcial — sem nunca marcar nada como indisponível,
+ * pois um scrape de homepage + categorias quentes não prova ausência.
+ *
+ * Isso faz restocks dos itens mais quentes aparecerem em ~60s em vez de
+ * esperar o full cycle (~180s+). Custo de Disk IO desprezível: lê só linhas
+ * com disponivel=false (servidas do cache) e escreve só nos itens restocados.
+ */
+export async function restoreSeenProducts(
+  scrapedLinks: Set<string>,
+  soldOutLinks: Set<string> = new Set(),
+): Promise<Pick<SyncResult, 'restored' | 'restoredIds'>> {
+  if (!scrapedLinks.size) return { restored: 0, restoredIds: [] };
+
+  const cutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from(TABLE).select('id, link').eq('disponivel', false).gte('criado_em', cutoff);
+
+  if (error) throw new Error(`restoreSeenProducts fetch failed: ${error.message}`);
+
+  const toRestore = ((data ?? []) as Array<{ id: string | number; link: string }>)
+    .filter((p) => scrapedLinks.has(p.link) && !soldOutLinks.has(p.link))
+    .map((p) => p.id);
+
+  if (!toRestore.length) return { restored: 0, restoredIds: [] };
+
+  await supabase.from(TABLE)
+    .update({ disponivel: true, last_seen_at: new Date().toISOString() })
+    .in('id', toRestore);
+
+  return { restored: toRestore.length, restoredIds: toRestore };
+}

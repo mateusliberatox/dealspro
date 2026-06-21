@@ -1,5 +1,5 @@
 import { scrapeCssDeals, fetchQcImage } from '../scraper/index.js';
-import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, updateProductPrice, cacheNewHashes } from '../database/products.js';
+import { getExistingHashMap, insertProducts, mergeSizes, deleteOldProducts, syncAvailability, restoreSeenProducts, updateProductPrice, cacheNewHashes } from '../database/products.js';
 import { generateProductHash } from '../utils/hash.js';
 import { translateName } from '../utils/translate.js';
 import { categorize } from '../utils/categorize.js';
@@ -142,14 +142,20 @@ export async function detectAndSaveNewProducts({ homepageOnly = false } = {}): P
 
   const scrapeOk = !homepageOnly && scraped.length >= MIN_SCRAPE_QUALITY;
   if (!scrapeOk && !homepageOnly) {
-    logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping availability sync to avoid false sold-out marks`);
+    logger.warn(`Scrape returned only ${scraped.length} products (< ${MIN_SCRAPE_QUALITY}) — skipping mark-unavailable, fazendo só restore`);
   }
+  // Full cycle saudável: sync completo (restaura + marca indisponível).
+  // Fast cycle ou full degradado: só restaura (scrape parcial não prova ausência),
+  // garantindo que restocks dos itens quentes apareçam em ~60s em vez de ~180s+.
   const { markedUnavailable, restored, restoredIds } = scrapeOk
     ? await syncAvailability(scrapedLinks, soldOutLinks).catch((e: Error) => {
         logger.warn(`syncAvailability falhou (não-fatal): ${e.message}`);
         return { markedUnavailable: 0, restored: 0, restoredIds: [] };
       })
-    : { markedUnavailable: 0, restored: 0, restoredIds: [] };
+    : { markedUnavailable: 0, ...await restoreSeenProducts(scrapedLinks, soldOutLinks).catch((e: Error) => {
+        logger.warn(`restoreSeenProducts falhou (não-fatal): ${e.message}`);
+        return { restored: 0, restoredIds: [] };
+      }) };
   if (markedUnavailable > 0) logger.info(`Marked ${markedUnavailable} product(s) as unavailable (esgotado)`);
   if (restored > 0) {
     logger.info(`Restored ${restored} product(s) to available (restocado)`);
