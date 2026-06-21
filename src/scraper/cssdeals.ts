@@ -14,9 +14,15 @@ const FALLBACK_CATEGORIES: Category[] = [
   { name: 'Watches',     id: 20 },
 ];
 
-const BATCH_SIZE     = 5;   // lotes maiores → ciclo completo ~40% mais rápido
-const BATCH_PAUSE_MS = 1000; // reduzido de 2s: com resource blocking, risco de rate-limit é menor
-const MAX_PAGES      = parseInt(process.env.SCRAPE_PAGES          ?? '1',  10);
+// BATCH_SIZE=3 reduz timeouts sistemáticos: com 5 paralelos, o CSSDeals rate-limita
+// e ~5 categorias falham por ciclo. Com 3, o risco cai drasticamente.
+const BATCH_SIZE     = parseInt(process.env.SCRAPE_BATCH_SIZE ?? '3',  10);
+const BATCH_PAUSE_MS = 1500; // pausa entre lotes para não saturar o CSSDeals
+// MAX_PAGES=2 é o fix principal: o CSSDeals não ordena por "mais novo primeiro",
+// então itens novos podem entrar na posição 21-40 de uma categoria e ficar
+// invisíveis por horas ou dias até subirem para a p.1. Raspando p.1+p.2
+// (posições 1-40), a cobertura dobra e o atraso máximo cai drasticamente.
+const MAX_PAGES      = parseInt(process.env.SCRAPE_PAGES          ?? '2',  10);
 const MAX_CATEGORIES = parseInt(process.env.SCRAPE_MAX_CATEGORIES ?? '20', 10);
 
 // Categorias mais ativas incluídas no fast cycle (raspa em paralelo com a homepage).
