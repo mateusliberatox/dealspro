@@ -143,7 +143,11 @@ export async function deleteOldProducts(): Promise<number> {
 }
 
 const UNAVAIL_THRESHOLD_MS = 3 * 60 * 60 * 1000;
-const LAST_SEEN_STALE_MS   = 30 * 60 * 1000;
+// last_seen_at só é usado para marcar indisponível após UNAVAIL_THRESHOLD_MS (3h),
+// então refrescá-lo a cada 60min (em vez de 30) não afeta a lógica de esgotado —
+// mas corta pela metade a maior fonte de escrita em produtos_dealspro (~48k upd/dia).
+// Isso compensa o aumento de produtos rastreados por ciclo após MAX_PAGES=2.
+const LAST_SEEN_STALE_MS   = parseInt(process.env.LAST_SEEN_STALE_MINUTES ?? '60', 10) * 60 * 1000;
 
 export async function syncAvailability(
   scrapedLinks: Set<string>,
