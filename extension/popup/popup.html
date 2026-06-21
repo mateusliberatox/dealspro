@@ -205,12 +205,12 @@
     .footer-nav { display: flex; flex: 1; }
     .nav-btn {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 3px; padding: 6px 2px 5px; border-radius: 0;
-      font-size: 9px; font-weight: 600; line-height: 1;
+      gap: 2px; padding: 5px 1px 4px; border-radius: 0;
+      font-size: 8px; font-weight: 600; line-height: 1;
       cursor: pointer; border: none; background: none; color: var(--text3);
       transition: background 0.15s, color 0.15s;
     }
-    .nav-btn .nav-icon { font-size: 15px; line-height: 1; }
+    .nav-btn .nav-icon { font-size: 14px; line-height: 1; }
     .nav-btn:hover  { background: var(--bg3); color: var(--text2); }
     .nav-btn.active { background: var(--accent-bg); color: var(--accent); }
     .theme-toggle {
@@ -403,7 +403,7 @@
   </div>
 
   <!-- ── Página: Configurações ── -->
-  <div class="page" id="page-settings">
+  <div class="page" id="page-config">
     <div class="section-title">Geral</div>
     <div class="settings-wrap" style="padding-bottom:0">
       <div class="setting-group">
@@ -426,15 +426,33 @@
           💡 Sugestões e roadmap do DealsPro →
         </a>
       </div>
-    </div>
 
-    <div class="section-title">Configurações de Frete</div>
+      <div class="setting-group">
+        <button class="btn-primary" id="openSettingsBtn" style="width:100%">
+          ⚙️ Abrir painel de configurações
+        </button>
+        <p class="setting-note">Gerenciar conta, alertas e notificações em <strong style="color:var(--text2)">dealspro-chi.vercel.app/settings</strong>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Página: Frete ── -->
+  <div class="page" id="page-frete">
+    <div class="section-title">Simulação de Frete</div>
     <div class="settings-wrap">
+
+      <div class="setting-group">
+        <div class="setting-label">Valor do produto</div>
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;pointer-events:none">R$</span>
+          <input class="setting-input" type="number" id="productPrice" placeholder="150" min="0" max="99999" step="10" style="padding-left:30px" value="150" />
+        </div>
+      </div>
 
       <div class="setting-group">
         <div class="setting-label">Agente de compras</div>
         <select class="setting-select" id="agentSelect">
-          <option value="cssbuy">CSBuy</option>
+          <option value="cssbuy">CSSBuy</option>
           <option value="pandabuy">Pandabuy</option>
           <option value="sugargoo">Sugargoo</option>
           <option value="superbuy">Superbuy</option>
@@ -488,19 +506,22 @@
   <!-- ── Footer / Tab bar ── -->
   <div class="footer">
     <div class="footer-nav">
-      <button class="nav-btn active" data-page="features">
+      <button class="nav-btn active" data-page="features" aria-label="Módulos">
         <span class="nav-icon">🏠</span>Módulos
       </button>
-      <button class="nav-btn" data-page="search">
+      <button class="nav-btn" data-page="search" aria-label="Busca inteligente">
         <span class="nav-icon">🔍</span>Busca
       </button>
-      <button class="nav-btn" data-page="orders">
+      <button class="nav-btn" data-page="orders" aria-label="Pedidos e rastreamento">
         <span class="nav-icon">📦</span>Pedidos
       </button>
-      <button class="nav-btn" data-page="sizes">
+      <button class="nav-btn" data-page="sizes" aria-label="Guia de tamanhos">
         <span class="nav-icon">📏</span>Tamanhos
       </button>
-      <button class="nav-btn" data-page="settings">
+      <button class="nav-btn" data-page="frete" aria-label="Simulação de frete">
+        <span class="nav-icon">🚢</span>Frete
+      </button>
+      <button class="nav-btn" data-page="config" aria-label="Configurações">
         <span class="nav-icon">⚙️</span>Config
       </button>
     </div>

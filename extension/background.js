@@ -48,10 +48,12 @@ async function fetchRate() {
     const res  = await fetch('https://open.er-api.com/v6/latest/CNY');
     const data = await res.json();
     const brl  = data?.rates?.BRL;
+    const usd  = data?.rates?.USD;
     if (!brl) return;
 
     await chrome.storage.local.set({
       cnyToBrl:     brl,
+      cnyToUsd:     usd ?? (1 / 7.15),
       rateUpdatedAt: Date.now(),
       rateIsManual: false,
     });

@@ -148,7 +148,7 @@
     convertPrices();
     injectSizeGuide();
     if (isProductPage) injectSellerRating();
-    if (++attempts > 10) clearInterval(tryInject);
+    if (++attempts > 20) clearInterval(tryInject);
   }, 600);
 
   // Debounced: agrupa mutações em rajada (SPA carregando itens) numa só

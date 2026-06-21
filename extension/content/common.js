@@ -6,7 +6,8 @@ window.__dp = window.__dp || {};
 // ── Cotação CNY→BRL ──────────────────────────────────────────────────────────
 
 // Fallback enquanto carrega o câmbio real (GET_RATE) — ver shared/config.js
-window.__dp.rate = DP_CONFIG.FALLBACK_RATE;
+window.__dp.rate     = DP_CONFIG.FALLBACK_RATE;
+window.__dp.cnyToUsd = 1 / 7.15; // fallback CNY→USD até storage carregar
 
 // Fallback de frete (R$) até o usuário configurar/abrir "Config": equivalente
 // ao agente padrão (CSBuy, E-Packet BR, ~500g) calculado em popup.js
@@ -27,6 +28,10 @@ chrome.runtime.sendMessage({ type: 'GET_RATE' }, (res) => {
     // texto deles para refletir o câmbio correto.
     window.__dp.refreshBadges();
   }
+});
+
+chrome.storage.local.get('cnyToUsd', ({ cnyToUsd }) => {
+  if (cnyToUsd) window.__dp.cnyToUsd = cnyToUsd;
 });
 
 // Carrega configuração de frete salva pelo usuário

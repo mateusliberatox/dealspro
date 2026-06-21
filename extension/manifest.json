@@ -11,7 +11,8 @@
     "*://*.1688.com/*",
     "*://*.weidian.com/*",
     "*://cssdeals.com/*",
-    "*://*.cssdeals.com/*"
+    "*://*.cssdeals.com/*",
+    "https://api.mymemory.translated.net/*"
   ],
 
   "background": {

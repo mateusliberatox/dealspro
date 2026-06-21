@@ -10,7 +10,7 @@ const SUPABASE_ANON = DP_CONFIG.SUPABASE_ANON;
 // Fonte: calculadoras públicas dos agentes (valores aproximados, atualizar periodicamente)
 const AGENTS = {
   cssbuy: {
-    name: 'CSBuy', url: 'https://www.cssbuy.com/estimates',
+    name: 'CSSBuy', url: 'https://www.cssbuy.com/estimates',
     methods: {
       'E-Packet BR':           { base: 28,  perKg: 22,  minKg: 0.1 },
       'Linha Brasil (CNE)':    { base: 35,  perKg: 22,  minKg: 0.1 },
@@ -275,21 +275,21 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
 
   if (!text) return;
   errEl.style.display = 'none'; result.style.display = 'none';
-  btn.textContent = '…'; btn.disabled = true;
+  btn.textContent = 'Buscando…'; btn.disabled = true;
 
   try {
-    const res  = await fetch(`${DEALSPRO_API}/api/extension/translate`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ text }),
-      signal:  AbortSignal.timeout(10_000),
-    });
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=pt-BR|zh-CN`,
+      { signal: AbortSignal.timeout(8_000) },
+    );
     const data = await res.json();
-    if (!res.ok || !data.translated) throw new Error('sem tradução');
+    const translated = data?.responseData?.translatedText?.trim();
+    if (!res.ok || data?.responseStatus !== 200 || !translated || translated === text)
+      throw new Error('sem tradução');
 
-    transEl.textContent  = data.translated;
+    transEl.textContent  = translated;
     result.style.display = 'block';
-    chrome.tabs.create({ url: SEARCH_URLS[site]?.(data.translated) ?? SEARCH_URLS.taobao(data.translated) });
+    chrome.tabs.create({ url: SEARCH_URLS[site]?.(translated) ?? SEARCH_URLS.taobao(translated) });
   } catch {
     errEl.textContent = 'Falha na tradução. Verifique sua conexão.';
     errEl.style.display = 'block';
@@ -422,36 +422,35 @@ function updatePreview() {
   const method    = methodSel.value;
   const weightG   = Math.max(10, parseInt(weightInp.value) || 500);
   const freight   = calcFreight(agentKey, method, weightG);
+  const prodBrl   = parseFloat(document.getElementById('productPrice').value) || 150;
 
   const TAX_THRESH_USD = 50;
-  // Produto fictício de R$ 150 para mostrar exemplo
-  const prodBrl = 150;
-  // 5.8 é uma aproximação fixa do câmbio USD→BRL, usada só para estimar se o
-  // produto-exemplo passaria do limiar de imposto. Independente das taxas
-  // CNY→USD aproximadas usadas em goofish.js (cny*0.14) e cn-common.js
-  // (1/7.15) — aqui o ponto de partida já é BRL, não CNY.
-  const prodUsd = prodBrl / 5.8;
-  const hasTax  = prodUsd > TAX_THRESH_USD;
-  const taxBrl  = hasTax ? prodBrl * 0.6 : 0;
+  // 5.8 é uma aproximação fixa do câmbio USD→BRL, usada só para estimar o limiar de imposto.
+  const prodUsd  = prodBrl / 5.8;
+  const hasTax   = prodUsd > TAX_THRESH_USD;
+  const taxBrl   = hasTax ? prodBrl * 0.6 : 0;
   const totalBrl = prodBrl + freight.brl + taxBrl;
 
+  const fmt = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
   const rows = document.getElementById('shippingRows');
   rows.innerHTML = `
-    <div class="shipping-row"><span>Produto (ex: R$ 150,00)</span><span>R$ 150,00</span></div>
+    <div class="shipping-row"><span>Produto</span><span>${fmt(prodBrl)}</span></div>
     <div class="shipping-row">
       <span>Frete ${freight.cny ? `(¥${freight.cny} × câmbio)` : '(personalizado)'}</span>
-      <span>R$ ${freight.brl.toFixed(2).replace('.', ',')}</span>
+      <span>${fmt(freight.brl)}</span>
     </div>
-    <div class="shipping-row"><span>Imposto (ex, prod. > US$50)</span><span style="color:#ef4444">R$ ${taxBrl.toFixed(2).replace('.', ',')}</span></div>
-    <div class="shipping-row"><span>Total estimado</span><span>R$ ${totalBrl.toFixed(2).replace('.', ',')}</span></div>
+    ${hasTax
+      ? `<div class="shipping-row"><span>Imposto de importação (60%)</span><span style="color:#ef4444">${fmt(taxBrl)}</span></div>`
+      : `<div class="shipping-row"><span style="color:#16a34a">✓ Sem imposto (&lt; US$50)</span><span style="color:#16a34a">${fmt(0)}</span></div>`}
+    <div class="shipping-row"><span>Total estimado</span><span>${fmt(totalBrl)}</span></div>
   `;
 
-  // Salva configuração + valor calculado para uso nos content scripts
   chrome.storage.local.set({
     dpShipping: {
       agent: agentKey, method, weightG,
-      customBrl: parseFloat(customInp.value) || 80,
+      customBrl:    parseFloat(customInp.value) || 80,
       customPer100g: parseFloat(customPer100gInp?.value) || 0,
+      productBrl:   prodBrl,
     },
     dpShippingBrl: freight.brl,
   });
@@ -459,13 +458,13 @@ function updatePreview() {
 
 // Carrega configuração salva
 chrome.storage.local.get('dpShipping', ({ dpShipping }) => {
-  const cfg = dpShipping ?? { agent: 'cssbuy', method: 'E-Packet BR', weightG: 500, customBrl: 80, customPer100g: 0 };
+  const cfg = dpShipping ?? { agent: 'cssbuy', method: 'E-Packet BR', weightG: 500, customBrl: 80, customPer100g: 0, productBrl: 150 };
   agentSel.value  = cfg.agent  ?? 'cssbuy';
   weightInp.value = cfg.weightG ?? 500;
   customInp.value = cfg.customBrl ?? 80;
   if (customPer100gInp) customPer100gInp.value = cfg.customPer100g || '';
+  document.getElementById('productPrice').value = cfg.productBrl ?? 150;
   buildMethodOptions(agentSel.value);
-  // Seleciona método salvo
   for (const opt of methodSel.options) {
     if (opt.value === cfg.method) { opt.selected = true; break; }
   }
@@ -478,6 +477,7 @@ methodSel.addEventListener('change', updatePreview);
 weightInp.addEventListener('input',  () => { syncWeightPresets(); updatePreview(); });
 customInp.addEventListener('input',  updatePreview);
 customPer100gInp?.addEventListener('input', updatePreview);
+document.getElementById('productPrice').addEventListener('input', updatePreview);
 
 weightPresetsEl.querySelectorAll('.weight-preset').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -655,4 +655,10 @@ const sessionReady = (async () => {
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
   chrome.storage.local.remove(['dpToken', 'dpRefreshToken', 'dpEmail', 'dpPlan'], showLogin);
+});
+
+// ── Configurações web ─────────────────────────────────────────────────────────
+
+document.getElementById('openSettingsBtn').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'https://dealspro-chi.vercel.app/settings' });
 });

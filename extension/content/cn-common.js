@@ -86,7 +86,7 @@
 
     const FRETE_BRL = window.__dp.freightBrl ?? 30; // atualizado por common.js
     const TAX_THRESHOLD_USD = 50;
-    const CNY_TO_USD = 1 / 7.15; // taxa fixa aproximada CNY→USD
+    const CNY_TO_USD = window.__dp.cnyToUsd ?? (1 / 7.15); // taxa dinâmica (background.js)
 
     const productBrl = parseFloat(window.__dp.cnyToBrl(cny));
     const productUsd = cny * CNY_TO_USD;
