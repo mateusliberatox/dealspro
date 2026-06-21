@@ -16,7 +16,11 @@ ENV HEADLESS=true
 ENV SCRAPE_INTERVAL_SECONDS=240
 ENV FAST_SCRAPE_INTERVAL_SECONDS=60
 ENV SCRAPE_MAX_CATEGORIES=15
-ENV SCRAPE_PAGES=1
+# SCRAPE_PAGES=2: raspa posições 1-40 de cada categoria. O CSSDeals não ordena
+# por "mais novo primeiro", então itens novos na posição 21-40 ficavam invisíveis
+# por horas. Compensado por BATCH_SIZE=3 (default no código) e throttle de
+# last_seen_at em 60min para manter Disk IO/CPU estáveis.
+ENV SCRAPE_PAGES=2
 ENV FAST_CATEGORY_IDS=18,11
 
 # Limita o heap V8 do processo Node principal — sem isso o heap cresce sem
